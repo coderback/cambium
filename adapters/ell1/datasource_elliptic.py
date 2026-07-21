@@ -24,10 +24,12 @@ import torch
 from torch_geometric.data import Data
 from torch_geometric.utils import to_undirected
 
-# Canonical Elliptic dimensions (doc §2.1). Verified by ``load_elliptic(strict=True)``.
+# Canonical Elliptic dimensions (doc §2.1, ADR-001). Verified by ``load_elliptic(strict=True)``.
+# Raw CSV = 167 cols = txId + time_step + 165 features. The paper's "166" counts time_step
+# among the local features; we carry time_step on data.time_step (split only), never in x.
 EXPECTED_NODES = 203_769
 EXPECTED_STEPS = 49
-EXPECTED_FEATURES = 166
+EXPECTED_FEATURES = 165
 
 # Class label encoding. The CSV uses '1'=illicit, '2'=licit, 'unknown'=unlabelled.
 ILLICIT, LICIT, UNKNOWN = 1, 0, -1

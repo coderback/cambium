@@ -16,3 +16,5 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 /gbe/CLAUDE.md
+/notebooks/
+/decisions/
