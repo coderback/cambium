@@ -1,0 +1,16 @@
+# ELL-1 (Elliptic) experiment config. Split values are model-specific and live here,
+# never in gbe/ (gbe/CLAUDE.md rule 3). They flow into gbe.run's config hash, so the
+# temporal cutoff — a result-deciding input — is provenance-tracked in registry.csv.
+model: ell1
+phase: P0
+data_snapshot_id: elliptic-kaggle-v1
+
+# Temporal holdout (doc-01 §2.3): train on steps 1-34, test on 35-49 (Weber et al. 2019).
+split:
+  time_attr: time_step
+  train_max: 34
+  test_min: 35
+  test_max: 49
+
+# Edges symmetrised by default; directed is an ablation (doc-01 §3).
+symmetrise: true
