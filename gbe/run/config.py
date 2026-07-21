@@ -52,8 +52,37 @@ def git_commit(repo_root: Path | None = None) -> str:
         return "unknown"
 
 
-def git_dirty(repo_root: Path | None = None) -> bool:
-    """True if the working tree has uncommitted changes (or git state is unknown)."""
+# Run *outputs* that must not count as a dirty working tree: the append-only registry
+# is written by every run, so a tracked registry.csv would mark every run after the first
+# in a batch as dirty for a non-reason. dirty must mean uncommitted *code/config* (ADR-002).
+IGNORED_DIRTY_PATHS: frozenset[str] = frozenset({"experiments/registry.csv"})
+
+
+def _dirty_paths(porcelain: str, ignore: frozenset[str]) -> list[str]:
+    """Paths from ``git status --porcelain`` output, minus ignored run-output artifacts."""
+    paths: list[str] = []
+    for line in porcelain.splitlines():
+        if not line.strip():
+            continue
+        path = line[3:].strip()  # porcelain: 2 status chars + space, then the path
+        if " -> " in path:  # rename/copy: "old -> new"
+            path = path.split(" -> ", 1)[1]
+        path = path.strip('"')
+        if path not in ignore:
+            paths.append(path)
+    return paths
+
+
+def git_dirty(
+    repo_root: Path | None = None,
+    ignore: frozenset[str] = IGNORED_DIRTY_PATHS,
+) -> bool:
+    """True if the working tree has uncommitted code/config (or git state is unknown).
+
+    Run-output artifacts (``ignore``, default the append-only registry) are excluded so a
+    run's ``dirty`` flag reflects whether its *inputs* were committed, not that it appended
+    its own row to a tracked registry (ADR-002).
+    """
     try:
         out = subprocess.run(
             ["git", "status", "--porcelain"],
@@ -62,7 +91,7 @@ def git_dirty(repo_root: Path | None = None) -> bool:
             text=True,
             check=True,
         )
-        return bool(out.stdout.strip())
+        return bool(_dirty_paths(out.stdout, ignore))
     except (subprocess.CalledProcessError, FileNotFoundError):
         return True
 
