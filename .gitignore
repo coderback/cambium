@@ -1,3 +1,17 @@
 /.venv/
 /docs/
 /CLAUDE.md
+
+# data, artifacts, secrets — never committed
+data/
+checkpoints/
+wandb/
+*.pt
+.env
+
+# editor / python caches
+.idea/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
