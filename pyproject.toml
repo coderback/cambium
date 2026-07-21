@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gbe"
+version = "0.1.0"
+description = "GBE — shared graph-based embedding core (domain-agnostic engine for ELL-1/DGF-1/EDR-1/EDL-1)"
+requires-python = ">=3.11"
+dependencies = [
+    "torch",
+    "torch-geometric",
+    "pandas",
+    "scikit-learn",
+    "pyyaml",
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+include = ["gbe*", "adapters*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
