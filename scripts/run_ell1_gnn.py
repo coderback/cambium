@@ -23,13 +23,12 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import yaml
 
 from gbe.run.config import git_commit
 from gbe.run.registry import default_registry_path
 from adapters.ell1.datasource_elliptic import load_elliptic
-from adapters.ell1.eval import CONFIG_PATH, ell1_eval_split
-from adapters.ell1.train_gnn import GNNHParams, resolve_device, run_gnn
+from adapters.ell1.eval import ell1_eval_split
+from adapters.ell1.train_gnn import GNNHParams, frozen_hparams, resolve_device, run_gnn
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SEEDS = (0, 1, 2)
@@ -39,24 +38,12 @@ METRIC_COLS = ("illicit_f1", "illicit_recall", "illicit_auc")
 
 
 def load_frozen() -> tuple[GNNHParams, dict, str]:
-    """Read the frozen GNN config + experiment metadata from adapters/ell1/config.yaml."""
-    cfg = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
-    g = cfg["gnn"]
-    hp = GNNHParams(
-        backbone=g["backbone"], num_layers=g["num_layers"], hidden_dim=g["hidden_dim"],
-        aggr=g["aggr"], dropout=g["dropout"], lr=float(g["lr"]), fan_out=tuple(g["fan_out"]),
-        encoder_layers=g["encoder_layers"], norm=g["norm"], epochs=g["epochs"],
-        batch_size=g["batch_size"], weight_decay=float(g["weight_decay"]),
-    )
-    base_cfg = {
-        "model": cfg["model"],
-        "phase": "P1",  # these are Phase-1 runs (config.yaml's default P0 was for Gate 0)
-        "data_snapshot_id": cfg["data_snapshot_id"],
-        "split": cfg["split"],
-        "symmetrise": cfg["symmetrise"],
-        "features": 165,  # ADR-001
-    }
-    return hp, base_cfg, str(cfg.get("device", "auto"))
+    """Read the frozen GNN config + experiment metadata from adapters/ell1/config.yaml.
+
+    Delegates to the adapter so the Gate-1 runner and the inner-window diagnostics parse the
+    frozen ADR-003 block through one code path.
+    """
+    return frozen_hparams()
 
 
 def _read_rows(registry_path: Path, run_ids: set[str]) -> list[dict]:

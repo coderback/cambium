@@ -1,5 +1,6 @@
 """gbe.eval — temporal-holdout harness, metrics, ablations, gate runner."""
 
+from gbe.eval.ablations import scramble_edges
 from gbe.eval.metrics import classification_metrics
 from gbe.eval.temporal import (
     TemporalSplit,
@@ -14,4 +15,5 @@ __all__ = [
     "induced_train_subgraph",
     "assert_no_temporal_leakage",
     "classification_metrics",
+    "scramble_edges",
 ]

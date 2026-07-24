@@ -19,9 +19,11 @@ the baselines' discipline so a full-data statistic never leaks the test window.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 import torch
+from sklearn.preprocessing import QuantileTransformer
 from torch import Tensor, nn
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborLoader
@@ -80,6 +82,64 @@ def standardize_fit_on_train(x: Tensor, time_step: Tensor, train_max: int) -> Te
     mu = x[train_mask].mean(dim=0, keepdim=True)
     sigma = x[train_mask].std(dim=0, keepdim=True).clamp_min(1e-6)
     return (x - mu) / sigma
+
+
+def rank_gauss_fit_on_train(x: Tensor, time_step: Tensor, train_max: int) -> Tensor:
+    """Rank-transform features to a Gaussian, quantiles fit on steps <= train_max only.
+
+    Same fit-on-train discipline as :func:`standardize_fit_on_train`, but rank-based: it is
+    immune to the heavy tails in Elliptic's aggregated features (a third of the 165 still
+    reach |z| > 50 after standardisation), which a tree baseline ignores by construction and
+    an MLP does not. The diagnostic arm for handicap #3 — not the frozen ADR-003 path.
+    """
+    train_mask = (time_step <= train_max).numpy()
+    arr = x.numpy()
+    qt = QuantileTransformer(
+        output_distribution="normal",
+        n_quantiles=min(1000, int(train_mask.sum())),
+        subsample=None,
+        random_state=0,
+    )
+    qt.fit(arr[train_mask])
+    return torch.from_numpy(qt.transform(arr)).float()
+
+
+FEATURE_TRANSFORMS: dict[str, Callable[[Tensor, Tensor, int], Tensor]] = {
+    "standardize": standardize_fit_on_train,
+    "rank_gauss": rank_gauss_fit_on_train,
+}
+
+
+def frozen_hparams(config_path=None) -> tuple[GNNHParams, dict[str, Any], str]:
+    """Read the frozen ADR-003 ``gnn:`` block from the adapter config.
+
+    One source of truth for the frozen config: the Gate-1 runner and the inner-window
+    diagnostics both parse it here, so they cannot drift apart.
+
+    Returns ``(hparams, base_config_values, device_string)``.
+    """
+    import yaml
+
+    from adapters.ell1.eval import CONFIG_PATH
+
+    path = Path(config_path) if config_path is not None else CONFIG_PATH
+    cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
+    g = cfg["gnn"]
+    hp = GNNHParams(
+        backbone=g["backbone"], num_layers=g["num_layers"], hidden_dim=g["hidden_dim"],
+        aggr=g["aggr"], dropout=g["dropout"], lr=float(g["lr"]), fan_out=tuple(g["fan_out"]),
+        encoder_layers=g["encoder_layers"], norm=g["norm"], epochs=g["epochs"],
+        batch_size=g["batch_size"], weight_decay=float(g["weight_decay"]),
+    )
+    base_cfg = {
+        "model": cfg["model"],
+        "phase": "P1",  # these are Phase-1 runs (config.yaml's default P0 was for Gate 0)
+        "data_snapshot_id": cfg["data_snapshot_id"],
+        "split": cfg["split"],
+        "symmetrise": cfg["symmetrise"],
+        "features": 165,  # ADR-001
+    }
+    return hp, base_cfg, str(cfg.get("device", "auto"))
 
 
 def class_weights(y: Tensor, seed_mask: Tensor, device: torch.device) -> Tensor:
@@ -173,7 +233,7 @@ def train_model(
 
 
 @torch.no_grad()
-def evaluate(
+def predict_window(
     model: NodeClassifier,
     x: Tensor,
     edge_index: Tensor,
@@ -181,12 +241,15 @@ def evaluate(
     y: Tensor,
     split: TemporalSplit,
     device: torch.device,
-) -> tuple[dict[str, float], dict[str, int]]:
-    """Strict-inductive eval on the test window: forward over the test-induced subgraph only.
+):
+    """Strict-inductive forward over one window's induced subgraph -> labelled-node scores.
 
     Builds the subgraph of nodes in ``[test_min, test_max]`` (both endpoints in the window),
-    forwards it once, and scores the labelled test nodes. Returns ``(metrics, meta)`` with
-    illicit-class F1/recall/precision/AUC and the support counts for the gate file.
+    forwards it once, and returns ``(y_true, proba_illicit, pred, time_step, meta)`` restricted
+    to the labelled nodes. ``pred`` is the plain argmax (the 0.5 operating point).
+
+    This is the single scoring path: :func:`evaluate` and the inner-window diagnostics both go
+    through it, so a diagnostic number is directly comparable to a gate number.
     """
     _, test_mask = split_masks(time_step, split)
     sub_edge, _ = subgraph(
@@ -201,17 +264,37 @@ def evaluate(
     pred = logits.argmax(dim=-1).cpu()
 
     labelled = y_test != UNKNOWN
-    y_l = y_test[labelled].numpy()
-    metrics = classification_metrics(
-        y_l,
-        proba_illicit[labelled].numpy(),
-        pred[labelled].numpy(),
-        pos_label=ILLICIT,
-    )
     meta = {
         "n_test": int(labelled.sum()),
         "n_test_illicit": int((y_test[labelled] == ILLICIT).sum()),
     }
+    return (
+        y_test[labelled].numpy(),
+        proba_illicit[labelled].numpy(),
+        pred[labelled].numpy(),
+        time_step[test_mask][labelled].numpy(),
+        meta,
+    )
+
+
+def evaluate(
+    model: NodeClassifier,
+    x: Tensor,
+    edge_index: Tensor,
+    time_step: Tensor,
+    y: Tensor,
+    split: TemporalSplit,
+    device: torch.device,
+) -> tuple[dict[str, float], dict[str, int]]:
+    """Strict-inductive eval on the test window: forward over the test-induced subgraph only.
+
+    Scores the labelled window nodes at the argmax operating point. Returns ``(metrics, meta)``
+    with illicit-class F1/recall/precision/AUC and the support counts for the gate file.
+    """
+    y_l, proba_l, pred_l, _, meta = predict_window(
+        model, x, edge_index, time_step, y, split, device
+    )
+    metrics = classification_metrics(y_l, proba_l, pred_l, pos_label=ILLICIT)
     return metrics, meta
 
 
