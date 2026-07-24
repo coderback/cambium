@@ -9,6 +9,9 @@ wandb/
 *.pt
 .env
 
+# HPO working DB (resumable Optuna storage); the committed provenance is the study CSV + ADR
+experiments/*.db
+
 # editor / python caches
 .idea/
 __pycache__/
