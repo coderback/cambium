@@ -70,6 +70,10 @@ def _rf_floor(registry_path: Path) -> dict[str, tuple[float, float]]:
 
 
 def _stats(values) -> tuple[float, float]:
+    # Population std (numpy default, ddof=0) — deliberately left as-is so this script still
+    # reproduces the dated GATE-ELL1-1.md byte-for-byte. ADR-006 pins the *sample* std (ddof=1)
+    # for Gate 3 onward; do not "fix" this one to match, or the gate it produced stops
+    # reproducing. At n=3 the two differ by ~22%.
     return float(np.mean(values)), float(np.std(values))
 
 

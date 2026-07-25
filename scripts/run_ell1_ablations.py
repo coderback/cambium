@@ -36,6 +36,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from scipy.stats import ttest_ind
 
 from gbe.eval import (
     configuration_model_edges,
@@ -72,7 +73,8 @@ def main() -> None:
     if len(seeds) < 5:
         raise SystemExit(
             f"ADR-006 clause 4 sets a hard floor of 5 seeds per arm; got {len(seeds)}. "
-            "Add seeds rather than softening the clause."
+            "Stage 1 is n=8; stage 2 (n=20, all arms, at most once) is the ONLY permitted "
+            "top-up, and only if a gated clause is unresolvable at stage 1."
         )
 
     hp, base_cfg, cfg_device = frozen_hparams()
@@ -116,7 +118,10 @@ def _stats(registry_path: Path, ids: dict[str, list[str]]) -> dict[str, dict]:
     for arm, run_ids in ids.items():
         vals = {c: [float(json.loads(rows[r]["metrics_json"])[c]) for r in run_ids]
                 for c in METRIC_COLS}
-        out[arm] = {"n": len(run_ids),
+        # ddof=1 (sample std) is pinned by ADR-006 so the criterion cannot depend on which
+        # script evaluates it. The Gate-0/Gate-1 scripts keep ddof=0 so they still reproduce
+        # their dated gate files; see the note in scripts/run_ell1_gnn.py.
+        out[arm] = {"n": len(run_ids), "raw": vals,
                     **{c: (float(np.mean(v)), float(np.std(v, ddof=1))) for c, v in vals.items()}}
     return out
 
@@ -145,14 +150,19 @@ def _report(registry_path: Path, ids: dict[str, list[str]]) -> None:
         resolvable = drop > 2 * se
         tag = "GATED " if is_gated else "report"
         verdict = ("PASS" if resolvable else "FAIL") if is_gated else "--"
+        # Welch p reported for context only; the 2*SE_diff rule above is the criterion (ADR-006).
+        _, p = ttest_ind(st["real"]["raw"][GATE_METRIC], st[arm]["raw"][GATE_METRIC],
+                         equal_var=False)
         print(f"  [{tag}] {arm:<10} drop {drop:+.4f}   2*SE_diff {2*se:.4f}   "
-              f"resolvable={str(resolvable):<5} {verdict}")
+              f"resolvable={str(resolvable):<5} {verdict}   (Welch p={p:.4f})")
         if is_gated:
             gated_ok.append(resolvable)
 
     print(f"\n  All gated clauses: {'PASS' if all(gated_ok) else 'FAIL'}  "
           f"({sum(gated_ok)}/{len(gated_ok)} resolvable)")
-    print("\nIf a clause is unresolvable, ADR-006 says add seeds -- never soften the clause.")
+    print("\nIf a gated clause is unresolvable: ADR-006 permits exactly ONE top-up -- rerun ALL")
+    print("arms at n=20, and that result is final either way. Never top up repeatedly (optional")
+    print("stopping), and never soften the clause.")
     print("Verdict and gates/GATE-ELL1-3.md are the researcher's; the gate file must repeat")
     print("ADR-006's disclosure that clause 1 is informed, not blind.")
 

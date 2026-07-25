@@ -66,6 +66,20 @@ mean(A) − mean(B)  >  2 × SE_diff ,    SE_diff = sqrt( s_A²/n_A + s_B²/n_B 
 i.e. the gap exceeds twice the standard error *of the difference*. Variance-aware like
 ADR-004's band test, and it tightens as seeds are added rather than rewarding a lucky run.
 
+**`s` is the sample standard deviation (`ddof = 1`).** Pinning this is not pedantry: a criterion
+called "mechanical" must not depend on which script evaluates it, and the repo was already
+inconsistent — `scripts/run_ell1_gnn.py` and `run_ell1_baselines.py` use numpy's default
+`ddof=0`. At n=8 the two differ by √(8/7) ≈ 1.069, ~7% on SE_diff, which is enough to flip a
+marginal clause. Gates 0 and 1 were assembled with `ddof=0` and **stand as recorded** — their
+scripts are left unchanged so they still reproduce their dated gate files; `ddof=1` binds Gate 3
+onward.
+
+The `2 ×` factor approximates a two-sided 95% test. It is mildly liberal at these sample sizes
+(the Welch critical value at n=8 per arm is ≈2.14), which is accepted deliberately: the
+alternative is a criterion whose threshold moves with n, and a fixed, legible multiplier is
+worth more here than the third decimal place of a p-value. The Welch p-value is reported
+alongside for context.
+
 1. **Edge-scramble (amended wording).** `mean(real) − mean(scrambled)` is **positive and
    resolvable**, where *scrambled* permutes node identities within each time step
    (`gbe.eval.scramble_edges`), preserving topology, degree sequence and the temporal split.
@@ -91,13 +105,26 @@ forking-paths move this ADR exists to prevent. F1 stays primary.
    (`git_dirty=false`). Every arm re-runs its own *real* baseline in the same batch — never
    reuse the Gate-1 rows, whose code path and determinism settings differ.
 
-   **Seed count is derived, not assumed.** The provisional σ of 0.0790 on the real arm
-   *conflates* seed sensitivity with run nondeterminism, so it cannot size the batch: under
-   determinism the residual is true seed variance, which may be smaller. Procedure: run **8
-   seeds per arm** (≈42 min for 4 arms — determinism made the old CPU estimate of 6.6 h moot,
-   so there is no longer any reason to economise), then compute SE_diff from *those* runs and
-   report it in the gate file. If 2×SE_diff exceeds the observed gap, add seeds rather than
-   softening the clause. **≥5 per arm is a hard floor** regardless of what the variance shows.
+   **Seed count: a two-stage design, both stages fixed in advance.** The provisional σ of 0.0790
+   on the real arm *conflates* seed sensitivity with run nondeterminism, so it cannot size the
+   batch: under determinism the residual is true seed variance, which may be smaller.
+
+   - **Stage 1 — n = 8 per arm** (5 arms ≈ 52 min). Compute SE_diff from those runs and report
+     it in the gate file.
+   - **Stage 2 — n = 20 per arm, at most once.** Triggered iff *any* gated clause is
+     unresolvable at stage 1. It extends **every** arm, not the failing one, and **its result is
+     final in whichever direction it falls.**
+
+   **There is no stage 3, and no "add a few more seeds until it resolves."** An earlier draft of
+   this ADR said exactly that, and it was wrong: topping up repeatedly after seeing a clause miss
+   is optional stopping, which inflates the false-positive rate without bound and is the same
+   error as re-thresholding after seeing a result — the thing ADR-004 exists to forbid. A
+   two-stage rule fixed before the data exists is a legitimate group-sequential design; an
+   open-ended one is not. If a clause is still unresolvable at n=20, **it is reported as
+   unresolvable** and Gate 3 does not pass on it.
+
+   **≥5 per arm is a hard floor** regardless (enforced in `scripts/run_ell1_ablations.py`, which
+   refuses to start below it).
 
 5. **Reported, not gated.** Two diagnostics with **no** pass condition, which must not acquire
    one retroactively:
@@ -115,6 +142,16 @@ forking-paths move this ADR exists to prevent. F1 stays primary.
 
 **Gate 3 passes iff clauses 1–3 all hold.** A partial pass is recorded as a partial pass.
 
+Two properties of that conjunction, stated so a reader is not misled by "3/3 resolvable":
+
+- **The gate is strictly harder than any single clause.** Requiring all three biases toward
+  failing a genuinely structural model rather than passing a spurious one. That is the intended
+  direction for a gate whose job is to stop overclaiming, but it is a real cost and is not
+  hidden.
+- **The three tests are not independent.** All three are measured against the *same* `real` arm,
+  so their errors are correlated through it. Three clauses clearing is therefore weaker evidence
+  than three independent confirmations would be, and must not be described as the latter.
+
 ## Alternatives rejected
 
 - **An absolute margin (e.g. "drop ≥ 0.05 F1").** Rejected: with a real-arm σ of ~0.08 any
@@ -130,6 +167,9 @@ forking-paths move this ADR exists to prevent. F1 stays primary.
   its bar.
 - **Keeping 3 seeds for consistency with Gates 0/1.** Rejected: 3 seeds demonstrably
   under-sample this distribution. Consistency with an under-powered precedent is not a virtue.
+- **"If unresolvable, add seeds until it resolves."** Present in an earlier draft of this ADR and
+  rejected on review: it is optional stopping, and it would have written a licence to p-hack into
+  the very document meant to prevent it. Replaced by the fixed two-stage rule in clause 4.
 - **Replacing the ER control with the configuration model.** The configuration model is the
   sharper experiment, but swapping it in would amend a clause that is currently blind, and the
   two answer different questions. Rejected in favour of running both: ER stays the gate input
