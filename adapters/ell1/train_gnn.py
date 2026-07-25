@@ -65,6 +65,11 @@ class GNNHParams:
         return d
 
 
+# Config keys that identify *which experiment a row belongs to*, echoed from the hashed config
+# into the row so a batch can be read back without recomputing config hashes to find out.
+PROVENANCE_KEYS: tuple[str, ...] = ("ablation", "arm", "experiment", "features")
+
+
 def resolve_device(device: str | None) -> torch.device:
     """'cuda'/'cpu'/None -> a torch.device; None (or 'auto') picks cuda when present."""
     if device in (None, "auto"):
@@ -339,11 +344,13 @@ def run_gnn(
                 **meta,
             }
         )
-        # Ablation arm, when the caller is running one. It is already in the hashed config, so
-        # it was always *recoverable* by recomputing hashes — but a row should say what it is
-        # without that detour, or assembling a gate file means reconstructing provenance
-        # instead of reading it.
-        if "ablation" in base_cfg_values:
-            logged["ablation"] = str(base_cfg_values["ablation"])
+        # Experiment-identifying config keys, echoed into the row. They are already in the
+        # hashed config, so they were always *recoverable* by recomputing hashes — but a row
+        # should say what it is without that detour, or reading a batch back means
+        # reconstructing provenance instead of reading it. The list is explicit rather than
+        # "echo everything" so a config typo cannot silently invent a metrics field.
+        logged.update(
+            {k: base_cfg_values[k] for k in PROVENANCE_KEYS if k in base_cfg_values}
+        )
         run.log_metrics(logged)
     return run.run_id, logged
