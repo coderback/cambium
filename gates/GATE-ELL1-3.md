@@ -134,7 +134,54 @@ Two properties of the conjunction, so the result is not over-read: the three tes
 _All numbers read from `experiments/registry.csv`. No cell is filled by estimate, extrapolation, or smoothing. Arms were matched to rows by rebuilding each (arm, seed) config hash, not by position._
 
 ## Verdict
-<!-- Left blank. Decided by the researcher, not by Claude. -->
+
+**PASSED** — 2026-07-25, coderback.
+
+The gain is structural. All three pre-registered clauses (ADR-006) are positive and resolvable on
+illicit-F1 against a real-graph arm re-run in the same batch: edge-scramble **+0.1017**
+(p=0.0041), random-graph **+0.0744** (p=0.0329), GNN-removed **+0.0700** (p=0.0329). 8 seeds per
+arm, deterministic (ADR-005), `git_dirty=false`. The result survives the stricter exact Welch
+critical values (2.16–2.23×SE rather than 2.00×SE), so it does not rest on the one loosening
+ADR-006 admitted to. No stage-2 top-up was triggered.
+
+**Two qualifications are part of this verdict, not footnotes to it.**
+
+**1. Clause 1 is informed, not blind** — see the disclosure above. Clauses 2 and 3 carry ADR-004's
+full force; clause 1 does not, and a reader is entitled to discount it. The gate does not rest on
+clause 1 alone.
+
+**2. This does not rescue Gate 1, and must never be cited as though it does.** Both of the
+following are true at once:
+
+| claim | status |
+|---|---|
+| the GNN's performance depends on graph structure | **supported here** — +0.070 over no-graph, resolvable |
+| structure beats the tabular floor | **failed** (GATE-ELL1-1) — 0.663 vs RF 0.806 |
+
+*Structure demonstrably contributes, and demonstrably is not enough.* What this gate licenses is
+the claim that ELL-1 is not merely exploiting features — it retires the "critical finding" branch
+of doc-01 §4. It licenses nothing about the model being good on Elliptic.
+
+**What the ablations establish beyond the pass.** Gate 1's failure now decomposes, which is the
+useful output for P0. The strict inductive protocol is exonerated — zero of 468,710 edges cross
+the 34/35 cutoff, so induction drops nothing. Absence of structural signal is excluded by the
+three clauses above. What remains is that the *neural* feature path sits ~0.21 F1 below a tree on
+identical features (`no_edges` 0.5928 vs RF 0.806), and the +0.070 structural gain does not cover
+that deficit. The honest P0 sentence is therefore **"trees beat neural nets on this tabular data;
+the graph helps, but not by enough"** — not "structure did not help".
+
+**The reported arm sharpens it.** `config` — every node's degree preserved exactly, only wiring
+randomised — falls to 0.5687, level with full scramble and *below* both the random graph and no
+graph at all. Preserving degree rescues nothing, so message passing reads something the hand-built
+one-hop aggregates (features 94–164) do not contain. That is the claim which survives the standing
+objection to this dataset. It was **not** a gate input (ADR-006 clause 5) and is recorded as a
+diagnostic only.
+
+**An ordering nobody pre-registered:** `no_edges` (0.5928) and `random` (0.5885) both score above
+`scrambled` (0.5611) and `config` (0.5687) — a plausible-but-wrong graph hurts more than no graph
+at all, because message passing confidently aggregates misleading neighbours. The arms are
+therefore not monotonic in how much structure was destroyed and must not be read as a severity
+ladder.
 
 ---
 _Verdict, seeds, and table are sacred once dated. Papers are assembled from gate files; nothing is reported that is not in one._
