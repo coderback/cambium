@@ -339,5 +339,11 @@ def run_gnn(
                 **meta,
             }
         )
+        # Ablation arm, when the caller is running one. It is already in the hashed config, so
+        # it was always *recoverable* by recomputing hashes — but a row should say what it is
+        # without that detour, or assembling a gate file means reconstructing provenance
+        # instead of reading it.
+        if "ablation" in base_cfg_values:
+            logged["ablation"] = str(base_cfg_values["ablation"])
         run.log_metrics(logged)
     return run.run_id, logged
