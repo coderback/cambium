@@ -1,11 +1,12 @@
 # ADR-005 — Runs are deterministic by default (CUDA scatter nondeterminism exceeded our effect sizes)
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-07-24
 **Deciders:** coderback
 **Docs affected:** `CLAUDE.md` (integrity rule "≥3 seeds with variance on every gate number");
-`docs/00-shared-core-graph-embedding-GUIDE.md` §7 (the temporal-holdout harness). Amend both as
-part of accepting this ADR.
+`docs/00-shared-core-graph-embedding-GUIDE.md` §7 (the temporal-holdout harness). **Both
+amendments applied 2026-07-24 on acceptance**, §7 carrying a dated inline note of what changed
+and the measured evidence for it.
 
 > **Revision note.** The first draft of this ADR concluded that gate-grade runs must move to
 > **CPU**, on the assumption that PyG's scatter aggregation had no deterministic CUDA kernel.
@@ -68,10 +69,18 @@ roughly 4× the noise floor. FAILED stands on any reading.
    deterministic kernel, the run **raises**. A loud failure beats silently irreproducible gate
    numbers — that is the whole content of this ADR. `deterministic=False` exists only for
    throughput-bound exploration whose numbers are never reported.
-3. **"≥3 seeds" is qualified, not weakened.** Determinism removes run noise but not *seed*
-   sensitivity, and the 6-seed batch shows that sensitivity is large on the real-graph arm.
-   Seed counts for a gate are derived from the measured variance of a **deterministic** batch
-   (see ADR-006), never assumed. Three remains a floor, not a default.
+3. **The escape hatch is recorded in the run row.** `RunSession` writes the determinism state
+   into every registry row, so a row states for itself whether it was reproducible. Without this
+   the hatch would be a hole in exactly the provenance this ADR exists to establish: a
+   `deterministic=False` exploration run would otherwise be indistinguishable, after the fact,
+   from a gate-grade one. An unusable-but-honest default would be better than a silent hatch;
+   a recorded hatch is better than both.
+4. **Seed counts are set per gate, not program-wide.** Determinism removes run noise but not
+   *seed* sensitivity, and the 6-seed batch shows that sensitivity is large on the real-graph
+   arm. This ADR therefore sets **no** global number: each gate's ADR fixes its own count from
+   the measured variance of a **deterministic** batch, in advance (ADR-006 clause 4 does this
+   for Gate 3, with a fixed two-stage 8→20 rule). `CLAUDE.md`'s "≥3 seeds" remains the
+   constitutional floor — a minimum below which nothing is a gate number, not a target.
 
 ## Alternatives rejected
 
@@ -93,6 +102,13 @@ roughly 4× the noise floor. FAILED stands on any reading.
   any future write-up citing them must carry that caveat.
 - Runs before this ADR are not bit-comparable with runs after it. Registry rows remain valid and
   append-only; the boundary is this ADR's commit.
+- **The guarantee is same-machine, not universal — do not oversell it.** Bit-for-bit
+  reproducibility holds for this GPU, driver, and library versions. A reviewer on different
+  hardware will *not* reproduce `0.56554307`. What this buys is real and worth the change — a
+  gate can be re-run and audited, and a number can be traced to an exact config — but a paper
+  must claim "reproducible on the recorded environment", never "reproducible anywhere". The
+  registry already pins config hash, commit, and data snapshot; the environment is the piece it
+  does not pin.
 - The three Gate-1 handicaps are closed as **unmeasurable at the precision then available**, not
   refuted. Re-opening any requires re-measurement under determinism.
 - `scripts/diagnose_ell1_inner.py` and `experiments/ell1_inner_diag.csv` are retained as this

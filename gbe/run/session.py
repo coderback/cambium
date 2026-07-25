@@ -21,7 +21,7 @@ from typing import Any
 
 from gbe.run.config import ResolvedConfig
 from gbe.run.registry import append_run
-from gbe.run.seeding import seed_everything
+from gbe.run.seeding import determinism_state, seed_everything
 
 
 def _new_run_id(model: str) -> str:
@@ -55,6 +55,10 @@ class RunSession:
     # -- lifecycle -----------------------------------------------------------
     def __enter__(self) -> "RunSession":
         self.seed = seed_everything(self.config.seed)
+        # Provenance, not a metric: recorded so a row states for itself whether it was
+        # reproducible (ADR-005 clause 3). Logged first so an explicit log_metrics call can
+        # never silently drop it.
+        self._metrics.update(determinism_state())
         self._start_perf = time.perf_counter()
         self._start_iso = datetime.now(timezone.utc).isoformat()
         return self

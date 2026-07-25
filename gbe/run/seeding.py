@@ -47,6 +47,20 @@ if torch.cuda.is_available() and torch.cuda.is_initialized():  # pragma: no cove
     )
 
 
+def determinism_state() -> dict[str, object]:
+    """The reproducibility settings actually in force, for the registry row (ADR-005 clause 3).
+
+    Recorded on every run so a row states for itself whether it was reproducible. Without it the
+    ``deterministic=False`` escape hatch would be a hole in exactly the provenance this module
+    exists to establish — an exploration run would be indistinguishable, after the fact, from a
+    gate-grade one.
+    """
+    return {
+        "deterministic": bool(torch.are_deterministic_algorithms_enabled()),
+        "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG", ""),
+    }
+
+
 def seed_everything(seed: int, deterministic: bool = True) -> int:
     """Seed python, numpy, and torch (CPU + CUDA), and pin deterministic kernels.
 

@@ -56,6 +56,32 @@ def test_seed_is_returned_for_the_registry_row():
     assert seed_everything(7) == 7
 
 
+def test_run_row_records_whether_it_was_deterministic(tmp_path):
+    """ADR-005 clause 3: the escape hatch must not be a hole in provenance.
+
+    A `deterministic=False` exploration run has to be distinguishable, after the fact, from a
+    gate-grade one — otherwise the hatch quietly undoes the guarantee.
+    """
+    import csv
+    import json
+
+    from gbe.run.config import resolve_config
+    from gbe.run.session import RunSession
+
+    path = tmp_path / "registry.csv"
+    cfg = resolve_config({"model": "toy", "seed": 0})
+    with RunSession(cfg, registry_path=path) as run:
+        run.log_metrics({"f1": 0.5})
+
+    with path.open(newline="", encoding="utf-8") as fh:
+        row = next(iter(csv.DictReader(fh)))
+    metrics = json.loads(row["metrics_json"])
+    assert "deterministic" in metrics, "run row does not record its determinism state"
+    assert metrics["deterministic"] is True
+    assert metrics["cublas_workspace_config"] in (":4096:8", ":16:8")
+    assert metrics["f1"] == 0.5, "provenance clobbered the logged metrics"
+
+
 def test_same_seed_reproduces_the_same_draws():
     """End-to-end: the point of all of the above."""
     seed_everything(3)
