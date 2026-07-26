@@ -22,8 +22,6 @@ from __future__ import annotations
 
 import argparse
 
-import torch
-
 from gbe.run.config import git_dirty
 from adapters.ell1.datasource_elliptic import load_elliptic
 from adapters.ell1.eval import ell1_eval_split
@@ -68,8 +66,12 @@ def main() -> None:
 
     print(f"[extract-ref] backbone={BACKBONE} seeds={seeds} device={device}")
     print(f"[extract-ref] frozen ADR-003 config | test window {split.test_min}-{split.test_max}")
-    print(f"[extract-ref] deterministic={torch.are_deterministic_algorithms_enabled()} "
-          "(RunSession pins this per-run at entry)\n")
+    # Do NOT print the *global* determinism flag here: RunSession pins it per-run at entry, so
+    # before the first run it reads False and a log line saying so would read as "this reference
+    # is not deterministic" — exactly the wrong conclusion. Each row records its own state
+    # (ADR-005 clause 3); trust the row, not a banner.
+    print("[extract-ref] determinism: pinned per-run by RunSession at entry (ADR-005); "
+          "every row records the state it ran under\n")
 
     results = []
     for seed in seeds:
