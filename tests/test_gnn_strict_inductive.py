@@ -84,6 +84,6 @@ def test_end_to_end_smoke_cpu():
     train_model(model, x, edge_train, data.y, seeds, hp, dev)
     metrics, meta = evaluate(model, x, data.edge_index, data.time_step, data.y, SPLIT, dev)
 
-    assert set(metrics) == {"f1", "recall", "precision", "auc"}
+    assert set(metrics) == {"f1", "recall", "precision", "auc", "auprc"}  # auprc: ADR-007
     assert all(0.0 <= v <= 1.0 for v in metrics.values())
     assert meta["n_test"] == 6 and meta["n_test_illicit"] == 3  # 3 test steps * (1 illicit,1 licit)
