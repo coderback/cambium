@@ -5,11 +5,23 @@
 **Deciders:** coderback
 **Docs affected — all amendments applied 2026-07-26 on acceptance:**
 `docs/02-dgraph-fin-embedding-model-BUILD.md` §4 (Phase 0 / Gate 0), §6 (EXTRACT risk row), §7
-(Gate 0 row).
+(Gate 0 row), **§8 step 4**; `docs/timeline.md` DGF-1 Gate-0 row.
+
+> **Enumeration corrected 2026-07-26,** found by auditing the clauses programmatically rather than
+> by eye: **§8 step 4** ("Refactor `ELL-1` onto `gbe/` and confirm it **still passes its gates**")
+> was a *fourth* live statement of the unsatisfiable condition, missed by the original three-site
+> enumeration. Amended. The phrase survives elsewhere in doc-02 only inside §4's quoted record of
+> the previous wording, which is intentional.
 
 **Artifacts created on acceptance:** `experiments/extract_reference_env.txt` (clause 4 environment
 pin) and `scripts/run_extract_reference.py` (clause 3 GCN reference runner, which refuses to start
 on a dirty tree).
+
+**Artifacts created on implementation (2026-07-26):**
+`experiments/extract_reference_manifest.json` — the 49 reference identities, **frozen pre-refactor**
+(see the amendment note under *Consequences*); `scripts/freeze_extract_reference.py` (one-shot, wrote
+it); `scripts/check_extract_regression.py` (the acceptance test);
+`tests/test_extract_reference_manifest.py` + `tests/test_extract_regression_checker.py` (22 guards).
 
 ## Context
 
@@ -169,6 +181,17 @@ result is recorded in `gates/GATE-DGF1-0.md`.
 - **A checker script** (e.g. `scripts/check_extract_regression.py`) that rebuilds each reference
   row's identity, pairs it with its post-refactor counterpart, and diffs the four/five metrics
   exactly — reporting per-row rather than in aggregate, so a single moved row is visible.
+  - *Amended 2026-07-26 on implementation, was "rebuilds each reference row's identity" **at check
+    time**.* That mechanism is unsafe and would have failed in the one situation it exists for.
+    Gate-3's 40 rows carry no `ablation` key, so their arm is recoverable only by rebuilding config
+    hashes — via `arm_run_ids()`, which depends on `frozen_hparams()` and `GNNHParams` in the
+    adapter. **A refactor changes config shape, which changes config hashes, and moves the very code
+    the rebuild calls.** So identities are now resolved **once, pre-refactor**, and frozen in
+    `experiments/extract_reference_manifest.json` (`scripts/freeze_extract_reference.py`); the
+    checker pairs on **`(arm, seed)`** — the 8 arm names are globally unique across the three
+    sources — and never touches a hash. `config_hash` is stored per row for audit only.
+    **The criterion is unchanged**: same 49 rows, same exact-equality bar, same no-retry rule, same
+    environment clause. Only row *identification* changed.
 - The re-runs append ~49 new rows to the registry. That is correct: they are genuinely new runs on
   new code, and the append-only property is preserved.
 - **`PROVENANCE_KEYS` gets its first live exercise** before DGF-1's batches depend on it.
