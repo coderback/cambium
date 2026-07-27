@@ -1,14 +1,28 @@
 # ADR-009 — HPO transfer: lr + one *graph-appropriate* second knob
 
-**Status:** proposed
+**Status:** accepted
 **Deciders:** coderback
-**Date:** 2026-07-26
+**Date:** 2026-07-26 · **accepted** 2026-07-27
 **Supersedes:** the **transfer clause** of ADR-003 (its frozen config is untouched)
-**Docs affected (amendments applied on acceptance, not before):**
+**Docs affected — all amendments applied 2026-07-27 on acceptance:**
 `docs/00-shared-core-graph-embedding-GUIDE.md` §6.4;
+`docs/01-elliptic-embedding-model-BUILD.md` §4 (Phase 1);
 `docs/02-dgraph-fin-embedding-model-BUILD.md` §4 (Phase 1) — citation only, wording stands;
-`decisions/ADR-003-ell1-hpo-frozen-config.md` — superseded-clause note;
-`docs/timeline.md` — DGF-1 Phase-1 row.
+`docs/research-plan-UNIFIED-GBE-GDE.md` (HPO protocol bullet);
+`docs/timeline.md` — ELL-1 Phase-1 row;
+`decisions/ADR-003-ell1-hpo-frozen-config.md` — superseded-clause note, body **not** rewritten;
+`adapters/ell1/hpo.py` — module docstring (documentation only, no behaviour).
+
+> **Enumeration corrected *before* applying — the first time that has happened.** The proposed draft
+> listed four sites. Grepping for the phrase first (ADR-007's enumeration missed three sites,
+> ADR-008's missed one, both found only after the fact) turned up **six more**: doc-01 §4, the
+> unified research plan, ADR-003's *Alternatives rejected* entry, the timeline's ELL-1 Phase-1 row,
+> and a module docstring in `adapters/ell1/hpo.py`. The contradiction was roughly twice as
+> widespread as the draft claimed.
+>
+> **Deliberately not amended:** `docs/document-amendments-v0.2.md` (lines 25, 95). That file is the
+> dated record of the v0.2 amendment round — a historical document, and amended no more freely than
+> a dated gate file. It correctly records what was decided *then*.
 
 ## Context
 

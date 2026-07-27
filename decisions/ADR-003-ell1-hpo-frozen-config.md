@@ -5,6 +5,19 @@
 **Deciders:** coderback
 **Docs affected:** none (freezes an HPO outcome; inherited by DGF-1/EDR-1 per doc-00 §6.4)
 
+> **Transfer clause superseded by ADR-009 (2026-07-27).** Three places below — the *Transfer rule*,
+> the *Per-model HPO* entry under *Alternatives rejected*, and *Revisit when* — say downstream
+> models retune "**lr + fan-out**". doc-00 §6.4 now fixes **"lr + one graph-appropriate second
+> knob"**, named per model: naming fan-out specifically hard-coded a property of ELL-1's graph into
+> a program-wide rule, and it cannot bind on DGraph at average degree ~1.16. **DGF-1's named second
+> knob is `batch_size`**; EDR-1 names its own. Read every "lr + fan-out" below as "lr + the model's
+> named second knob"; the two-knob budget is unchanged.
+>
+> **The frozen config in the table below is untouched and remains authoritative** — backbone,
+> layers, hidden, aggregator, dropout, lr, fan-out and the fixed budget all stand exactly as
+> frozen, and `adapters/ell1/config.yaml` is unchanged. Only the *transfer* clause moved. The body
+> is deliberately not rewritten: dated ADRs, like dated gate files, are not silently edited.
+
 ## Context
 
 Doc-00 §6.4 mandates **one** Optuna + ASHA sweep, run **on ELL-1 only** (the cheapest graph),

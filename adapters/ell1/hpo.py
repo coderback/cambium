@@ -1,7 +1,8 @@
 """ELL-1 hyperparameter sweep — the one-time Optuna + ASHA study (doc-00 §6.4, doc-01 §4).
 
 Tuned once, here, on the cheapest graph; the winner is frozen in an ADR and inherited by
-DGF-1/EDR-1 (which then tune only lr + fan-out). No NAS — a small *enumerated* space.
+DGF-1/EDR-1 (which then retune only lr + one graph-appropriate second knob, named per model —
+ADR-009; DGF-1 names batch size). No NAS — a small *enumerated* space.
 
 Integrity boundary (constitution: never tune against the held-out eval): the sweep uses an
 **inner temporal split — train 1-29, validate 30-34** — and never touches the 35-49 test
