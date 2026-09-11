@@ -17,13 +17,19 @@ from gbe.eval import (
     TemporalSplit,
     assert_no_temporal_leakage,
     configuration_model_edges,
-    induced_train_subgraph,
+    edges_as_of,
     random_graph_edges,
     remove_edges,
     scramble_edges,
 )
 
 SPLIT = TemporalSplit(train_max=34, test_min=35, test_max=49)
+
+
+def _train_edges(edge_index, time_step):
+    """The train graph (ADR-011): edges dated <= train_max. Every fixture edge lies within one
+    step (asserted by the tests that call this), so each edge is dated by its shared step."""
+    return edges_as_of(edge_index, edge_time=time_step[edge_index[0]], t_max=SPLIT.train_max)
 
 
 def _within_step_graph(n_per_step: int = 40, steps=(10, 30, 34, 35, 40, 49)):
@@ -58,10 +64,10 @@ def test_scramble_never_crosses_the_temporal_cutoff():
     endpoint_time = time_step[scrambled]
     assert torch.equal(endpoint_time[0], endpoint_time[1]), "an edge now spans two time steps"
 
-    # and the real consequence: the induced train subgraph still drops nothing
-    edge_train, _ = induced_train_subgraph(scrambled, time_step, SPLIT)
-    assert_no_temporal_leakage(edge_train, time_step, SPLIT)
-    train_edges_before = induced_train_subgraph(edge_index, time_step, SPLIT)[0].shape[1]
+    # and the real consequence: the train graph keeps exactly as many edges as the real graph's
+    edge_train = _train_edges(scrambled, time_step)
+    assert_no_temporal_leakage(edge_train, time_step, SPLIT, edge_time=time_step[edge_train[0]])
+    train_edges_before = _train_edges(edge_index, time_step).shape[1]
     assert edge_train.shape[1] == train_edges_before, (
         "scrambling changed how many training edges survive induction — the ablation would "
         "no longer be comparable to the real-graph run"
@@ -110,8 +116,8 @@ def test_every_rewiring_arm_stays_within_a_time_step(rewire):
     assert torch.equal(endpoint_time[0], endpoint_time[1]), (
         f"{rewire.__name__} produced an edge spanning two time steps"
     )
-    edge_train, _ = induced_train_subgraph(rewired, time_step, SPLIT)
-    assert_no_temporal_leakage(edge_train, time_step, SPLIT)
+    edge_train = _train_edges(rewired, time_step)
+    assert_no_temporal_leakage(edge_train, time_step, SPLIT, edge_time=time_step[edge_train[0]])
 
 
 def test_random_graph_destroys_the_degree_sequence():

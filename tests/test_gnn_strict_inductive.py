@@ -15,7 +15,7 @@ from torch_geometric.utils import subgraph
 from gbe.eval import (
     TemporalSplit,
     assert_no_temporal_leakage,
-    induced_train_subgraph,
+    edges_as_of,
     split_masks,
 )
 from gbe.run.seeding import seed_everything
@@ -50,11 +50,25 @@ def _synthetic_temporal_graph() -> Data:
     return data
 
 
+def _edge_time(data: Data) -> torch.Tensor:
+    """Fixture edge dates (ADR-011 makes them a required input). Each edge is dated at its later
+    endpoint: an edge cannot exist before both its endpoints do. So the within-step edges carry
+    their step and the one crossing edge 0->9 is dated 36 — after the cutoff."""
+    return torch.maximum(data.time_step[data.edge_index[0]], data.time_step[data.edge_index[1]])
+
+
+def _train_graph(data: Data) -> tuple[torch.Tensor, torch.Tensor]:
+    et = _edge_time(data)
+    edge_train = edges_as_of(data.edge_index, edge_time=et, t_max=SPLIT.train_max)
+    return edge_train, et[et <= SPLIT.train_max]
+
+
 def test_train_subgraph_has_no_post_cutoff_edge():
     data = _synthetic_temporal_graph()
-    edge_train, train_mask = induced_train_subgraph(data.edge_index, data.time_step, SPLIT)
+    edge_train, et_train = _train_graph(data)
+    train_mask, _ = split_masks(data.time_step, SPLIT)
     # the crossing edge (0->9) must be gone; the guard must be silent on what remains
-    assert_no_temporal_leakage(edge_train, data.time_step, SPLIT)
+    assert_no_temporal_leakage(edge_train, data.time_step, SPLIT, edge_time=et_train)
     assert bool((data.time_step[edge_train] <= 34).all())
     assert bool(train_mask[edge_train.unique()].all())
 
@@ -77,7 +91,8 @@ def test_end_to_end_smoke_cpu():
                     fan_out=(5, 5), epochs=5, batch_size=8)
 
     x = standardize_fit_on_train(data.x, data.time_step, SPLIT.train_max)
-    edge_train, train_mask = induced_train_subgraph(data.edge_index, data.time_step, SPLIT)
+    edge_train, _ = _train_graph(data)
+    train_mask, _ = split_masks(data.time_step, SPLIT)
     seeds = train_mask & data.labelled_mask
 
     model = build_model(x.size(1), hp, dev)

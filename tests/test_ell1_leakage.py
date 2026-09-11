@@ -9,13 +9,21 @@ from __future__ import annotations
 
 import torch
 
+import pytest
+
 from gbe.eval import (
     TemporalSplit,
     assert_no_temporal_leakage,
-    induced_train_subgraph,
+    edges_as_of,
     split_masks,
 )
-from adapters.ell1.datasource_elliptic import ILLICIT, LICIT, UNKNOWN, load_elliptic
+from adapters.ell1.datasource_elliptic import (
+    ILLICIT,
+    LICIT,
+    UNKNOWN,
+    derive_edge_time,
+    load_elliptic,
+)
 from adapters.ell1.eval import ell1_eval_split
 
 # ELL-1's split, per doc-01 §2.3.
@@ -61,27 +69,69 @@ def test_train_tensors_never_reach_test_window():
     assert x[train_mask].shape[0] == 2 and y[train_mask].shape[0] == 2
 
 
-def test_induced_train_subgraph_only_references_train_nodes():
+def test_train_graph_only_references_train_nodes():
     time_step = torch.tensor([30, 34, 35, 40])
-    # (0,1) both train; (1,2) crosses cutoff; (2,3) both test.
+    # (0,1) both train; (1,2) crosses cutoff; (2,3) both test. Dated at the later endpoint.
     edge_index = torch.tensor([[0, 1, 2], [1, 2, 3]])
-    edge_train, train_node_mask = induced_train_subgraph(edge_index, time_step, SPLIT)
+    edge_time = torch.tensor([34, 35, 40])
+    edge_train = edges_as_of(edge_index, edge_time=edge_time, t_max=SPLIT.train_max)
+    train_node_mask, _ = split_masks(time_step, SPLIT)
 
     endpoints = edge_train.unique()
-    assert bool(train_node_mask[endpoints].all()), "induced subgraph reached a test node"
+    assert bool(train_node_mask[endpoints].all()), "train graph reached a test node"
     assert edge_train.shape[1] == 1, "only the (0,1) train-train edge should survive"
-    assert_no_temporal_leakage(edge_train, time_step, SPLIT)  # must be silent
+    assert_no_temporal_leakage(edge_train, time_step, SPLIT, edge_time=torch.tensor([34]))
 
 
 # -- the guard has teeth ---------------------------------------------------------------
 def test_leakage_assertion_fires_on_crossing_edge():
     time_step = torch.tensor([30, 34, 35, 40])
     raw_train_edges = torch.tensor([[0, 1], [1, 2]])  # (1,2) crosses the cutoff
-    try:
-        assert_no_temporal_leakage(raw_train_edges, time_step, SPLIT)
-    except AssertionError:
-        return
-    raise AssertionError("assert_no_temporal_leakage missed a cross-cutoff edge")
+    with pytest.raises(AssertionError, match="touch a node"):
+        assert_no_temporal_leakage(
+            raw_train_edges, time_step, SPLIT, edge_time=torch.tensor([34, 35])
+        )
+
+
+# -- ELL-1's edge dates (ADR-011 clause 5 test 9) ---------------------------------------
+def test_derive_edge_time_is_the_shared_step():
+    """Elliptic has no edge timestamps; each edge is dated by the one step both endpoints share."""
+    time_step = torch.tensor([3, 3, 7, 7])
+    edge_index = torch.tensor([[0, 1, 2], [1, 0, 3]])
+    assert derive_edge_time(edge_index, time_step).tolist() == [3, 3, 7]
+
+
+def test_derive_edge_time_rejects_an_edge_spanning_two_steps():
+    """If an edge ever spans two steps, "the later endpoint's step" would be the node-induced
+    reading ADR-011 retired — so the derivation must refuse rather than guess."""
+    time_step = torch.tensor([3, 3, 7])
+    edge_index = torch.tensor([[0, 1], [1, 2]])  # (1,2) joins step 3 to step 7
+    with pytest.raises(AssertionError, match="two different time steps"):
+        derive_edge_time(edge_index, time_step)
+
+
+def test_derived_dates_reproduce_the_node_induced_train_graph_exactly():
+    """The bit-for-bit argument for the EXTRACT refactor, on a fixture: for within-step edges, the
+    edge-date filter returns the same edges *in the same order* as the retired node-induced mask,
+    so neighbour sampling — and every ADR-008 reference number — is unchanged."""
+    gen = torch.Generator().manual_seed(0)
+    time_step = torch.randint(1, 50, (400,), generator=gen)
+    src, dst = [], []
+    for step in time_step.unique():
+        idx = (time_step == step).nonzero(as_tuple=True)[0]
+        if idx.numel() < 2:
+            continue
+        pairs = idx[torch.randint(0, idx.numel(), (3 * idx.numel(), 2), generator=gen)]
+        src.append(pairs[:, 0])
+        dst.append(pairs[:, 1])
+    edge_index = torch.stack([torch.cat(src), torch.cat(dst)])
+
+    for cut in (29, 34):
+        node_induced = edge_index[:, (time_step[edge_index] <= cut).all(dim=0)]
+        via_dates = edges_as_of(
+            edge_index, edge_time=derive_edge_time(edge_index, time_step), t_max=cut
+        )
+        assert torch.equal(node_induced, via_dates)
 
 
 # -- loader parsing (synthetic CSVs, no real data) -------------------------------------
