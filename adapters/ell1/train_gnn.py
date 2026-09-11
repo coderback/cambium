@@ -39,6 +39,7 @@ from gbe.eval import (
     split_masks,
 )
 from gbe.features.encoder import TabularMLPEncoder
+from gbe.features.scaling import Standardizer
 from gbe.gnn import BACKBONES, NodeClassificationHead, NodeClassifier
 from gbe.run import RunSession
 from gbe.run.config import resolve_config
@@ -85,11 +86,13 @@ def standardize_fit_on_train(x: Tensor, time_step: Tensor, train_max: int) -> Te
 
     A scaler fit over all nodes would leak test-period statistics (doc-01 §2.2.5). Returns a
     new standardised tensor; the input is left untouched.
+
+    Delegates to the core `gbe.features.Standardizer` (extracted when DGF-1 became the second
+    use). Same operations in the same order, so the same floats: verified ``torch.equal`` on real
+    Elliptic at both cutoffs, and the core's zero-variance rule never fires here (no Elliptic
+    column has training std below 1e-6). ADR-008's checker is the bar.
     """
-    train_mask = time_step <= train_max
-    mu = x[train_mask].mean(dim=0, keepdim=True)
-    sigma = x[train_mask].std(dim=0, keepdim=True).clamp_min(1e-6)
-    return (x - mu) / sigma
+    return Standardizer.fit(x, time_step <= train_max).transform(x)
 
 
 def rank_gauss_fit_on_train(x: Tensor, time_step: Tensor, train_max: int) -> Tensor:

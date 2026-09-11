@@ -1,0 +1,31 @@
+# DGF-1 (DGraph-Fin) experiment config. Window values are model-specific and live here, never in
+# gbe/ (gbe/CLAUDE.md rule 3). They flow into gbe.run's config hash, so the split — a
+# result-deciding input — is provenance-tracked in registry.csv.
+model: dgf1
+phase: P0
+data_snapshot_id: dgraphfin-zip-150476320   # DGraphFin.zip, 150,476,320 bytes (ADR-010)
+
+# ADR-011 clause 2. The RULE lives in the ADR: train_max / val_max are the first steps at which the
+# cumulative labelled count reaches 70% / 85%. These are the values it produced on the snapshot;
+# scripts/audit_dgf1_datasource.py re-derives them from the data and escalates on any mismatch.
+# Every run trains on <= train_max; val scores the ADR-009 retune and the ADR-007 seed pilot;
+# test is scored by gate runs only.
+split:
+  time_attr: node_time
+  train_max: 369
+  val_min: 370
+  val_max: 481
+  test_min: 482
+  test_max: 821
+
+# doc-02 §2.2.4: reverse edges on by default (a reverse edge keeps its forward edge's date and
+# type); no-reverse is an ablation only.
+reverse_edges: true
+
+# doc-02 §2.2.4b + ADR-011 clause 3: node statistics derived from each graph view, measured from
+# that view's own cutoff. The histogram is 11 wide (edge types 1..11, ADR-010). doc-02 names
+# "recency features" without enumerating them; this list is the definition (Session 14) and is
+# given to the parity floor as well (ADR-011 clause 4).
+view_features:
+  edge_type_histogram: 11
+  recency: [steps_since_last_edge, steps_since_first_edge]
