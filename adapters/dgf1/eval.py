@@ -17,6 +17,15 @@ from gbe.eval import TemporalSplit
 CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 
 
+def dgf1_base_config(config_path: str | Path = CONFIG_PATH) -> dict:
+    """The provenance block every DGF-1 run hashes into its registry row (model, phase, snapshot,
+    split, reverse edges, view features) — read from the adapter config, one source of truth."""
+    with Path(config_path).open("r", encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+    return {k: cfg[k] for k in
+            ("model", "phase", "data_snapshot_id", "split", "reverse_edges", "view_features")}
+
+
 def dgf1_splits(config_path: str | Path = CONFIG_PATH) -> dict[str, TemporalSplit]:
     """``{"val": ..., "test": ...}`` from the adapter config's ``split`` block.
 
