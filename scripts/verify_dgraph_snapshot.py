@@ -46,6 +46,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Pinned from doc-02 §2.1 + the PyG loader docstring. Treat as the doc's claim, not as truth:
 # a mismatch is a doc-vs-data discrepancy to reconcile, never a constant to edit.
+#
+# `EXPECTED_EDGE_TYPES` was 12 ("subtypes 0-11", per doc-02 and PyG's own docstring) until this
+# script escalated on the real snapshot: the data has 11 contiguous types, 1..11, with no type 0.
+# The constant changed only *after* doc-02 §0/§2.1/§2.2/§9 were amended by ADR-010 — that ordering
+# is the point (ADR-001 precedent). Editing it first would have been the failure this script exists
+# to prevent.
 EXPECTED_NODES = 3_700_550
 EXPECTED_EDGES = 4_300_999
 EXPECTED_FEATURES = 17
@@ -53,7 +59,7 @@ EXPECTED_FRAUD = 15_509
 EXPECTED_NORMAL = 1_210_092
 EXPECTED_BACKGROUND = 2_474_949
 EXPECTED_EDGE_TIME = (1, 821)
-EXPECTED_EDGE_TYPES = 12          # subtypes 0..11
+EXPECTED_EDGE_TYPES = 11          # subtypes 1..11 — NOT 0..11 (ADR-010)
 DOWNLOAD_URL = "https://dgraph.xinye.com"
 
 
@@ -126,8 +132,14 @@ def main() -> int:
     if n_edges != EXPECTED_EDGES:
         _escalate("edge count", n_edges, EXPECTED_EDGES, "doc-02 §2.1")
     print(f"[1/3] shape OK — {n_nodes:,} nodes · {n_edges:,} edges · {n_features} features")
-    print(f"      mean degree {2 * n_edges / n_nodes:.3f} "
-          "(doc-02 §0 predicts a small structural delta at ~1.16)")
+    # Report BOTH conventions explicitly. doc-02 §0/§2.1's "avg degree ~1.16" is E/N — mean
+    # *out*-degree on the directed graph. But §2.2.4 makes reverse edges the default ("doubles
+    # usable connectivity"), so the graph the GNN actually samples has mean *total* degree 2E/N.
+    # Printing only the latter next to the doc's 1.16 reads as a contradiction when it is a
+    # definitional difference; printing only the former understates what message passing sees.
+    print(f"      mean out-degree  E/N  = {n_edges / n_nodes:.3f}   (doc-02 §0/§2.1 'avg degree ~1.16')")
+    print(f"      mean total degree 2E/N = {2 * n_edges / n_nodes:.3f}   "
+          "(what reverse-edges-ON gives — the graph actually sampled)")
 
     # --- 2. labels ----------------------------------------------------------------------
     labels, counts = data.y.unique(return_counts=True)
