@@ -13,6 +13,7 @@ dependencies = [
     "optuna",
     "pandas",
     "scikit-learn",
+    "xgboost",
     "pyyaml",
     "pytest",
 ]
