@@ -125,8 +125,8 @@ def main() -> int:
         print(f"    node-induced        (both endpoints <= T) : {int(both_in.sum()):>9,}")
         print(f"    difference = post-cutoff edges between in-window nodes: {int(leak.sum()):>9,} "
               f"({int(leak.sum()) / max(int(both_in.sum()), 1):.2%} of the node-induced graph)")
-        print("      ^ what gbe.eval.induced_train_subgraph would admit and "
-              "assert_no_temporal_leakage would not catch")
+        print("      ^ what the pre-ADR-011 core (node-induced train graph, node-time-only "
+              "leakage check) admitted without complaint")
         leak_nodes = torch.zeros(n, dtype=torch.bool)
         leak_nodes[src[leak]] = True
         leak_nodes[dst[leak]] = True
@@ -183,18 +183,21 @@ def main() -> int:
     print(f"    {'test 482-821, at first appearance':<34} degree {_q(first[sel_te])}")
 
     # --- 6. Elliptic: edge date = shared step reproduces the node-induced graph exactly ----
-    from adapters.ell1.datasource_elliptic import load_elliptic
-    from gbe.eval import TemporalSplit, induced_train_subgraph
+    from adapters.ell1.datasource_elliptic import derive_edge_time, load_elliptic
+    from gbe.eval import edges_as_of
 
     ell = load_elliptic(REPO_ROOT / "data" / "elliptic", strict=True)
     ts, eie = ell.time_step, ell.edge_index
     print(f"\n[6] Elliptic edges within one step: {int((ts[eie[0]] == ts[eie[1]]).sum()):,} "
           f"/ {eie.size(1):,}")
-    derived = torch.maximum(ts[eie[0]], ts[eie[1]])
+    derived = derive_edge_time(eie, ts)  # raises if any edge spans two steps
     for cut in (29, 34):
-        ref, _ = induced_train_subgraph(eie, ts, TemporalSplit(train_max=cut, test_min=cut + 1))
+        # The retired node-induced reading, written out: both endpoints at or before the cutoff.
+        # (Before retirement this line called gbe.eval.induced_train_subgraph and gave the same
+        # result; it applied exactly this mask via torch_geometric.utils.subgraph.)
+        node_induced = eie[:, (ts[eie[0]] <= cut) & (ts[eie[1]] <= cut)]
         print(f"    T={cut}: node-induced == edge-date filter (same edges, same order): "
-              f"{torch.equal(ref, eie[:, derived <= cut])}")
+              f"{torch.equal(node_induced, edges_as_of(eie, edge_time=derived, t_max=cut))}")
 
     print("\n[measure] read-only. No registry row written; no model trained or scored.")
     return 0

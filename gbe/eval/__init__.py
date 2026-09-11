@@ -10,14 +10,14 @@ from gbe.eval.metrics import classification_metrics
 from gbe.eval.temporal import (
     TemporalSplit,
     assert_no_temporal_leakage,
-    induced_train_subgraph,
+    edges_as_of,
     split_masks,
 )
 
 __all__ = [
     "TemporalSplit",
     "split_masks",
-    "induced_train_subgraph",
+    "edges_as_of",
     "assert_no_temporal_leakage",
     "classification_metrics",
     "scramble_edges",

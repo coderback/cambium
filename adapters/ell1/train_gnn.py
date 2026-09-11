@@ -5,9 +5,12 @@ Elliptic graph. Kept in the adapter for now; the genuinely-shared loop is extrac
 `gbe/` when DGF-1 gives it a second use case (doc-00 §1 build-path discipline).
 
 The strict inductive protocol (doc-01 §5, the 0.807->0.12 defense):
-  * **Train** message passing runs only over the induced train subgraph — edges with *both*
-    endpoints in steps <= train_max (`gbe.eval.induced_train_subgraph`). Loss is on labelled
-    train nodes; unknown train nodes stay in for message passing (all <= cutoff, no leak).
+  * **Train** message passing runs only over the train graph — edges dated <= train_max
+    (`gbe.eval.edges_as_of`, ADR-011). Elliptic's edges carry no date of their own, but every
+    one lies within a single step, so `derive_edge_time` dates each by that shared step (and
+    asserts it); the train graph is then exactly the edges with both endpoints in steps
+    <= train_max. Loss is on labelled train nodes; unknown train nodes stay in for message
+    passing (all <= cutoff, no leak).
   * **Eval** runs one forward over the subgraph induced by *test* nodes only (both endpoints
     in the 35-49 window) — never a full-graph pass, so no test node ever aggregates a train
     node and no batch statistic spans the cutoff.
@@ -32,14 +35,14 @@ from torch_geometric.utils import subgraph
 from gbe.eval import (
     TemporalSplit,
     classification_metrics,
-    induced_train_subgraph,
+    edges_as_of,
     split_masks,
 )
 from gbe.features.encoder import TabularMLPEncoder
 from gbe.gnn import BACKBONES, NodeClassificationHead, NodeClassifier
 from gbe.run import RunSession
 from gbe.run.config import resolve_config
-from adapters.ell1.datasource_elliptic import ILLICIT, LICIT, UNKNOWN
+from adapters.ell1.datasource_elliptic import ILLICIT, LICIT, UNKNOWN, derive_edge_time
 
 
 @dataclass
@@ -206,8 +209,9 @@ def train_model(
 ) -> NodeClassifier:
     """Train under the strict inductive protocol via neighbour sampling on the train subgraph.
 
-    ``edge_index_train`` must already be the induced train subgraph (train-train edges only);
-    seeds are the labelled train nodes, so every sampled neighbourhood stays <= train_max.
+    ``edge_index_train`` must already be the train graph from `gbe.eval.edges_as_of` (edges dated
+    <= train_max); seeds are the labelled train nodes, so every sampled neighbourhood stays
+    <= train_max.
     ``on_epoch(epoch, model)`` is an optional hook (HPO uses it to report/prune per epoch).
     """
     data = Data(x=x, edge_index=edge_index_train, y=y, num_nodes=x.size(0))
@@ -326,9 +330,13 @@ def run_gnn(
     with RunSession(cfg, notes=f"ell1 gnn: {backbone}", registry_path=registry_path) as run:
         # RunSession.__enter__ has already seeded python/numpy/torch(/cuda).
         x = standardize_fit_on_train(data.x, data.time_step, split.train_max)
-        edge_train, train_node_mask = induced_train_subgraph(
-            data.edge_index, data.time_step, split
-        )
+        # ADR-011: the training graph is the edges dated <= train_max. The dates are derived from
+        # the edge set actually in use (ablation arms rewire it) and asserted within-step, which
+        # makes this the same edges in the same order as the retired node-induced path — so the
+        # frozen ADR-008 reference numbers cannot move.
+        edge_time = derive_edge_time(data.edge_index, data.time_step)
+        edge_train = edges_as_of(data.edge_index, edge_time=edge_time, t_max=split.train_max)
+        train_node_mask, _ = split_masks(data.time_step, split)
         train_seed_mask = train_node_mask & data.labelled_mask
 
         model = build_model(x.size(1), hp, dev)

@@ -35,9 +35,9 @@ import numpy as np
 import torch
 from sklearn.metrics import f1_score, precision_recall_curve
 
-from gbe.eval import induced_train_subgraph
+from gbe.eval import edges_as_of, split_masks
 from gbe.run.seeding import seed_everything
-from adapters.ell1.datasource_elliptic import ILLICIT, load_elliptic
+from adapters.ell1.datasource_elliptic import ILLICIT, derive_edge_time, load_elliptic
 from adapters.ell1.hpo import INNER_SPLIT
 from adapters.ell1.train_gnn import (
     FEATURE_TRANSFORMS,
@@ -91,9 +91,13 @@ def run_arm(transform: str, seed: int, data, hp, device) -> list[dict]:
     """Train on <=29 with one feature transform; score the 30-34 window after every epoch."""
     seed_everything(seed)
     x = FEATURE_TRANSFORMS[transform](data.x, data.time_step, INNER_SPLIT.train_max)
-    edge_train, train_node_mask = induced_train_subgraph(
-        data.edge_index, data.time_step, INNER_SPLIT
+    # ADR-011: same edges, same order as the retired induced_train_subgraph on Elliptic.
+    edge_train = edges_as_of(
+        data.edge_index,
+        edge_time=derive_edge_time(data.edge_index, data.time_step),
+        t_max=INNER_SPLIT.train_max,
     )
+    train_node_mask, _ = split_masks(data.time_step, INNER_SPLIT)
     seed_mask = train_node_mask & data.labelled_mask
 
     model = build_model(x.size(1), hp, device)

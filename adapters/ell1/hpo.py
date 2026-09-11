@@ -7,7 +7,7 @@ ADR-009; DGF-1 names batch size). No NAS — a small *enumerated* space.
 Integrity boundary (constitution: never tune against the held-out eval): the sweep uses an
 **inner temporal split — train 1-29, validate 30-34** — and never touches the 35-49 test
 window. Both are strict inductive, reusing the Stage-A trainer/eval unchanged: train message
-passing over the <=29 induced subgraph, validation over the 30-34 induced subgraph. The
+passing over the edges dated <=29 (ADR-011), validation over the 30-34 induced subgraph. The
 objective is validation illicit-F1 (the gate metric); ASHA prunes on per-epoch val-F1.
 
 The search space is GraphSAGE-specific (doc §6.4): layers {2,3}, hidden {128,256}, aggregator
@@ -22,8 +22,9 @@ from __future__ import annotations
 import optuna
 import torch
 
-from gbe.eval import TemporalSplit, induced_train_subgraph
+from gbe.eval import TemporalSplit, edges_as_of, split_masks
 from gbe.run.seeding import seed_everything
+from adapters.ell1.datasource_elliptic import derive_edge_time
 from adapters.ell1.train_gnn import (
     GNNHParams,
     build_model,
@@ -67,9 +68,12 @@ def make_objective(data, device):
     never touch the scaler, so tuning is leak-free end to end.
     """
     x = standardize_fit_on_train(data.x, data.time_step, INNER_SPLIT.train_max)
-    edge_train, train_node_mask = induced_train_subgraph(
-        data.edge_index, data.time_step, INNER_SPLIT
+    edge_train = edges_as_of(
+        data.edge_index,
+        edge_time=derive_edge_time(data.edge_index, data.time_step),
+        t_max=INNER_SPLIT.train_max,
     )
+    train_node_mask, _ = split_masks(data.time_step, INNER_SPLIT)
     seed_mask = train_node_mask & data.labelled_mask
 
     def _val_f1(model) -> float:
