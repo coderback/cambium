@@ -1,16 +1,17 @@
 # ADR-011 — DGF-1 temporal split: node time from the earliest edge, training graph by edge date
 
-**Status:** proposed
-**Date:** 2026-09-11
+**Status:** accepted
+**Date:** 2026-09-11 · **accepted** 2026-09-11
 **Deciders:** coderback
 **Data snapshot:** `DGraphFin.zip` (150,476,320 bytes), verified by `scripts/verify_dgraph_snapshot.py`
 (ADR-010). Every number below is from `scripts/measure_dgf1_temporal_split.py`, which is read-only:
 it trains nothing, scores nothing and writes no registry row. **The one exception** is the set of
 test-window class statistics in *Disclosure*, which a review subagent computed and which are
 recorded there for that reason.
-**Docs affected (amendments applied on acceptance, not before). Sites found by grepping `docs/`
-and `CLAUDE.md` before drafting (ADR-009 practice); `docs/` is gitignored, so ripgrep skips it and
-the grep has to be run explicitly:**
+**Docs affected — all amendments applied 2026-09-11 on acceptance. Sites found by grepping
+`docs/` and `CLAUDE.md` before drafting (ADR-009 practice); `docs/` is gitignored, so ripgrep skips
+it and the grep has to be run explicitly. The grep was re-run after applying, to confirm no live
+contradiction remains:**
 - `docs/02-dgraph-fin-embedding-model-BUILD.md`:
   - §2.3: the "train on the graph as of ≤ cutoff `T`" bullet and the "split derivation is not yet
     fixed" bullet;
@@ -22,9 +23,17 @@ the grep has to be run explicitly:**
   - §8 step 3: "XGBoost on node features" becomes the parity floor.
 - `docs/00-shared-core-graph-embedding-GUIDE.md` §7: the "Time-split, not random-split" bullet gains
   one clarifying sentence on what "as of" means for dated edges.
-- `docs/timeline.md`: the DGF-1 Phase-0 split row.
-- `CLAUDE.md` *Leakage discipline*, strict-inductive line: a DGF-1 pointer. This is the researcher's
-  call, because it is the constitution.
+- `docs/timeline.md`: the DGF-1 Phase-0 split row, and the DGF-1 Gate-1 row (parity floor). The
+  Gate-1 row was added on application: the timeline mirrors doc-02 §7, which this ADR amends.
+- `CLAUDE.md` *Leakage discipline*, strict-inductive line: a DGF-1 pointer. It is the constitution,
+  so it was applied on the researcher's explicit instruction at acceptance.
+
+> **Enumeration corrected on application (2026-09-11).** The grep re-run after applying the
+> amendments found two more live references to "the tabular floor" that the list above missed:
+> doc-00 §9's build-order row and doc-02 §5's "story" line. Neither contradicted this ADR, but both
+> now say "parity" explicitly, so the loose wording cannot drift. The only other match, doc-02
+> §2.3's "not yet fixed", sits inside the dated quote of the previous wording and is intentional.
+> ADR-007, ADR-008 and ADR-009 all undercounted their sites; this one did too, by two.
 
 > **Review note 1 (2026-09-11, pre-acceptance).** An adversarial pass on the first draft, in the
 > manner of the ADR-005/006 review, found eleven defects. Three were serious:
@@ -97,8 +106,8 @@ the grep has to be run explicitly:**
   **Rule from here on:** any change to clauses 2–4 made after this point must either make Gate 1
   harder for the GNN, or rest entirely on label-free evidence. (When first written in review, the
   rule read "only harder". It is refined here because a direction-neutral change justified without
-  labels cannot exploit the look either. **The refinement is flagged for the researcher to accept or
-  reject.**) The three post-look decisions satisfy the rule as follows:
+  labels cannot exploit the look either. **The researcher accepted the refinement on 2026-09-11,
+  together with this ADR.**) The three post-look decisions satisfy the rule as follows:
   - **Clause 2 (role-matching)** is justified entirely by label-free evidence: pilot/gate identity,
     the controlled comparison, and the section-5 view match.
   - **Clause 4's floor parity** makes Gate 1 strictly harder for the GNN.
