@@ -1,0 +1,43 @@
+"""DGF-1's temporal windows — concrete instances of the core :class:`TemporalSplit` (ADR-011).
+
+The machinery is domain-agnostic (``gbe.eval``); the 369 / 481 / 821 values are model-specific and
+read from ``adapters/dgf1/config.yaml`` so they land in the config hash. Both windows share one
+``train_max`` because every run trains on the same set (ADR-011 clause 2): ``val`` scores the
+retune and the seed pilot, ``test`` is scored by gate runs only.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+from gbe.eval import TemporalSplit
+
+CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
+
+
+def dgf1_splits(config_path: str | Path = CONFIG_PATH) -> dict[str, TemporalSplit]:
+    """``{"val": ..., "test": ...}`` from the adapter config's ``split`` block.
+
+    Raises if the windows are not contiguous (train | val | test with no gap and no overlap): a gap
+    would silently drop users from every window, an overlap would score users twice.
+    """
+    with Path(config_path).open("r", encoding="utf-8") as fh:
+        s = yaml.safe_load(fh)["split"]
+    if not (s["val_min"] == s["train_max"] + 1 and s["test_min"] == s["val_max"] + 1):
+        raise ValueError(
+            f"DGF-1 windows must be contiguous: train <= {s['train_max']}, val "
+            f"{s['val_min']}-{s['val_max']}, test {s['test_min']}-{s['test_max']} (ADR-011 clause 2)."
+        )
+    attr = str(s.get("time_attr", "node_time"))
+    return {
+        "val": TemporalSplit(
+            train_max=int(s["train_max"]), test_min=int(s["val_min"]),
+            test_max=int(s["val_max"]), time_attr=attr,
+        ),
+        "test": TemporalSplit(
+            train_max=int(s["train_max"]), test_min=int(s["test_min"]),
+            test_max=int(s["test_max"]), time_attr=attr,
+        ),
+    }
