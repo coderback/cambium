@@ -5,62 +5,107 @@
 **Deciders:** coderback
 **Data snapshot:** `DGraphFin.zip` (150,476,320 bytes), verified by `scripts/verify_dgraph_snapshot.py`
 (ADR-010). Every number below is from `scripts/measure_dgf1_temporal_split.py`, which is read-only:
-it trains nothing, scores nothing and writes no registry row.
+it trains nothing, scores nothing and writes no registry row. **The one exception** is the set of
+test-window class statistics in *Disclosure*, which a review subagent computed and which are
+recorded there for that reason.
 **Docs affected (amendments applied on acceptance, not before). Sites found by grepping `docs/`
 and `CLAUDE.md` before drafting (ADR-009 practice); `docs/` is gitignored, so ripgrep skips it and
 the grep has to be run explicitly:**
-`docs/02-dgraph-fin-embedding-model-BUILD.md` §2.3 (the "train on the graph as of ≤ cutoff `T`"
-bullet and the "split derivation is not yet fixed" bullet), §4 Phase 0 (the split + leakage-test
-bullet), §5 (one reported-only row: the window-only eval sensitivity, clause 4);
-`docs/00-shared-core-graph-embedding-GUIDE.md` §7 (the "Time-split, not random-split"
-bullet: one clarifying sentence on what "as of" means for dated edges); `docs/timeline.md` DGF-1
-Phase-0 split row; `CLAUDE.md` *Leakage discipline*, strict-inductive line (a DGF-1 pointer, which is
-the researcher's call because it is the constitution).
+- `docs/02-dgraph-fin-embedding-model-BUILD.md`:
+  - §2.3: the "train on the graph as of ≤ cutoff `T`" bullet and the "split derivation is not yet
+    fixed" bullet;
+  - §4 Phase 0: the split + leakage-test bullet, and the baselines bullet (floor parity, clause 4);
+  - §4 Phase 1 Gate 1: what "the tabular floor" means (clause 4);
+  - §5: the comparator table's floor row, and the reporting template (the parity floor, plus two
+    reported-only sensitivity rows);
+  - §7: the Gate-1 row;
+  - §8 step 3: "XGBoost on node features" becomes the parity floor.
+- `docs/00-shared-core-graph-embedding-GUIDE.md` §7: the "Time-split, not random-split" bullet gains
+  one clarifying sentence on what "as of" means for dated edges.
+- `docs/timeline.md`: the DGF-1 Phase-0 split row.
+- `CLAUDE.md` *Leakage discipline*, strict-inductive line: a DGF-1 pointer. This is the researcher's
+  call, because it is the constitution.
 
-> **Review note (2026-09-11, pre-acceptance).** An adversarial pass on the first draft, in the
+> **Review note 1 (2026-09-11, pre-acceptance).** An adversarial pass on the first draft, in the
 > manner of the ADR-005/006 review, found eleven defects. Three were serious:
-> (1) **clause 4 was chosen with the isolation statistic in view, and can only help the GNN** against
-> a floor that uses no graph, yet the disclosure did not say so;
-> (2) **clause 6 made the stronger leakage guard opt-in** (`edge_time=None`), so a DGF-1 call site
-> that forgot the argument would reproduce the exact silent failure this ADR exists to prevent;
-> (3) **no clause fixed feature-normalisation statistics to the training window**, the classic leak
-> doc-01 §2.2.5 closed for ELL-1.
+> (1) **clause 4 was chosen with the isolation statistic in view, and was said to only help the
+> GNN**, but the disclosure did not say so;
+> (2) **clause 6 made the stronger leakage guard opt-in** (`edge_time=None`);
+> (3) **no clause fixed feature-normalisation statistics to the training window.**
 > Five were overclaims:
-> (4) "only the minimum" is prefix-determined (false: every k-th-earliest edge time is);
-> (5) the temporal track was called size-matched to the official one (true of the windows, false of
-> the gate training set);
-> (6) two sentences asserted what a third party's protocol does, which ADR-007 says we cannot verify;
-> (7) clause 6 justified core placement by future models (the speculative pushing doc-00 §1
-> forbids);
-> (8) "strict subset" was stated as a law when it is a property of this snapshot.
+> (4) "only the minimum" is prefix-determined;
+> (5) "size-matched" was said of the whole track;
+> (6) two sentences asserted a third party's protocol;
+> (7) core placement was justified by future models;
+> (8) "strict subset" was stated as a law.
 > Three were omissions:
-> (9) clause 5 did not say which checks are pytest (synthetic fixtures, the repo's practice) and
-> which are real-snapshot audits;
-> (10) look-ahead within a window was a limitation stated only inside clause 4;
-> (11) the seed pilot trains on `≤ 369` while gate runs train on `≤ 481`.
-> All eleven are fixed below. No rule constant, window boundary or measured number changed.
+> (9) pytest vs snapshot audit;
+> (10) look-ahead stated only inside clause 4;
+> (11) the pilot/gate training mismatch.
+> All eleven were fixed. (11) was first deferred; it is now resolved by review note 2's clause-2
+> decision.
+>
+> **Review note 2 (2026-09-11): decisions on the three open questions.** These were taken with a
+> literature review and a red-team subagent. Each decision below records its evidence.
+> - **Clause 2:** gate runs train on `≤ 369`, role-matched to the official split. Previously they
+>   trained on `≤ 481`, the ELL-1-as-deployment reading.
+> - **Clause 4:** the view is kept, but it gains **floor parity** plus two reported-only
+>   sensitivity rows.
+> - **Clause 6:** `edge_time` becomes **required, with no default**. ELL-1 derives its edge dates in
+>   the adapter.
+>
+> The red-team also found four defects, all fixed here:
+> - "never harder" was an overclaim;
+> - the post-appearance outcome channel was unnamed;
+> - clause 4's fairness depended on a floor question the ADR left open;
+> - the train/test view shift was unmeasured.
+>
+> One **process failure** is recorded in *Disclosure*: the red-team read test-window labels.
 
 ## Disclosure — what had been seen when this was written
 
 - **No DGF-1 model has been trained or scored, on any split.** `adapters/dgf1/` is still a one-line
-  scaffold, and every one of the 103 registry rows is `model=ell1`. No threshold here can have been
-  tuned to a result, because no result exists.
+  scaffold, and every one of the 103 registry rows is `model=ell1`.
 - **Data statistics have been seen:** ADR-010's shape/label/degree verification, plus this ADR's
-  measurement of support, prevalence and edge counts per window. **The windowing rule (clause 2) was
-  fixed before that measurement ran.** The script was run twice: the second run only *added
-  reporting* (the final-window row and the cutoff-481 edge counts). The two rule constants,
-  `TRAIN_FRAC = 0.70` and `VAL_FRAC = 0.85`, were never changed.
+  measurement of support, prevalence, edge counts and neighbourhood growth per window. **The
+  windowing rule (clause 2's 70/85) was fixed before any measurement ran.** The two rule constants,
+  `TRAIN_FRAC = 0.70` and `VAL_FRAC = 0.85`, were never changed. Later runs of the script only
+  *added* reporting.
 - Prevalence per window is reported because AUPRC's chance level travels with it (ADR-007). It was
   **not** an input to the cutoffs.
-- **Clause 4 is informed, and its direction favours the GNN; a reader is entitled to weigh that.**
-  The eval-graph rule was chosen with the 36.66% window-only isolation figure in view. The tabular
-  floor uses no graph, so the eval-graph rule moves only the GNN arm. Compared with ELL-1's
-  window-only rule, this clause can make Gate 1 **easier** to pass, never harder. That is the
-  opposite of the asymmetry that defended ADR-007. The defence here is a principle, not an
-  asymmetry: window-only eval deletes edges that existed at scoring time, which is the artificial
-  choice. doc-00 §7's "as of" reading is the natural one. **Mitigation:** the window-only score is
-  computed from the same trained models and reported beside the gated one (clause 4), so how much
-  the result depends on this choice is visible, not hidden.
+- **Clause 4 is informed.** The as-of-window-end rule was chosen with the 36.66% window-only
+  isolation figure in view.
+  - Compared with window-only eval it is **expected** to favour the GNN. The direction is **not
+    verified**: more edges can hurt as well as help, and GATE-ELL1-3 measured misleading neighbours
+    doing worse than none.
+  - **Floor parity** (clause 4) hands the node-level part of that advantage to the floor as well.
+  - The two reported-only sensitivity rows expose how much the result depends on the view.
+- **Test-window label statistics were seen during review (2026-09-11). Recorded verbatim; a reader
+  should weigh this.** A red-team subagent reviewing this ADR computed fraud-vs-normal degree
+  statistics **on the test window (482–821)**. Its prompt did not forbid test-window labels, and that
+  omission is the reviewer's error, not the agent's. What was seen:
+  - mean degree, normal vs fraud: **1.90 vs 1.42** under the as-of-821 view, and **1.38 vs 1.19**
+    at each node's first appearance;
+  - share at degree 1, normal vs fraud: **0.50 vs 0.75** as of 821, and **0.74 vs 0.88** at first
+    appearance.
+
+  So degree separates the classes more under clause 4's view than under the first-appearance view.
+  No model was trained or scored. The agent also reported statistics for the ≤ 481 view (mean
+  degree 2.32 vs 1.77). Those use pre-test (train + val) labels, not the held-out test window. **Ordering:** clause 4's
+  as-of-window-end rule was drafted *before* this look.
+
+  **Rule from here on:** any change to clauses 2–4 made after this point must either make Gate 1
+  harder for the GNN, or rest entirely on label-free evidence. (When first written in review, the
+  rule read "only harder". It is refined here because a direction-neutral change justified without
+  labels cannot exploit the look either. **The refinement is flagged for the researcher to accept or
+  reject.**) The three post-look decisions satisfy the rule as follows:
+  - **Clause 2 (role-matching)** is justified entirely by label-free evidence: pilot/gate identity,
+    the controlled comparison, and the section-5 view match.
+  - **Clause 4's floor parity** makes Gate 1 strictly harder for the GNN.
+  - **Clause 6** only strengthens a leakage guard.
+  - **The sensitivity rows** are reported, not gated.
+
+  Future subagent prompts must forbid held-out labels explicitly.
 
 ## Context
 
@@ -70,27 +115,27 @@ is derived, with one constraint: *a node's assigned time may not depend on any e
 cutoff.* doc-02 §4 Phase 0 requires the split and its leakage test to ship in the same session.
 
 Answering "how does a node get a time?" is only half the problem. The existing core's guards were
-written for Elliptic, where **every edge lies inside one time step**. So "both endpoints are
-pre-cutoff" implied "the edge is pre-cutoff", and filtering the graph by node time was enough.
-`gbe.eval.induced_train_subgraph` and `gbe.eval.assert_no_temporal_leakage` both reason **only
-about node times** as a result. DGraph breaks that implication: users persist, and two users who
-both appeared before the cutoff can gain an edge between them long after it.
+written for Elliptic, where **every edge lies inside one time step** (all 468,710 of them). So
+"both endpoints are pre-cutoff" implied "the edge is pre-cutoff", and filtering the graph by node
+time was enough. `gbe.eval.induced_train_subgraph` and `gbe.eval.assert_no_temporal_leakage` both
+reason **only about node times** as a result. DGraph breaks that implication: users persist, and two
+users who both appeared before the cutoff can gain an edge between them long after it.
 
-**Measured, at the cutoffs this ADR proposes (directed edges, before reverse edges are added):**
+**Measured (directed edges, before reverse edges are added):**
 
 | training cutoff | edge-dated graph (`t_e ≤ T`) | node-induced graph (both endpoints `≤ T`) | post-cutoff edges admitted by the node-induced graph | labelled in-window nodes touched |
 |---|---|---|---|---|
-| inner, `T = 369` | 1,743,128 | 2,142,494 | **399,366 (18.64%)** | 324,249 of 858,702 (37.76%) |
-| final, `T = 481` | 2,704,431 | 3,021,063 | **316,632 (10.48%)** | 254,217 of 1,042,132 (24.39%) |
+| **`T = 369` (the training cutoff, clause 2)** | 1,743,128 | 2,142,494 | **399,366 (18.64%)** | 324,249 of 858,702 (37.76%) |
+| `T = 481` (rejected alternative, for scale) | 2,704,431 | 3,021,063 | 316,632 (10.48%) | 254,217 of 1,042,132 (24.39%) |
 
 If ELL-1's core were used unchanged on DGraph, **hundreds of thousands of future edges would enter
 training, and the leakage assertion would stay silent**, because it checks endpoints, not edges.
-That is the failure constitution-level leakage tests exist to stop. It is invisible here because
-ELL-1 never exercised the difference: zero of its 468,710 edges crossed the cutoff (GATE-ELL1-3).
+That is the failure constitution-level leakage tests exist to stop. ELL-1 never exercised the
+difference: zero of its 468,710 edges crossed the cutoff (GATE-ELL1-3).
 
 The eval graph has the same problem in reverse. ELL-1 scored the test window using **only edges
-inside the window**, with no forward pass over any other part of the graph. On Elliptic that choice
-cost nothing. On DGraph, new users mostly connect to users who already existed:
+inside the window**. On Elliptic that choice cost nothing. On DGraph, new users mostly connect to
+users who already existed:
 
 | test window 482–821 | value |
 |---|---|
@@ -98,8 +143,17 @@ cost nothing. On DGraph, new users mostly connect to users who already existed:
 | … with both endpoints inside the window | 411,021 (**32.11%**) |
 | labelled test nodes left **isolated** by window-only eval | **67,266 of 183,469 (36.66%)** |
 
-Copying ELL-1's eval rule would silently switch off message passing for over a third of the scored
-nodes. That would hand the no-graph floor an advantage the protocol created, not the data.
+**Neighbourhoods keep growing after users appear, so the view matters.** Of 8,601,998 edge
+incidences, **46.27%** arrive after the endpoint's first appearance, and **33.40%** arrive more than
+100 steps after it. So the training view and the test view have to be compared, not assumed alike.
+Label-free, labelled nodes only:
+
+| view | node age at scoring (median / mean steps) | degree (median / mean) |
+|---|---|---|
+| **train `≤ 369`, graph as of 369** | 219 / 213.47 | 2 / 1.87 |
+| train `≤ 481`, graph as of 481 (rejected) | 298 / 279.12 | 2 / 2.31 |
+| **test 482–821, graph as of 821** | 202 / 188.40 | 1 / 1.89 |
+| test 482–821, graph at first appearance | — | 1 / 1.38 |
 
 ## Decision
 
@@ -121,76 +175,127 @@ with fewer than k edges has none, and 38.9% of nodes sit at total degree ≤ 1 (
 the least assumption-laden reading of "first appearance" (`verify_dgraph_snapshot.py`). Those two
 reasons choose it among the proxies the constraint admits.
 
-### Clause 2 — The windows come from a fixed rule over labelled node time
+### Clause 2 — The windows come from a fixed rule, and their roles match the official split
 
-- `train_max` is the first step at which the cumulative **labelled** count reaches **70%**, and
-  `val_max` the first step at which it reaches **85%**. This mirrors the official split's 70/15/15
-  over labelled nodes, so the **scored windows** of the two tracks match in size to within 0.3%:
-  val 183,430 vs 183,862, test 183,469 vs 183,840. The training sets deliberately do **not** match.
-  The gate model trains on `≤ 481` (1,042,132 labelled) where the official train mask holds 857,899.
-  That follows ELL-1's pattern (next bullet), and comparisons across tracks must say so.
-- On the snapshot this gives:
+**The rule.** `train_max` is the first step at which the cumulative **labelled** count reaches
+**70%**, and `val_max` the first step at which it reaches **85%**. On the snapshot:
 
-| window | steps | labelled | fraud | prevalence | background | all nodes |
-|---|---|---|---|---|---|---|
-| inner train | 1–369 | 858,702 | 10,317 | 1.2015% | 1,206,715 | 2,065,417 |
-| val | 370–481 | 183,430 | 2,475 | 1.3493% | 496,064 | 679,494 |
-| test | 482–821 | 183,469 | 2,717 | 1.4809% | 772,170 | 955,639 |
-| **final train** (inner train + val) | 1–481 | 1,042,132 | 12,792 | 1.2275% | 1,702,779 | 2,744,911 |
-| *official (random), for contrast* | — | 857,899 / 183,862 / 183,840 | — | 1.2655% / 1.2651% / 1.2652% | 0 | — |
+| window | steps | role | labelled | fraud | prevalence | background | all nodes |
+|---|---|---|---|---|---|---|---|
+| train | 1–369 | **the one training set**, for every run | 858,702 | 10,317 | 1.2015% | 1,206,715 | 2,065,417 |
+| val | 370–481 | the ADR-009 retune and the ADR-007 seed pilot are **scored** here; nothing trains on it | 183,430 | 2,475 | 1.3493% | 496,064 | 679,494 |
+| test | 482–821 | gate scoring only | 183,469 | 2,717 | 1.4809% | 772,170 | 955,639 |
+| *official (random)* | — | train / val / test | 857,899 / 183,862 / 183,840 | 10,857 / 2,326 / 2,326 | 1.2655% / 1.2651% / 1.2652% | 0 | — |
 
-- **This follows ELL-1's pattern (ADR-003):** tune on the inner split (train `≤ 369`, validate on
-  370–481), then train the gate model on all pre-test time (`≤ 481`) and score 482–821. The val
-  window is where ADR-009's `lr` + `batch_size` retune and ADR-007's seed-count pilot run.
-  **Neither may touch 482–821.**
-- The concrete numbers 369 / 481 / 821 live in `adapters/dgf1/config.yaml`, never in `gbe/`
-  (gbe rule 3). That puts them in every row's config hash. The *rule* lives here.
-- **Scored targets:** labelled nodes whose `t_node` falls inside the window. A labelled user who
-  appeared before the cutoff is never a test target, even though users persist. DGF-1's temporal
-  claim is exactly this: *classify users who first appear after the cutoff.* Write-ups must use that
-  sentence, not a looser one.
+**The roles are matched to the official split, not only the proportions.** Every run trains on
+`≤ 369`: the `lr` + `batch_size` retune, the seed pilot, and every gate run of both the floor and
+the GNN. Val is used only to score the retune and the pilot. Test is scored only by gate runs. All
+three windows match the official masks in size to within 0.3%: train 858,702 vs 857,899, val
+183,430 vs 183,862, test 183,469 vs 183,840. Four reasons, three of them label-free measurements or
+properties:
+
+1. **The pilot measures the configuration it sizes.** ADR-007's seed pilot and the gate runs share
+   one training set, so the seed variance the pilot measures is the gate's own, not a proxy
+   extrapolated from a smaller training set.
+2. **Random-vs-temporal becomes a controlled comparison.** Sizes and roles are identical; only how
+   the split is drawn differs. That is the stated reason for mirroring the official proportions.
+   The literature review found **no citable precedent** for mirroring a dataset's official
+   proportions as such (TGB uses 70/15/15 of *edges*; OGB and RelBench cut on calendar time), so
+   the justification has to be the comparison it enables, and it is.
+3. **The model is scored on the kind of view it was trained on.** As of 369, training nodes are
+   median age 219 with mean degree 1.87. As of 821, test nodes are median age 202 with mean degree
+   1.89 (*Context*). Training on `≤ 481` would break that: median age 298, mean degree 2.31.
+4. **It is the correct reading of ELL-1's precedent.** ELL-1's split *was* the published Weber et
+   al. split, so "follow ELL-1" means "match the published split's roles". ELL-1's retrain-on-all
+   pattern was an artefact of having no official validation window.
+
+**Cost:** 183,430 labelled val nodes never enter a gate run's training set, and there are 112 steps
+between training's end and test's start. Both apply identically to the floor and the GNN.
+
+The concrete numbers 369 / 481 / 821 live in `adapters/dgf1/config.yaml`, never in `gbe/`
+(gbe rule 3), so they appear in every row's config hash. The *rule* lives here.
+
+**Scored targets:** labelled nodes whose `t_node` falls inside the window. A labelled user who
+appeared before the cutoff is never a test target, even though users persist. DGF-1's temporal
+claim is exactly this: *detect fraud among users who first appear after the cutoff.* Write-ups must
+use that sentence, not a looser one.
 
 ### Clause 3 — The training graph is filtered by edge date, not by node time
 
-The training graph at cutoff `T` is **exactly the edges with `t_e ≤ T`**. Reverse edges (doc-02
-§2.2.4, on by default) are added **after** filtering and keep the forward edge's date. Because of
-clause 1, every edge dated `≤ T` already has both endpoints at time `≤ T`, so the edge-dated graph is
-always a subset of the node-induced one. On this snapshot it is a strict subset: the difference is
-exactly the 399,366 / 316,632 edges in *Context*, and this clause removes them.
+The training graph is **exactly the edges with `t_e ≤ 369`**. Reverse edges (doc-02 §2.2.4, on by
+default) are added **after** filtering and keep the forward edge's date. Because of clause 1, every
+edge dated `≤ T` already has both endpoints at time `≤ T`, so the edge-dated graph is always a
+subset of the node-induced one. On this snapshot it is a strict subset: this clause removes the
+399,366 edges in *Context*.
 
 Every feature derived from edges (doc-02 §2.2.4b's 11-wide edge-type histogram and recency
-features) is computed from **the same edge set as the graph it feeds**. A training-time feature may
-not count an edge the training graph excludes. **Recency is measured from the view's own cutoff**
-(`T` when training, the window's last step when scoring), never from step 821. Measuring from 821
-would bake the dataset's end date into every training feature.
+features) is computed from **the same edge set as the graph or view it feeds**. **Recency is
+measured from the view's own cutoff** (369 when training; the window's last step when scoring), never
+from step 821. Measuring from 821 would bake the dataset's end date into every training feature.
 
-**Every fitted feature statistic is fitted on nodes with `t_node ≤ T` only.** That covers scalers,
-quantile transforms, and any normalisation of the raw 17 features or the edge-derived ones, at each
-cutoff (`≤ 369` for tuning and the pilot, `≤ 481` for gate runs). It applies to the tabular floor
-and the GNN alike. This is doc-01 §2.2.5's fit-on-train rule carried over. The feature tensor
+**Every fitted feature statistic is fitted on nodes with `t_node ≤ 369` only.** That covers scalers,
+quantile transforms, and any normalisation of the raw 17 features or the edge-derived ones, for the
+floor and the GNN alike. This is doc-01 §2.2.5's fit-on-train rule carried over. The feature tensor
 covers all 3.7M nodes, so a statistic computed over it would include test-window users.
 
-### Clause 4 — The eval graph is the graph as it stood at the end of the window
+### Clause 4 — The eval graph is the graph as of the window's end, and the floor sees what the GNN sees
 
-Scoring a window uses a **frozen** model on **all edges dated at or before the window's last step**:
-edges `≤ 481` for validation (inner-trained model), edges `≤ 821` for test (final-trained model).
-Pre-window nodes take part **as neighbours only**: their features enter message passing, their
-labels never do, and no parameter or normalisation statistic is updated. LayerNorm is per-node, and
-BatchNorm stays banned.
+**The view.** Scoring a window uses the frozen `≤ 369`-trained model on **all edges dated at or
+before the window's last step**: edges `≤ 481` to score val, edges `≤ 821` to score test.
+- Pre-window nodes take part **as neighbours only**. Their features enter message passing, their
+  labels never do, and no parameter or normalisation statistic is updated. LayerNorm is per-node,
+  and BatchNorm stays banned.
+- This is strict-inductive where it matters: the model is trained only on the clause-3 graph, and
+  no post-cutoff edge or label reaches a parameter.
+- It departs **explicitly** from ELL-1's window-only eval, because of the measured 36.66% isolation.
 
-This departs **explicitly** from ELL-1's window-only eval. The reason is the measured 36.66%
-isolation, not a preference. It is still strict-inductive where it matters: the encoder is trained
-only on the clause-3 graph, and no post-cutoff edge or label reaches a parameter. The cost: a node
-early in a window can be scored with edges from later in the same window (see *Limitations*). The
-dataset ships as one graph with no per-edge filtering. This ADR claims nothing about how any third
-party evaluated on it (ADR-007).
+**Why this view.** Training scores users with everything up to 369, and test scores users with
+everything up to 821. Both are the same task, *detection from a snapshot taken at the window's end*,
+and *Context* measures the two views as matched in node age and degree. It honours the rule that
+TGB (arXiv:2307.01026) and RelBench (arXiv:2407.20060) apply: a prediction may use only history up
+to its prediction time. Here the prediction time is the window's end. That the two benchmarks'
+rule is satisfied is this ADR's inference; it claims nothing else about any third party's protocol
+(ADR-007). Labels are undated, so the data cannot settle *when* the prediction should happen
+relative to the outcome. That is why the first-appearance alternative is reported below rather than
+dismissed.
 
-**Reported, not gated: the window-only sensitivity.** Each trained GNN is also scored under ELL-1's
-window-only rule, with edges restricted to both endpoints inside the window. This is a second
-forward pass from the same weights, costing no training. It is reported beside the gated number,
-labelled as a protocol sensitivity. It has no pass condition and may not acquire one retroactively.
-It exists so a reader can see how much of any GNN–floor gap the eval-graph choice accounts for (see
-*Disclosure*).
+**Floor parity (binding on DGF-1's Gate-1 pre-registration).** The **gated** tabular floor receives
+**every node-level statistic derived from the graph view that the GNN's input features contain**:
+- at minimum, doc-02 §2.2.4b's 11-wide edge-type histogram (its row sum is the node's degree) and
+  the recency features;
+- computed from the same view as the GNN's: the `≤ 369` graph for training, the window-end graph
+  for scoring.
+
+The raw-17-feature floor is **reported, not gated**. Neighbourhoods grow after appearance (*Context*),
+and degree correlates with the label in the pre-test windows (*Disclosure*), so without parity the
+GNN alone would read post-appearance activity through degree. With parity, the node-level part of
+that channel reaches both arms, and Gate 1 tests **message passing beyond local counts**. That is
+the same bar ELL-1's RF floor set by already containing one-hop aggregates, and the conservative
+direction: it makes Gate 1 strictly harder for the GNN.
+
+**Reported, not gated: two sensitivity rows, both scored from the same trained weights.** Floor and
+GNN are both scored under each view, with the floor's view-derived features recomputed from that
+view, so each row stays a GNN-vs-floor comparison. Neither row has a pass condition, and neither may
+acquire one retroactively.
+1. **Window-only view:** only edges with both endpoints inside the window, which is ELL-1's rule.
+   One extra forward pass.
+2. **First-appearance view:** each scored node sees only edges dated at or before its own `t_node`.
+   This uses PyG `NeighborLoader` temporal sampling, with `time_attr` set to the edge time and
+   `input_time = t_node`. The literature review read the pyg-lib source to confirm the details:
+   - the cutoff is inclusive (`≤`);
+   - it is enforced at **every hop** against the seed's time;
+   - it is supported by the installed pyg-lib 0.8.0 / PyG 2.8.0.post1.
+
+   **Produced only if** the temporal sampler passes a determinism test under ADR-005's strict
+   setting. If it fails, the row is not produced, that fact is recorded, and there is no
+   non-deterministic fallback.
+
+   A model *trained* on first-appearance views is a different experiment and is not pre-registered
+   here.
+
+If the GNN beats the floor on the gated view but not on the first-appearance view, a reader knows
+the gain depends on structure that forms after users appear. That is a result, not an embarrassment,
+and it is reported either way.
 
 ### Clause 5 — Leakage tests, written in the implementation session (untested guards don't exist)
 
@@ -199,66 +304,80 @@ It exists so a reader can see how much of any GNN–floor gap the eval-graph cho
 Each fixture includes at least one edge between two pre-cutoff nodes dated after the cutoff, the
 case ELL-1's fixtures never contained.
 
-1. **Exact equality, not just a bound:** the adapter's training edge set equals `edges_as_of(…, T)`,
-   after reverse-edge doubling, at both cutoffs. That catches leaked edges and wrongly dropped ones.
-2. Every training seed (labelled node used in the loss) has `t_node ≤ train_max`.
-3. **The guard has teeth:** the node-induced graph *fails* the edge-date assertion, while the
-   node-only form of the assertion passes it. That pins the exact failure this ADR fixes.
+1. **Exact equality, not just a bound:** the adapter's training edge set equals
+   `edges_as_of(…, t_max=369)` after reverse-edge doubling. That catches leaked edges and wrongly
+   dropped ones.
+2. Every training seed (labelled node used in the loss) has `t_node ≤ 369`.
+3. **The guard has teeth:** the node-induced graph *fails* the edge-date assertion. Calling the
+   assertion or the filter **without** `edge_time` raises `TypeError`.
 4. **Prefix-determinism:** node times recomputed from only the edges dated `≤ B` give identical
    window membership at every boundary `B`.
-5. An eval graph built for a window contains no edge dated after that window's last step.
-6. Edge-derived features computed for training equal features recomputed from the `≤ T` edge set
-   alone, with recency measured from `T`.
-7. **Fit-on-train:** perturbing the features of nodes with `t_node > T` leaves every fitted feature
-   statistic unchanged.
+5. An eval view built for a window contains no edge dated after that window's last step.
+6. Edge-derived features computed for training equal features recomputed from the `≤ 369` edge set
+   alone, with recency measured from 369.
+7. **Fit-on-train:** perturbing the features of nodes with `t_node > 369` leaves every fitted
+   feature statistic unchanged.
+8. **Floor parity:** for the same nodes and view, the floor's view-derived columns equal the
+   view-derived columns in the GNN's input.
+9. **ELL-1 derivation:** the adapter's derived edge date equals the shared step. A fixture edge
+   joining two different steps makes the derivation raise.
+10. **Temporal sampler** (only if the first-appearance row is produced): every sampled edge, at
+    every hop, has `t_e ≤` its seed's `t_node`, and two runs at one seed give identical batches.
 
 **Snapshot audit, in a script, not pytest** (the `verify_dgraph_snapshot.py` pattern). It runs once
 when the DGF-1 DataSource first loads the real graph, and exits non-zero on any mismatch:
 - cutoffs 369 / 481;
-- the per-window support in clause 2;
-- node-induced-minus-edge-dated counts of 399,366 / 316,632;
+- clause 2's per-window support;
+- the 399,366 node-induced-minus-edge-dated count at 369;
 - zero isolated nodes;
 - invariants 1, 4 and 5 re-checked on the real graph.
 
 A mismatch is a doc-vs-data discrepancy and is escalated, never absorbed (ADR-001).
 
-### Clause 6 — Where the code goes: edge-date filtering joins the core, node-time derivation does not
+### Clause 6 — Edge dates become a required input to the core; node-time derivation stays in the adapter
 
-- **Core (`gbe.eval.temporal`):** an edge-date filter, e.g. `edges_as_of(edge_index, edge_time,
-  t_max)`, used for both the training graph (clause 3) and the eval graph (clause 4). Also an
-  optional `edge_time` argument to `assert_no_temporal_leakage` that, when given, asserts every
-  edge's own date is pre-cutoff. Reasons:
-  - doc-00 §7 makes leakage checks harness-level.
-  - An edge date is not domain knowledge.
-  - The check is defined identically for **both models that exist today**. Elliptic's edges carry a
-    date too, the step both endpoints share, so the check applies to ELL-1 unchanged and never
-    fires there. The argument rests on the two current models, not on speculation about later ones
-    (doc-00 §1).
-- **ELL-1 stays bit-for-bit (ADR-008).** The new argument defaults to `None`, and ELL-1's call sites
-  stay as they are. `scripts/check_extract_regression.py` is what verifies this, not argument.
-- **The default makes the stronger guard opt-in, and that is a hazard, not a detail.** A DGF-1
-  call site that omits `edge_time` gets the node-only check and silently reproduces the failure in
-  *Context*. DGF-1 therefore does **not** rely on remembering the argument. Coverage comes from
-  clause 5's exact-equality test on the adapter's actual training edge set. The DGF-1 adapter must
-  not call `induced_train_subgraph`. That function's docstring gains its validity condition: correct
-  only when every edge lies within one time value.
-- **Adapter (`adapters/dgf1/`):** the earliest-edge node time. ELL-1 has a native node time, and
-  EDR-1's company nodes will carry their own dates, so not all four models would derive it the same
-  way. The inclusion rule applies: when unsure, keep it out.
-
-**This is the clause to review first.** Moving the edge-date check into the core rests on two
-things: the harness-level leakage argument, and the check being defined identically for ELL-1 and
-DGF-1. It does not rest on ELL-1 ever calling it; ELL-1 won't, under ADR-008.
+- **Core (`gbe.eval.temporal`):** `edges_as_of(edge_index, *, edge_time, t_max)` and
+  `assert_no_temporal_leakage(edge_index, time_step, split, *, edge_time)`.
+  - **`edge_time` is keyword-only and required, with no default.** Forgetting it raises
+    immediately, instead of silently falling back to the node-only check. That is ADR-005's
+    loud-over-silent principle.
+  - Why the core:
+    - doc-00 §7 makes leakage checks harness-level.
+    - An edge date is not domain knowledge.
+    - The check is defined identically for **both models that exist today**: Elliptic's edges
+      carry a date too, the step both endpoints share.
+    - P0 packages `gbe.eval` as a protocol for *dated graphs*. A harness whose guard is correct only
+      for within-step edges would be a defect in the published artifact.
+- **ELL-1 derives its edge dates in its adapter, never through a core default.**
+  - It sets `edge_time` to the shared step of each edge's endpoints, and asserts that every edge lies
+    within one step.
+  - A core default of "the later endpoint's time" *is* the node-induced graph, which is exactly the
+    leak in *Context*, so no such default exists.
+  - Measured on the real Elliptic data: all 468,710 edges lie within one step. The edge-date filter
+    reproduces the node-induced train graph **exactly, with the same edges in the same order**
+    (`torch.equal`), at both ELL-1 cutoffs, 29 and 34. The refactor is therefore bit-for-bit safe
+    by construction. `scripts/check_extract_regression.py` (ADR-008) confirms it after the refactor
+    rather than by argument.
+- **`induced_train_subgraph` is retired from every call site** (`adapters/ell1/train_gnn.py`,
+  `adapters/ell1/hpo.py`, the tests) and replaced by `edges_as_of` with ELL-1's derived edge dates.
+  That is part of EXTRACT's refactor of ELL-1 onto the core.
+- **Adapter (`adapters/dgf1/`):** the earliest-edge node time. ELL-1 has a native node time, and no
+  second model derives node time this way, so it stays out of the core: the inclusion rule, "when
+  unsure, keep it out". Promoting it later is cheap.
 
 ### Scope boundary
 
 This ADR fixes the **split and protocol only**. **DGF-1's Gate-1 pre-registration** is a separate,
-later ADR: seed count derived from a validation pilot, floor ≥ 5 per arm, ADR-006's two-stage
-design. ADR-010 anticipated one "Phase-0/Gate-1 ADR". The two are separated deliberately, because
-that pilot cannot run until this split exists. Together they discharge ADR-010's requirement.
-That ADR inherits one open question from here: the pilot trains on `≤ 369` while gate runs train on
-`≤ 481`. It must argue why seed variance measured on the smaller training set sizes the larger one,
-or pilot at the gate's training size on a window that stays clear of 482–821.
+later ADR:
+- the seed count, derived from a validation pilot on this split's val window;
+- a floor of ≥ 5 seeds per arm;
+- ADR-006's two-stage design.
+
+ADR-010 anticipated one "Phase-0/Gate-1 ADR". The two are separated deliberately, because the pilot
+cannot run until this split exists. Together they discharge ADR-010's requirement. The first draft
+left the Gate-1 ADR an open question about pilot/gate training mismatch; clause 2 removes it. The
+Gate-1 ADR is **bound by clause 4's floor parity**: it may add node-level view statistics to both
+arms, but may not gate against a floor that lacks any the GNN receives.
 
 The official-split track trains and scores on the official masks over the full graph as distributed.
 That is our own definition, not a claim about any third party's protocol. It is always labelled
@@ -268,15 +387,16 @@ That is our own definition, not a claim about any third party's protocol. It is 
 ## Limitations recorded, not fixable from this snapshot
 
 - **Labels carry no date.** A training user's fraud label may reflect behaviour observed after the
-  cutoff, since default is observed later. This is inherent to the dataset. It affects the floor and
-  the GNN equally, so the *comparison* is fair, but absolute numbers are optimistic relative to a
-  real as-of-`T` deployment. Every write-up carries this caveat.
+  cutoff. This affects both arms equally, so the *comparison* is fair, but absolute numbers are
+  optimistic relative to a real as-of-`T` deployment. Every write-up carries this caveat.
 - **Node features are a profile snapshot taken at release.** They cannot be verified as pre-cutoff.
   This also affects both arms equally.
-- **Look-ahead within a window (clause 4).** A test user who joined at step 490 is scored with its
-  edges up to step 821. Unlike the two limitations above, this affects **only the GNN**, since the
-  floor uses no graph. It is why the window-only sensitivity is reported beside every gated GNN
-  number.
+- **Activity after appearance, including possibly after default, is in the scoring view (clause
+  4).** A test user who joined at step 490 is scored with its edges up to 821. Floor parity gives
+  the node-level part of this (degree, type histogram, recency) to **both** arms. What remains
+  **GNN-only** is *who* a user's later neighbours are and what their features say. The
+  first-appearance sensitivity row measures how much the result depends on it. A reviewer may call
+  that remainder post-outcome leakage; the ADR does not claim it is not.
 - **Prevalence drifts upward** across the windows: 1.20% → 1.35% → 1.48%. The val pilot's AUPRC and
   the test AUPRC have different chance levels. Per ADR-007 they are never compared, and each is
   reported with its own prevalence and positive count.
@@ -288,55 +408,88 @@ That is our own definition, not a claim about any third party's protocol. It is 
 - **Source-only node time (only out-edges count).** Leaves any node with only incoming edges
   without a time, and throws away evidence of when a node existed.
 - **Reuse ELL-1's node-induced training graph unchanged.** Measured to admit 399,366 post-cutoff
-  edges at the inner cutoff, touching 37.76% of labelled training nodes, which the current guard
-  cannot see. This is the alternative this ADR most exists to reject.
-- **ELL-1's window-only eval graph.** Isolates 36.66% of labelled test nodes and hands the no-graph
-  floor an advantage created by the protocol.
-- **Score each node using only edges up to its own node time.** Under clause 1 a test node would
-  then see only the edges of its first active step. That is a cold-start question, not the one
-  Gate 1 asks. It could be a later reported-only sensitivity row, and is not decided here.
-- **Cutoffs at fixed fractions of calendar time (steps 1–821).** Labelled support per window would
-  depend on arrival rates rather than being fixed, and the scored windows would no longer match the
-  official split's val/test windows in size.
-- **Train the gate model on the inner window only (`≤ 369`).** Discards 183,430 labelled nodes,
-  widens the gap between training and test time, and departs from ELL-1's precedent for no gain.
+  edges, touching 37.76% of labelled training nodes, which the current guard cannot see. This is
+  the alternative this ADR most exists to reject.
+- **`edge_time` optional, defaulting to `None`** (the first draft). That makes the stronger guard
+  opt-in, so a forgotten argument silently reproduces the leak.
+- **A core default of "the later endpoint's time"**, for graphs without dates. It *is* the
+  node-induced graph, which is the leak. Undated edges must have their date derived and asserted
+  by the adapter that knows why the derivation is valid.
+- **Keep the edge-date check in the adapter.** Leaves a guard in the core that is known to be
+  insufficient for dated graphs, while P0 packages that core as a dated-graph protocol.
+- **Train gate runs on all pre-test time (`≤ 481`)**, the first draft's reading of the ELL-1 pattern.
+  It breaks three things:
+  - the pilot would size a configuration it doesn't measure;
+  - the random-vs-temporal comparison would no longer be role- and size-controlled;
+  - the training view (median age 298, mean degree 2.31) would no longer match the test view (202,
+    1.89).
+
+  ELL-1's precedent, read correctly, is to match the published split's roles.
+- **Cutoffs at fixed fractions of calendar time.** This has precedent (OGB, RelBench), but labelled
+  support per window would depend on arrival rates. The controlled comparison with the official
+  split, which is the reason to prefer 70/85, would be lost.
+- **ELL-1's window-only view as the gated view.** Isolates 36.66% of labelled test nodes and hands
+  the floor an advantage created by the protocol. It is kept as a reported row.
+- **Gate on first-appearance views (Δ = 0), for scoring or for training and scoring** (the
+  red-team's recommendation).
+  - A Gate-1 failure would then be uninterpretable: the test graph is barely formed at first
+    appearance (mean degree 1.38), so "structure doesn't help at scale" and "the structure hadn't
+    formed yet" would be indistinguishable. Gate 1 exists to answer the first question.
+  - The sampler's determinism is also unverified.
+  - It is kept as a reported row, conditional on that verification. If write-ups ever need a
+    deployment claim ("detect at sign-up") rather than a detection-at-snapshot claim, this is the
+    decision to revisit, in its own ADR.
+- **A fixed observation window Δ > 0.** Standard in credit scoring, but Δ is a free parameter with
+  no anchor in this data. Choosing it after the review look would also sit badly with *Disclosure*'s
+  rule.
+- **A raw-17-feature floor as the gated floor.** It leaves the node-level post-appearance channel
+  GNN-only. It is kept as a reported row.
 - **An edge-level holdout.** DGF-1 is node classification, and labels live on nodes.
 - **Put the node-time derivation in the core.** Premature: no second model derives node time this
   way (doc-00 §1).
 - **Fold this into the Gate-1 pre-registration ADR.** That ADR needs a validation pilot, and the
-  pilot needs this split. Bundling them would force the seed count to be chosen before its input
-  exists.
+  pilot needs this split.
 - **Implement it in this session.** Doc-first: an idea is proposed in the session it was
   conceived, and built only after acceptance.
 
 ## Consequences
 
-- **Core change, small and guarded:** the edge-date filter plus an optional leakage-check argument
-  in `gbe/eval/temporal.py`, with the clause-5 tests. ADR-008's checker must stay green.
-- **`adapters/dgf1/`:** the DataSource adds node time, `labelled_mask = (y == 0) | (y == 1)`
-  (ADR-010) and edge-derived features built per graph view. Its config pins 369 / 481 / 821 and
-  `reverse_edges: true`.
-- **Tabular floor:** trained on labelled nodes `≤ 481`, with any scaler fitted on that window only
-  (clause 3), scored on labelled nodes in 482–821, with both metrics routed through
-  `gbe.eval.classification_metrics` (ADR-007). Whether the floor also gets the edge-derived features
-  is a Gate-1 pre-registration question, left open here.
-- **Every gated GNN row gains a sibling window-only score** (clause 4). It is logged in the same
-  registry row under distinct keys, so the two can never be confused or reported apart.
-- **`induced_train_subgraph`'s docstring** gains its validity condition (clause 6). The docstring
-  changes; the behaviour doesn't, so ELL-1's numbers are untouched.
+- **Core, in `gbe/eval/temporal.py`:**
+  - `edges_as_of` and the edge-date leakage assertion, both with a required, keyword-only
+    `edge_time`;
+  - `induced_train_subgraph` retired from every call site;
+  - ELL-1's call sites (`train_gnn.py`, `hpo.py`) and `tests/test_ell1_leakage.py` move to the new
+    API, passing edge dates derived in the adapter.
+  - The ADR-008 checker must report every one of the 49 reference rows bit-for-bit. The `torch.equal`
+    measurement above is why it should.
+- **`adapters/dgf1/`:**
+  - the DataSource adds node time, `labelled_mask = (y == 0) | (y == 1)` (ADR-010), and edge-derived
+    features built per view;
+  - its config pins 369 / 481 / 821 and `reverse_edges: true`.
+- **The gated tabular floor** is the parity floor:
+  - raw 17 features plus the view-derived node statistics;
+  - trained on labelled nodes `≤ 369`, with every fitted statistic fitted on that window;
+  - scored on labelled nodes in 482–821;
+  - both metrics routed through `gbe.eval.classification_metrics` (ADR-007).
+
+  The raw-17 floor is a reported row.
+- **Every gated row gains two reported sensitivity scores**, window-only and first-appearance (the
+  latter conditional on the determinism test), logged in the same registry row under distinct keys,
+  so they can never be confused with the gated number or reported apart from it.
 - **DGF-1 Gate 3 inherits a problem ELL-1 never had.** ELL-1's ablations kept cutoff integrity by
   rewiring within a time step. DGraph edges don't live in steps, so any rewiring has to preserve
   each edge's date, or it forges future edges into the training graph. That belongs to Gate 3's own
   ADR, but it is recorded now so it isn't rediscovered then.
-- **The eval-graph choice drives the result.** At 36.66% isolation the two eval rules would produce
-  materially different GNN numbers. Fixing the rule now, before any score exists, stops it from
-  being chosen afterwards for whichever reads better.
-- `scripts/measure_dgf1_temporal_split.py` is committed as provenance for every number here.
+- `scripts/measure_dgf1_temporal_split.py` is committed as provenance for every number here except
+  the disclosed review statistics.
 
 ## Revisit when
 
 - **DGraphFin-2** turns out to replace the original (ADR-010's *Revisit when*).
 - **Label or feature timestamps become available.** The limitations above would then become fixable
-  and should be fixed.
+  and should be fixed. The first-appearance or observation-window question would then have data to
+  settle it.
+- **A write-up needs a deployment claim** ("detect at sign-up"). Decide gated first-appearance views
+  in their own ADR, **before** any DGF-1 score exists, and never after.
 - **Never for DGF-1 once any DGF-1 score exists on 370–481 or 482–821.** From that point, changing
-  the split or the eval graph is re-thresholding after seeing a result.
+  the split, the view or the floor is re-thresholding after seeing a result.
