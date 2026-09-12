@@ -37,6 +37,28 @@ transfer rule (**ADR-009**).
 > Also repaired: the estimand is now named (clause 6), `n_jobs` is pinned because `hist` determinism
 > depends on thread count (clause 2), and clause 5 gained the ADR-007 carve-out it needed.
 
+> **Review note 2 (2026-09-12, pre-acceptance): full adversarial pass.** The review above covered
+> only the floor question; this pass attacked the whole ADR. One clause was **strengthened by
+> measurement** and seven defects were fixed. Nothing about the criterion changed.
+> - **Clause 3's exact scoring was an untested assumption, and is now measured.** The suspicion was
+>   hub blow-up at max degree 882; the structural probe refutes it (median 8,088 nodes/batch,
+>   max 9,203, ~46 MB — against 7,009/7,254 sampled). Recorded in the clause, with the ~18 GB
+>   full-graph figure that justifies loader-based scoring at all.
+> - **The runtime escape valve was gameable:** "epochs may be reduced" set no value, so the budget
+>   could have been chosen after seeing runtimes. Now a fixed single halving, 40 → 20.
+> - **"Precision at matched recall" was reported but never defined** — now specified in both
+>   directions, from ELL-1's diagnostic.
+> - **Official-split numbers were listed as reported with no clause producing them.** They are a
+>   separate positioning batch, outside clause 5's counts, never sharing a row with a gated number.
+> - **The retune selects among 9 configurations on one seed**, which can pick seed-luck. ELL-1's
+>   precedent, now stated with its weakness and with the pilot as the check.
+> - **Clause 10 stored scores without node ids**, so the paired bootstrap could not have aligned two
+>   arms except by trusting an undocumented ordering. Ids are now stored and asserted equal.
+> - **The bootstrap's seed and replicate count were unpinned**, so its CI would not have been
+>   reproducible from the stored files. Both pinned (1,000 replicates, seed 0).
+> - **Clause 8's guard line had no format**, leaving the regex to guesswork. Fixed as
+>   `**Stage-1 seeds:** <integer>`, matching the shape the guard already parses.
+
 ## Disclosure — what had been seen when this was written
 
 - **No DGF-1 score of any kind exists.** The floor has never been run, on any window; no DGF-1 GNN
@@ -87,7 +109,18 @@ Two measured facts make parts of this specification load-bearing rather than cle
 **Reported, never gated** (no pass condition, now or retroactively): the raw-17 floor; the
 window-only and first-appearance sensitivity rows (ADR-011 clause 4, both permitted — the sampler
 passed its determinism check on 2026-09-11); official random-split numbers, always labelled; and
-precision at matched recall, which is the diagnostic that made ADR-007 necessary.
+precision at matched recall, the diagnostic that made ADR-007 necessary.
+
+Two definitions, so the reported rows are not left to later judgement:
+
+* **Precision at matched recall** is computed by taking the recall each **floor** seed reaches at
+  its own argmax threshold, then reporting each GNN seed's precision at the threshold where the GNN
+  reaches that same recall (and the reverse direction alongside). This is ELL-1's diagnostic —
+  0.534 vs 0.913 precision at Δrecall 0.0013 — which is what ADR-007 was written from.
+* **Official random-split numbers come from a separate positioning batch**, not from the gate
+  batch: they require training on the official train mask, they are not part of clause 5's seed
+  counts, and they are labelled *random-split, leaderboard-comparable* wherever they appear
+  (ADR-010 clause 1). No gated number and no official-split number may share a table row.
 
 ### Clause 2 — The floor is tuned on validation, with the same budget as the GNN
 
@@ -129,12 +162,29 @@ budget, window and selection metric as the GNN's retune (clause 3):
   configurations, one seed each, **scored on the validation window only**, selected on **AUPRC**
   (the more sensitive of the two gated metrics). The winning pair is frozen before any test-window
   run and recorded here as an amendment.
+  **One seed per configuration is ELL-1's precedent (ADR-003's sweep used a fixed trial seed), and
+  its weakness is stated:** with GNN seed variance of ELL-1's order, a 9-way selection on one seed
+  can pick seed-luck rather than a better configuration. The pilot's 5 seeds at the winner are the
+  check — if its pilot mean falls well short of its retune value, that is recorded in the gate file
+  as a caveat on the configuration, and the configuration still stands. Re-selecting after seeing
+  the pilot would be tuning on the same data twice.
 * **Scoring uses exact neighbourhoods** (`num_neighbors = [-1, -1, -1]`) over the window's scoring
   view, for every arm and every reported row. Verified 2026-09-11: exact mode involves no sampling
   RNG at all, so no score depends on an evaluation seed.
-* **Training budget escape valve, on runtime only.** If a single training run exceeds **2 hours**,
-  the epoch count may be reduced **before any test-window run**, identically for every arm, and
-  recorded as a dated amendment. This is conditioned on wall-clock, never on a result.
+  **Feasibility measured, not assumed (2026-09-12, val view, structural probe).** The worry was
+  hub blow-up at max degree 882. It does not materialise: on the gated view (5,408,862 edges) exact
+  3-hop neighbourhoods at batch 1024 give a median of **8,088 nodes per batch, max 9,203**
+  (~46 MB of activations), against **7,009 / 7,254** for the sampled fan-out — the graph is too
+  sparse for exact scoring to cost much. A full-graph forward, by contrast, would need ~18 GB, which
+  is why scoring goes through a loader at all. The test view carries ~1.6× the edges of the val
+  view, so these figures are a lower bound there, with ample headroom either way.
+* **Training budget escape valve, on runtime only, and with a fixed fallback.** If a single
+  training run at the winning configuration exceeds **2 hours** (measured in the pilot, on this
+  machine, wall-clock), epochs are **halved once, 40 → 20**, applied identically to every arm and
+  recorded as a dated amendment **before any test-window run**. The fallback value is fixed here so
+  the budget cannot be tuned after seeing runtimes; if 20 epochs is still infeasible, the gate is
+  postponed and the batch rented (clause 5), never shortened further. Conditioned on wall-clock,
+  never on a result.
 
 ### Clause 4 — The pilot (validation window only)
 
@@ -249,13 +299,22 @@ Not footnotes; part of the verdict:
 ### Clause 8 — Execution order, enforced in code
 
 1. Accept this ADR. 2. Run the retune (val). 3. Run the pilot (val). 4. Record the winning
-`lr`/`batch_size` and **`Stage-1 seeds: N`** here as dated amendments. 5. Only then the single test
+`lr`/`batch_size` and the stage-1 seed count — in the exact line format fixed below — here as dated
+amendments. 5. Only then the single test
 batch. 6. Assemble `gates/GATE-DGF1-1.md`; the researcher signs the verdict, never a script.
 
 `scripts/run_dgf1_floor.py` already refuses `--window test` without an accepted pre-registration.
-**It must be extended to also require a `Stage-1 seeds: <int>` line in that ADR**, so the test
-window stays closed until the count exists — and the same guard must cover the GNN runner when it
-is written. Encoding the rule, not remembering it.
+**It must be extended to also require a stage-1 seed count in that ADR**, so the test window stays
+closed until the count exists — and the same guard must cover the GNN runner when it is written.
+Encoding the rule, not remembering it.
+
+The line the guard looks for is fixed here, so the check is not left to guess a format. It is
+written into this ADR's header block on amendment, exactly as:
+
+> `**Stage-1 seeds:** <integer>`
+
+matched as `^\*\*Stage-1 seeds:\*\*\s*(\d+)` — one line, one integer, the same shape as the
+`**Status:**` line the guard already parses.
 
 ### Clause 9 — Ratifications carried over from ADR-011
 
@@ -270,18 +329,24 @@ is written. Encoding the rule, not remembering it.
 ### Clause 10 — Per-node scores are persisted, and uncertainty beyond seeds is reported
 
 **Every pilot and gate run writes its per-node score vector** for the window it scored: float32,
-one file per run under `experiments/scores/<run_id>.npy` (gitignored — regenerable from a
+one file per run under `experiments/scores/<run_id>.npz` (gitignored — regenerable from a
 deterministic config), with the path and its **SHA-256** recorded in the run's registry row. Cost is
-~0.7 MB per run, ~17 MB for the whole gate. **ELL-1's exact regret drives this**: AUPRC could not be
+~0.7 MB per run, ~17 MB for the whole gate.
+
+**Each file stores the scored node ids alongside the scores**, not scores alone. Without the ids
+the paired bootstrap cannot align two arms except by trusting an undocumented ordering, which is
+precisely the kind of implicit contract that breaks silently; the bootstrap asserts the two arms'
+id vectors are equal before resampling. **ELL-1's exact regret drives this**: AUPRC could not be
 computed retroactively because only summary metrics were stored (ADR-007), and without score vectors
 the same thing happens to every uncertainty question, every calibration curve and every
 precision-at-k, each one costing a full re-run.
 
 **Reported, not gated: a paired bootstrap over test users.** Resample the scored users **once per
 replicate, stratified by label** (so prevalence is preserved), score **both arms on the identical
-resample**, and report the CI of the *difference* per metric; 1,000 replicates, and Boyd et al.
-(2013) logit intervals per arm alongside, since they find bootstrap slightly biased for AUPRC at
-skew. Pairing is what makes this the right instrument: it cancels the shared "which users are hard"
+resample**, and report the CI of the *difference* per metric; **1,000 replicates at bootstrap seed
+0, both pinned here** so the interval is reproducible from the stored score files rather than
+re-derived; and Boyd et al. (2013) logit intervals per arm alongside, since they find bootstrap
+slightly biased for AUPRC at skew. Pairing is what makes this the right instrument: it cancels the shared "which users are hard"
 component, and measured on synthetic data at this window's support it is ~1.5–2× tighter than the
 unpaired form (≈0.005 vs ≈0.009 on the AUPRC difference).
 
