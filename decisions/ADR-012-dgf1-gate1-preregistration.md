@@ -1,14 +1,18 @@
 # ADR-012 — DGF-1 Gate 1, pre-registered: arms, floor, seed-count rule, and what is reported
 
-**Status:** proposed
-**Date:** 2026-09-12
+**Status:** accepted
+**Date:** 2026-09-12 · **accepted** 2026-09-12
 **Deciders:** coderback
+**Stage-1 seeds:** _not yet derived — recorded here after the validation pilot (clause 5). Until
+this line carries an integer, `scripts/run_dgf1_floor.py` and the DGF-1 GNN runner refuse the test
+window (clause 8)._
 **Inherits, does not re-open:** the metric pair and resolvability test (**ADR-007**), the split,
 views, parity floor and leakage protocol (**ADR-011**), determinism (**ADR-005**), `ddof=1` and the
 two-stage seed design (**ADR-006**), the frozen hyperparameter region (**ADR-003**) and the
 transfer rule (**ADR-009**).
-**Docs affected (amendments applied on acceptance, not before). Sites enumerated by grepping
-`docs/` first (ADR-009 practice; `docs/` is gitignored, so ripgrep skips it):**
+**Docs affected — all amendments applied 2026-09-12 on acceptance. Sites enumerated by grepping
+`docs/` first, and the grep re-run after applying to confirm no live contradiction remains
+(ADR-009 practice; `docs/` is gitignored, so ripgrep skips it):**
 - `docs/02-dgraph-fin-embedding-model-BUILD.md`: §4 Phase 1 (the retune line gains its grid and
   selection metric), §4 Phase 1 Gate 1 (the arms and the seed-count rule), §5 (the reporting
   template gains the pilot and retune rows), §7 Gate-1 row, and §7's ADR-007 seed-count note (which
