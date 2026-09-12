@@ -12,6 +12,10 @@ wandb/
 # HPO working DB (resumable Optuna storage); the committed provenance is the study CSV + ADR
 experiments/*.db
 
+# Per-node score vectors (ADR-012 clause 10). Regenerable from a deterministic config; the
+# committed provenance is the path + content SHA-256 in each registry row.
+experiments/scores/
+
 # editor / python caches
 .idea/
 __pycache__/

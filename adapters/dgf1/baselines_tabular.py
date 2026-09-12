@@ -35,6 +35,7 @@ DGraph scale are a Gate-1 pre-registration question, not settled here.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -42,7 +43,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from torch_geometric.data import Data
 
-from gbe.eval import TemporalSplit, classification_metrics
+from gbe.eval import TemporalSplit, classification_metrics, save_scores
 from gbe.run import RunSession
 from gbe.run.config import resolve_config
 from adapters.dgf1.datasource_dgraph import (
@@ -63,13 +64,31 @@ FEATURE_SETS: dict[str, tuple[str, ...]] = {
     "raw17": RAW_FEATURE_NAMES,      # reported, not gated
 }
 
-# ELL-1's floor settings, carried over as the starting point — NOT validated at DGraph scale.
+# `xgboost` is the **gated** floor model (doc-02 §5/§8; parameters fixed by ADR-012 clause 2).
+# `rf`/`lr` are ELL-1's settings, kept for reported rows — NOT validated at DGraph scale.
+#
+# `n_jobs` is a fixed integer, never -1: XGBoost's `hist` is deterministic given identical data
+# order *and* thread count, so a machine-dependent thread count would make reproducibility
+# machine-dependent (ADR-005). `max_depth`/`subsample` carry ADR-012's defaults and are the two
+# axes its validation grid tunes. `scale_pos_weight` is computed per fit (it depends on the
+# training rows), and there is no early stopping, so nothing selects on the scored window.
 FLOOR_MODELS: dict[str, dict[str, Any]] = {
+    "xgboost": {
+        "tree_method": "hist", "n_estimators": 300, "learning_rate": 0.1,
+        "max_depth": 6, "subsample": 1.0, "colsample_bytree": 1.0,
+        "min_child_weight": 1, "reg_lambda": 1.0, "n_jobs": 8,
+    },
     "rf": {"n_estimators": 300, "class_weight": "balanced", "n_jobs": -1},
     "lr": {"max_iter": 2000, "class_weight": "balanced"},
 }
+GATED_MODEL = "xgboost"
+
+# ADR-012 clause 2: nine configurations, one seed each, scored on validation, selected on AUPRC —
+# the same budget as the GNN's retune, so neither arm is tuned harder than the other.
+FLOOR_GRID: dict[str, list[Any]] = {"max_depth": [4, 6, 8], "subsample": [1.0, 0.8, 0.6]}
+
 # Which models need the GNN's standardisation (trees are scale-invariant).
-STANDARDISED: dict[str, bool] = {"rf": False, "lr": True}
+STANDARDISED: dict[str, bool] = {"xgboost": False, "rf": False, "lr": True}
 
 # Config keys echoed from the hashed config into the row so a batch reads back without
 # recomputing hashes (the ELL-1 lesson, GATE-ELL1-3). Explicit, so a typo cannot invent a field.
@@ -130,17 +149,34 @@ def floor_design(
     )
 
 
-def fit_predict(model: str, design: FloorDesign, seed: int) -> tuple[np.ndarray, np.ndarray]:
-    """Fit one floor model and return ``(fraud_proba, hard_pred)`` on the scoring rows."""
+def resolve_params(model: str, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+    """This model's fixed parameters, with the tuned axes overridden (ADR-012 clause 2)."""
     if model not in FLOOR_MODELS:
-        raise ValueError(
-            f"unknown floor model {model!r}; available: {list(FLOOR_MODELS)}. doc-02 names XGBoost "
-            "as the gated comparator — it is not installed; adding it is the researcher's decision."
+        raise ValueError(f"unknown floor model {model!r}; available: {list(FLOOR_MODELS)}")
+    params = {**FLOOR_MODELS[model], **(overrides or {})}
+    unknown = set(params) - set(FLOOR_MODELS[model])
+    if unknown:
+        raise ValueError(f"override introduces unknown parameter(s) {sorted(unknown)} for {model!r}")
+    return params
+
+
+def fit_predict(
+    model: str, design: FloorDesign, seed: int, overrides: dict[str, Any] | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Fit one floor model and return ``(fraud_proba, hard_pred)`` on the scoring rows."""
+    params = resolve_params(model, overrides)
+    if model == "xgboost":
+        from xgboost import XGBClassifier  # adapter-only import
+
+        n_pos = int((design.y_train == FRAUD).sum())
+        n_neg = int(design.y_train.size - n_pos)
+        # The imbalance handling doc-02 §2.2.5 requires; depends on the training rows, so it is
+        # computed here rather than pinned in FLOOR_MODELS.
+        clf = XGBClassifier(random_state=seed, scale_pos_weight=n_neg / max(n_pos, 1), **params)
+    else:
+        clf = (RandomForestClassifier if model == "rf" else LogisticRegression)(
+            random_state=seed, **params
         )
-    params = FLOOR_MODELS[model]
-    clf = (RandomForestClassifier if model == "rf" else LogisticRegression)(
-        random_state=seed, **params
-    )
     clf.fit(design.X_train, design.y_train)
     fraud_col = list(clf.classes_).index(FRAUD)
     return clf.predict_proba(design.X_score)[:, fraud_col], clf.predict(design.X_score)
@@ -163,6 +199,8 @@ def run_floor(
     data: Data,
     base_cfg: dict[str, Any],
     registry_path=None,
+    overrides: dict[str, Any] | None = None,
+    scores_dir: str | Path | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """One floor model × feature set × window × seed, through :class:`RunSession` -> one row.
 
@@ -173,7 +211,7 @@ def run_floor(
     cfg_values = {
         **base_cfg,
         "baseline": model,
-        "floor_params": FLOOR_MODELS.get(model, {}),
+        "floor_params": resolve_params(model, overrides),
         "features": feature_set,
         "window": window,
         "arm": f"{model}-{feature_set}",
@@ -183,9 +221,18 @@ def run_floor(
     with RunSession(cfg, notes=f"dgf1 floor: {model}/{feature_set} on {window}",
                     registry_path=registry_path) as run:
         design = floor_design(data, split, feature_set, standardise=STANDARDISED.get(model, False))
-        proba, pred = fit_predict(model, design, run.seed)
+        proba, pred = fit_predict(model, design, run.seed, overrides)
         logged = evaluate(design, proba, pred)
         logged["baseline"] = model
         logged.update({k: cfg_values[k] for k in PROVENANCE_KEYS if k in cfg_values})
+
+        # ADR-012 clause 10: the scored vector survives the run, with the ids it belongs to, so a
+        # paired bootstrap (or any later question) never needs the arm re-run.
+        if scores_dir is not None:
+            target_ids = window_target_mask(data, split).nonzero().view(-1).numpy()
+            path = Path(scores_dir) / f"{run.run_id}.npz"
+            digest = save_scores(path, node_ids=target_ids, y_true=design.y_score, proba=proba)
+            logged["scores_path"] = str(path)
+            logged["scores_sha256"] = digest
         run.log_metrics(logged)
     return run.run_id, logged

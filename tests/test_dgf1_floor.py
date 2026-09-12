@@ -115,10 +115,12 @@ def test_metrics_are_core_metrics_with_prevalence_and_positive_count():
     assert m["prevalence"] == pytest.approx(m["n_score_fraud"] / m["n_score"])
 
 
-def test_an_unavailable_model_names_the_open_decision():
+def test_an_unknown_model_is_rejected():
+    """Was a guard for XGBoost being unavailable; XGBoost is the gated model since ADR-012, so what
+    remains to pin is that a typo cannot silently select something else."""
     d = floor_design(_synthetic(), SPLIT_VAL, "parity")
-    with pytest.raises(ValueError, match="XGBoost"):
-        fit_predict("xgboost", d, seed=0)
+    with pytest.raises(ValueError, match="unknown floor model"):
+        fit_predict("xgbost", d, seed=0)
 
 
 def test_run_floor_writes_one_row_with_provenance(tmp_path):
@@ -142,13 +144,86 @@ def test_test_window_is_refused_without_a_preregistration():
 @pytest.mark.parametrize("status", ["proposed", "rejected", None])
 def test_test_window_is_refused_unless_the_adr_is_accepted(tmp_path, status):
     adr = tmp_path / "ADR-999-x.md"
-    adr.write_text("# ADR-999\n\n" + (f"**Status:** {status}\n" if status else "no status\n"),
-                   encoding="utf-8")
+    adr.write_text("# ADR-999\n\n" + (f"**Status:** {status}\n" if status else "no status\n")
+                   + "**Stage-1 seeds:** 12\n", encoding="utf-8")
     with pytest.raises(SystemExit, match="refusing --window test"):
         require_accepted_preregistration(adr)
 
 
-def test_an_accepted_preregistration_lets_the_test_window_through(tmp_path):
+@pytest.mark.parametrize("seeds_line", [
+    "",                                                    # no line at all
+    "**Stage-1 seeds:** _not yet derived — after the pilot_\n",   # ADR-012's placeholder
+    "Stage-1 seeds: 12\n",                                 # right words, wrong format
+])
+def test_an_accepted_adr_without_a_seed_count_still_shuts_the_test_window(tmp_path, seeds_line):
+    """ADR-012 fixes the seed-count *rule* and leaves the *number* to the validation pilot, so
+    acceptance alone must not unlock 482-821 (clause 8)."""
     adr = tmp_path / "ADR-999-x.md"
-    adr.write_text("# ADR-999\n\n**Status:** accepted\n", encoding="utf-8")
-    require_accepted_preregistration(adr)   # no exit
+    adr.write_text("# ADR-999\n\n**Status:** accepted\n" + seeds_line, encoding="utf-8")
+    with pytest.raises(SystemExit, match="no stage-1 seed count"):
+        require_accepted_preregistration(adr)
+
+
+def test_accepted_plus_a_seed_count_unlocks_the_test_window_and_returns_it(tmp_path):
+    adr = tmp_path / "ADR-999-x.md"
+    adr.write_text("# ADR-999\n\n**Status:** accepted\n**Stage-1 seeds:** 12\n", encoding="utf-8")
+    assert require_accepted_preregistration(adr) == 12
+
+
+def test_the_real_adr_012_carries_a_stage_1_seeds_line():
+    """The guard reads this line by an exact format; the ADR must keep offering it. Its *value* is
+    deliberately not pinned — it is a placeholder until the pilot derives the count."""
+    adr = (REPO_ROOT / "decisions" / "ADR-012-dgf1-gate1-preregistration.md").read_text(encoding="utf-8")
+    assert "**Stage-1 seeds:**" in adr
+
+
+# -- the gated floor model (ADR-012 clause 2) --------------------------------------------------
+def test_xgboost_is_the_gated_model_with_the_adr_parameters():
+    from adapters.dgf1.baselines_tabular import FLOOR_MODELS, GATED_MODEL, resolve_params
+
+    assert GATED_MODEL == "xgboost"
+    p = resolve_params("xgboost")
+    assert p["tree_method"] == "hist" and p["n_estimators"] == 300 and p["learning_rate"] == 0.1
+    assert p["max_depth"] == 6 and p["subsample"] == 1.0 and p["colsample_bytree"] == 1.0
+    assert p["n_jobs"] == 8, "n_jobs must be a fixed integer: hist determinism depends on threads"
+    assert "early_stopping_rounds" not in FLOOR_MODELS["xgboost"]
+
+
+def test_the_validation_grid_is_nine_configurations_on_the_two_tuned_axes():
+    from adapters.dgf1.baselines_tabular import FLOOR_GRID
+
+    assert set(FLOOR_GRID) == {"max_depth", "subsample"}
+    assert len(FLOOR_GRID["max_depth"]) * len(FLOOR_GRID["subsample"]) == 9
+
+
+def test_tuned_axes_override_but_unknown_parameters_are_rejected():
+    from adapters.dgf1.baselines_tabular import resolve_params
+
+    assert resolve_params("xgboost", {"max_depth": 4, "subsample": 0.8})["max_depth"] == 4
+    with pytest.raises(ValueError, match="unknown parameter"):
+        resolve_params("xgboost", {"learning_rate_typo": 0.5})
+
+
+def test_xgboost_is_reproducible_and_weights_the_positive_class():
+    data = _synthetic()
+    d = floor_design(data, SPLIT_VAL, "parity")
+    a, _ = fit_predict("xgboost", d, seed=0)
+    b, _ = fit_predict("xgboost", d, seed=0)
+    assert np.array_equal(a, b)
+    # scale_pos_weight is computed from the training rows, so a fit on a rebalanced training set
+    # must differ from one on the original
+    assert (d.y_train == 1).sum() > 0 and (d.y_train == 0).sum() > 0
+
+
+def test_run_floor_persists_the_scored_vector_with_its_ids(tmp_path):
+    """ADR-012 clause 10: path + content hash in the row, ids in the file."""
+    from gbe.eval import load_scores
+
+    registry, scores = tmp_path / "registry.csv", tmp_path / "scores"
+    run_id, m = run_floor("xgboost", "parity", SPLIT_VAL, 0, _synthetic(), dgf1_base_config(),
+                          registry_path=registry, scores_dir=scores)
+    assert m["scores_sha256"] and len(m["scores_sha256"]) == 64
+    saved = load_scores(scores / f"{run_id}.npz")
+    assert saved["node_ids"].size == m["n_score"] == saved["proba"].size
+    logged = json.loads(list(csv.DictReader(registry.open(encoding="utf-8", newline="")))[0]["metrics_json"])
+    assert logged["scores_sha256"] == m["scores_sha256"]

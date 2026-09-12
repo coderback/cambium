@@ -28,10 +28,18 @@ sys.path.insert(0, str(REPO_ROOT))
 from gbe.run.config import git_dirty  # noqa: E402
 
 _STATUS = re.compile(r"^\*\*Status:\*\*\s*(\w+)", re.MULTILINE)
+# ADR-012 clause 8 fixes this line's exact shape, so the guard is not left guessing a format.
+_SEEDS = re.compile(r"^\*\*Stage-1 seeds:\*\*\s*(\d+)", re.MULTILINE)
 
 
-def require_accepted_preregistration(path: str | Path | None) -> None:
-    """Exit unless ``path`` is an ADR whose status is ``accepted`` (guards the test window)."""
+def require_accepted_preregistration(path: str | Path | None) -> int:
+    """Exit unless ``path`` is an ADR that is **accepted** *and* carries a stage-1 seed count.
+
+    Both conditions guard the test window (ADR-012 clause 8). The second one matters on its own:
+    ADR-012 fixes the *rule* for the seed count and leaves the *number* to a validation pilot, so an
+    accepted ADR whose count has not yet been derived must still keep 482–821 shut. Returns the
+    count, so a caller can record what it ran under.
+    """
     if path is None:
         raise SystemExit(
             "refusing --window test: no --preregistration given. DGF-1's Gate-1 pre-registration ADR "
@@ -40,12 +48,23 @@ def require_accepted_preregistration(path: str | Path | None) -> None:
     p = Path(path)
     if not p.is_file():
         raise SystemExit(f"refusing --window test: pre-registration {p} does not exist.")
-    m = _STATUS.search(p.read_text(encoding="utf-8"))
-    if not m or m.group(1).lower() != "accepted":
+    text = p.read_text(encoding="utf-8")
+
+    status = _STATUS.search(text)
+    if not status or status.group(1).lower() != "accepted":
         raise SystemExit(
-            f"refusing --window test: {p.name} status is {m.group(1) if m else 'missing'!r}, "
-            "not 'accepted'."
+            f"refusing --window test: {p.name} status is "
+            f"{status.group(1) if status else 'missing'!r}, not 'accepted'."
         )
+
+    seeds = _SEEDS.search(text)
+    if not seeds:
+        raise SystemExit(
+            f"refusing --window test: {p.name} carries no stage-1 seed count. ADR-012 clause 5 "
+            "derives it from the validation pilot; record it as '**Stage-1 seeds:** <integer>' "
+            "before any test-window run."
+        )
+    return int(seeds.group(1))
 
 
 def main() -> None:
@@ -59,7 +78,9 @@ def main() -> None:
     args = ap.parse_args()
 
     if args.window == "test":
-        require_accepted_preregistration(args.preregistration)
+        n_seeds = require_accepted_preregistration(args.preregistration)
+        print(f"[floor] test window unlocked by {Path(args.preregistration).name}: "
+              f"stage-1 seeds = {n_seeds}")
     if git_dirty() and not args.allow_dirty:
         raise SystemExit("refusing to run: uncommitted code/config, rows would log git_dirty=true.")
 
