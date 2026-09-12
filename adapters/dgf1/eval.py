@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 
 from gbe.eval import TemporalSplit
+from gbe.gnn import GNNHParams
 
 CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 
@@ -24,6 +25,34 @@ def dgf1_base_config(config_path: str | Path = CONFIG_PATH) -> dict:
         cfg = yaml.safe_load(fh)
     return {k: cfg[k] for k in
             ("model", "phase", "data_snapshot_id", "split", "reverse_edges", "view_features")}
+
+
+def dgf1_hparams(config_path: str | Path = CONFIG_PATH) -> tuple[GNNHParams, str]:
+    """The inherited ADR-003 ``gnn:`` block as hyperparameters, plus the configured device.
+
+    One source of truth for DGF-1's frozen region, so the runner and any diagnostic cannot drift
+    apart — ELL-1 keeps its own copy via `frozen_hparams`, and neither adapter reads the other's.
+    """
+    with Path(config_path).open("r", encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+    g = cfg["gnn"]
+    hp = GNNHParams(
+        backbone=g["backbone"], num_layers=g["num_layers"], hidden_dim=g["hidden_dim"],
+        aggr=g["aggr"], dropout=g["dropout"], lr=float(g["lr"]), fan_out=tuple(g["fan_out"]),
+        encoder_layers=g["encoder_layers"], norm=g["norm"], epochs=g["epochs"],
+        batch_size=g["batch_size"], weight_decay=float(g["weight_decay"]),
+    )
+    return hp, str(cfg.get("device", "auto"))
+
+
+def dgf1_retune_grid(config_path: str | Path = CONFIG_PATH) -> list[tuple[float, int]]:
+    """ADR-012 clause 3's grid as ``(lr, batch_size)`` pairs — the only two knobs DGF-1 retunes."""
+    with Path(config_path).open("r", encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+    base_lr = float(cfg["gnn"]["lr"])
+    grid = cfg["retune_grid"]
+    return [(base_lr * float(m), int(b))
+            for m in grid["lr_multipliers"] for b in grid["batch_sizes"]]
 
 
 def dgf1_splits(config_path: str | Path = CONFIG_PATH) -> dict[str, TemporalSplit]:

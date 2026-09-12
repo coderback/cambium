@@ -29,3 +29,29 @@ reverse_edges: true
 view_features:
   edge_type_histogram: 11
   recency: [steps_since_last_edge, steps_since_first_edge]
+
+# Hyperparameters inherited from ELL-1's one-time sweep (ADR-003) under doc-00 §6.4's transfer
+# rule. Only `lr` and `batch_size` are retuned here — ADR-009 names batch size as DGF-1's second
+# knob, and ADR-012 clause 3 fixes the grid below. Everything else is frozen, and these values are
+# DGF-1's own copy so no DGF-1 code has to read ELL-1's config.
+gnn:
+  backbone: graphsage
+  num_layers: 3
+  hidden_dim: 128
+  aggr: mean
+  dropout: 0.2
+  lr: 0.0006636671097096978   # ADR-003's winning trial
+  fan_out: [25, 10]           # extended to [25, 10, 10] for the 3rd hop
+  encoder_layers: 2
+  norm: layer                 # LayerNorm only (gbe/CLAUDE.md rule 2)
+  epochs: 40
+  batch_size: 1024
+  weight_decay: 0.0005
+
+# ADR-012 clause 3: nine configurations, one seed each, scored on the validation window, selected
+# on AUPRC — the same budget the parity floor gets.
+retune_grid:
+  lr_multipliers: [0.5, 1.0, 2.0]
+  batch_sizes: [512, 1024, 2048]
+
+device: auto                  # cuda when present, else cpu
