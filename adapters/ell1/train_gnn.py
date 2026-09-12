@@ -1,8 +1,13 @@
 """ELL-1 strict-inductive GNN training + evaluation (doc-01 §3, §5).
 
 Wires the domain-agnostic core (`gbe.features` + `gbe.gnn` + `gbe.eval` + `gbe.run`) to the
-Elliptic graph. Kept in the adapter for now; the genuinely-shared loop is extracted to
-`gbe/` when DGF-1 gives it a second use case (doc-00 §1 build-path discipline).
+Elliptic graph. **The training loop itself now lives in `gbe.gnn.train`** — it was extracted when
+DGF-1 became its second use case (doc-00 §1/§9, the EXTRACT milestone). `GNNHParams`,
+`build_model`, `train_model` and `resolve_device` are re-exported here unchanged, so every script
+and test that imports them from this module keeps working, and ELL-1 runs the identical code in the
+identical order (ADR-008's checker is the bar).
+
+What stays here is what is Elliptic-specific:
 
 The strict inductive protocol (doc-01 §5, the 0.807->0.12 defense):
   * **Train** message passing runs only over the train graph — edges dated <= train_max
@@ -21,15 +26,13 @@ the baselines' discipline so a full-data statistic never leaks the test window.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
 import torch
 from sklearn.preprocessing import QuantileTransformer
-from torch import Tensor, nn
+from torch import Tensor
 from torch_geometric.data import Data
-from torch_geometric.loader import NeighborLoader
 from torch_geometric.utils import subgraph
 
 from gbe.eval import (
@@ -38,47 +41,32 @@ from gbe.eval import (
     edges_as_of,
     split_masks,
 )
-from gbe.features.encoder import TabularMLPEncoder
 from gbe.features.scaling import Standardizer
-from gbe.gnn import BACKBONES, NodeClassificationHead, NodeClassifier
-from gbe.run import RunSession
+from gbe.gnn.train import GNNHParams, balanced_class_weights, build_model, train_model
+from gbe.run import RunSession, resolve_device
 from gbe.run.config import resolve_config
 from adapters.ell1.datasource_elliptic import ILLICIT, LICIT, UNKNOWN, derive_edge_time
 
-
-@dataclass
-class GNNHParams:
-    """The Phase-1 hyperparameters (doc-00 §6.4 search space + fixed training budget)."""
-
-    backbone: str = "graphsage"
-    num_layers: int = 2
-    hidden_dim: int = 128
-    aggr: str = "mean"          # graphsage only; ignored by gcn
-    dropout: float = 0.2
-    lr: float = 1e-3
-    fan_out: tuple[int, ...] = (15, 10)
-    encoder_layers: int = 2
-    norm: str = "layer"
-    epochs: int = 40
-    batch_size: int = 1024
-    weight_decay: float = 5e-4
-
-    def as_dict(self) -> dict[str, Any]:
-        d = self.__dict__.copy()
-        d["fan_out"] = list(self.fan_out)
-        return d
-
+# Re-exported from the core so existing call sites (`from adapters.ell1.train_gnn import ...`)
+# keep working after the extraction.
+__all__ = [
+    "GNNHParams", "build_model", "train_model", "resolve_device", "class_weights",
+    "standardize_fit_on_train", "rank_gauss_fit_on_train", "FEATURE_TRANSFORMS",
+    "frozen_hparams", "predict_window", "evaluate", "run_gnn", "PROVENANCE_KEYS",
+]
 
 # Config keys that identify *which experiment a row belongs to*, echoed from the hashed config
 # into the row so a batch can be read back without recomputing config hashes to find out.
 PROVENANCE_KEYS: tuple[str, ...] = ("ablation", "arm", "experiment", "features")
 
 
-def resolve_device(device: str | None) -> torch.device:
-    """'cuda'/'cpu'/None -> a torch.device; None (or 'auto') picks cuda when present."""
-    if device in (None, "auto"):
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.device(device)
+def class_weights(y: Tensor, seed_mask: Tensor, device: torch.device) -> Tensor:
+    """Balanced 2-class weights ``[w_licit, w_illicit]`` from the labelled train nodes.
+
+    ELL-1's positive class is ``ILLICIT`` and its negative ``LICIT`` (1 and 0), which is the order
+    the core's default already uses; naming them here keeps the adapter's meaning explicit.
+    """
+    return balanced_class_weights(y, seed_mask, device, classes=(LICIT, ILLICIT))
 
 
 def standardize_fit_on_train(x: Tensor, time_step: Tensor, train_max: int) -> Tensor:
@@ -153,100 +141,9 @@ def frozen_hparams(config_path=None) -> tuple[GNNHParams, dict[str, Any], str]:
     return hp, base_cfg, str(cfg.get("device", "auto"))
 
 
-def class_weights(y: Tensor, seed_mask: Tensor, device: torch.device) -> Tensor:
-    """Balanced 2-class weights [w_licit, w_illicit] from the labelled train nodes."""
-    labels = y[seed_mask]
-    n = labels.numel()
-    counts = torch.tensor(
-        [int((labels == LICIT).sum()), int((labels == ILLICIT).sum())],
-        dtype=torch.float,
-    ).clamp_min(1.0)
-    # inverse-frequency, normalised so weights average to 1 (sklearn 'balanced' scheme)
-    w = n / (2.0 * counts)
-    return w.to(device)
-
-
-def build_model(in_dim: int, hp: GNNHParams, device: torch.device) -> NodeClassifier:
-    """Assemble encoder -> backbone -> node-classification head from hyperparameters."""
-    encoder = TabularMLPEncoder(
-        in_dim=in_dim,
-        hidden_dim=hp.hidden_dim,
-        out_dim=hp.hidden_dim,
-        num_layers=hp.encoder_layers,
-        dropout=hp.dropout,
-    )
-    backbone_cls = BACKBONES[hp.backbone]
-    kwargs: dict[str, Any] = dict(
-        in_dim=hp.hidden_dim,
-        hidden_dim=hp.hidden_dim,
-        num_layers=hp.num_layers,
-        dropout=hp.dropout,
-        norm=hp.norm,
-    )
-    if hp.backbone == "graphsage":
-        kwargs["aggr"] = hp.aggr
-    backbone = backbone_cls(**kwargs)
-    head = NodeClassificationHead(in_dim=backbone.out_dim, num_classes=2)
-    return NodeClassifier(encoder, backbone, head).to(device)
-
-
-def _fan_out_for(hp: GNNHParams) -> list[int]:
-    """NeighborLoader needs one fan-out per message-passing layer; extend by repeating the
-    last value when a 3-layer config is paired with a length-2 fan-out (doc §6.4 couples
-    layers {2,3} with length-2 fan-outs)."""
-    fo = list(hp.fan_out)
-    while len(fo) < hp.num_layers:
-        fo.append(fo[-1])
-    return fo[: hp.num_layers]
-
-
-def train_model(
-    model: NodeClassifier,
-    x: Tensor,
-    edge_index_train: Tensor,
-    y: Tensor,
-    train_seed_mask: Tensor,
-    hp: GNNHParams,
-    device: torch.device,
-    on_epoch: Callable[[int, NodeClassifier], None] | None = None,
-) -> NodeClassifier:
-    """Train under the strict inductive protocol via neighbour sampling on the train subgraph.
-
-    ``edge_index_train`` must already be the train graph from `gbe.eval.edges_as_of` (edges dated
-    <= train_max); seeds are the labelled train nodes, so every sampled neighbourhood stays
-    <= train_max.
-    ``on_epoch(epoch, model)`` is an optional hook (HPO uses it to report/prune per epoch).
-    """
-    data = Data(x=x, edge_index=edge_index_train, y=y, num_nodes=x.size(0))
-    loader = NeighborLoader(
-        data,
-        num_neighbors=_fan_out_for(hp),
-        input_nodes=train_seed_mask,
-        batch_size=hp.batch_size,
-        shuffle=True,
-        num_workers=0,  # in-process -> deterministic under the run seed
-    )
-    opt = torch.optim.Adam(model.parameters(), lr=hp.lr, weight_decay=hp.weight_decay)
-    loss_fn = nn.CrossEntropyLoss(weight=class_weights(y, train_seed_mask, device))
-
-    for epoch in range(hp.epochs):
-        model.train()
-        for batch in loader:
-            batch = batch.to(device)
-            opt.zero_grad()
-            _, logits = model(batch.x, batch.edge_index)
-            seeds = batch.batch_size  # first `batch_size` nodes are the seeds
-            loss = loss_fn(logits[:seeds], batch.y[:seeds])
-            loss.backward()
-            opt.step()
-        if on_epoch is not None:
-            on_epoch(epoch, model)
-    return model
-
-
 @torch.no_grad()
 def predict_window(
-    model: NodeClassifier,
+    model,
     x: Tensor,
     edge_index: Tensor,
     time_step: Tensor,
@@ -290,7 +187,7 @@ def predict_window(
 
 
 def evaluate(
-    model: NodeClassifier,
+    model,
     x: Tensor,
     edge_index: Tensor,
     time_step: Tensor,
@@ -343,7 +240,8 @@ def run_gnn(
         train_seed_mask = train_node_mask & data.labelled_mask
 
         model = build_model(x.size(1), hp, dev)
-        train_model(model, x, edge_train, data.y, train_seed_mask, hp, dev)
+        train_model(model, x, edge_train, data.y, train_seed_mask, hp, dev,
+                    classes=(LICIT, ILLICIT))
         metrics, meta = evaluate(model, x, data.edge_index, data.time_step, data.y, split, dev)
 
         logged = {f"illicit_{k}": v for k, v in metrics.items()}
