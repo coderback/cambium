@@ -1,7 +1,16 @@
 """Run the DGF-1 tabular floor — one registry row per (model, feature set, seed) on one window.
 
-    python scripts/run_dgf1_floor.py --window val  [--models rf,lr] [--feature-sets parity,raw17] [--seeds 0,1,2]
-    python scripts/run_dgf1_floor.py --window test --preregistration decisions/ADR-0NN-....md ...
+    python scripts/run_dgf1_floor.py --mode retune                          # 9 configs x 1 seed, val
+    python scripts/run_dgf1_floor.py --mode pilot --max-depth D --subsample S
+    python scripts/run_dgf1_floor.py --mode gate  --max-depth D --subsample S \
+        --preregistration decisions/ADR-012-dgf1-gate1-preregistration.md
+
+The three modes mirror the GNN runner's, so the two cannot drift: **retune** is ADR-012 clause 2's
+nine `max_depth` x `subsample` configurations on the **validation** window, one seed each, selected
+on AUPRC (no score files — selection runs are not results); **pilot** runs the winning
+configuration's seeds on validation, persisting scores; **gate** runs the **test** window, and only
+with a pre-registration that is accepted *and* carries its seed count — which the batch reads from
+that document rather than from a flag.
 
 Two refusals, encoded rather than remembered:
 
@@ -32,20 +41,51 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from preregistration import require_accepted_preregistration, require_clean_tree  # noqa: E402,F401
 
 
+SCORES_DIR = REPO_ROOT / "experiments" / "scores"
+PILOT_SEEDS = 5          # ADR-012 clause 4; the floor runs 3 when its winner is deterministic
+
+
+def resolve_floor_batch(mode: str, args) -> tuple[list[dict], list[int], str, str]:
+    """``(param overrides, seeds, window, experiment tag)`` — the mode policy in one place.
+
+    Mirrors the GNN runner deliberately: same three modes, same guard, same rule that the gate's
+    seed count comes from the pre-registration document rather than a flag.
+    """
+    from adapters.dgf1.baselines_tabular import FLOOR_GRID
+
+    if mode == "retune":
+        grid = [{"max_depth": d, "subsample": s}
+                for d in FLOOR_GRID["max_depth"] for s in FLOOR_GRID["subsample"]]
+        return grid, [0], "val", "retune"
+
+    if args.max_depth is None or args.subsample is None:
+        raise SystemExit(f"--mode {mode} needs --max-depth and --subsample (the retune winner).")
+    winner = [{"max_depth": int(args.max_depth), "subsample": float(args.subsample)}]
+
+    if mode == "pilot":
+        # Clause 2: 3 seeds when the winner is deterministic (enough to evidence identical rows),
+        # 5 when it subsamples — and then clause 5 requires it to match the GNN's count.
+        n = 3 if float(args.subsample) == 1.0 else PILOT_SEEDS
+        return winner, list(range(n)), "val", "pilot"
+
+    n_seeds = require_accepted_preregistration(args.preregistration)
+    print(f"[floor] test window unlocked by {Path(args.preregistration).name}: "
+          f"stage-1 seeds = {n_seeds} (from the ADR, not a flag)")
+    return winner, list(range(n_seeds)), "test", "gate"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--window", choices=("val", "test"), required=True)
-    ap.add_argument("--models", default="rf,lr")
+    ap.add_argument("--mode", choices=("retune", "pilot", "gate"), required=True)
+    ap.add_argument("--models", default="xgboost")
     ap.add_argument("--feature-sets", default="parity,raw17")
-    ap.add_argument("--seeds", default="0,1,2")
+    ap.add_argument("--max-depth", type=int, default=None)
+    ap.add_argument("--subsample", type=float, default=None)
     ap.add_argument("--preregistration", default=None)
     ap.add_argument("--allow-dirty", action="store_true")
     args = ap.parse_args()
 
-    if args.window == "test":
-        n_seeds = require_accepted_preregistration(args.preregistration)
-        print(f"[floor] test window unlocked by {Path(args.preregistration).name}: "
-              f"stage-1 seeds = {n_seeds}")
+    configs, seeds, window, tag = resolve_floor_batch(args.mode, args)
     require_clean_tree(args.allow_dirty)
 
     from adapters.dgf1.baselines_tabular import run_floor
@@ -53,15 +93,42 @@ def main() -> None:
     from adapters.dgf1.eval import dgf1_base_config, dgf1_splits
 
     data = load_dgraph(REPO_ROOT / "data" / "dgraph", strict=True)
-    split = dgf1_splits()[args.window]
-    base = dgf1_base_config()
+    split = dgf1_splits()[window]
+    base = {**dgf1_base_config(), "experiment": tag}
+    # Retune runs are selection runs, not results: no score vectors (clause 10 asks for them on
+    # pilot and gate runs).
+    scores_dir = None if args.mode == "retune" else SCORES_DIR
+
+    print(f"[floor] mode={args.mode} window={window} ({split.test_min}-{split.test_max}) "
+          f"models={args.models} feature-sets={args.feature_sets} "
+          f"configs={len(configs)} seeds={len(seeds)}")
+
+    results = []
     for model in args.models.split(","):
         for feature_set in args.feature_sets.split(","):
-            for seed in (int(s) for s in args.seeds.split(",")):
-                run_id, m = run_floor(model, feature_set, split, seed, data, base)
-                print(f"[floor] {model}/{feature_set} seed={seed} window={m['window']}: "
-                      f"ROC-AUC={m['fraud_auc']:.4f} AUPRC={m['fraud_auprc']:.4f} "
-                      f"(prevalence {m['prevalence']:.4%}, {m['n_score_fraud']:,} fraud)  {run_id}")
+            for overrides in configs:
+                for seed in seeds:
+                    run_id, m = run_floor(model, feature_set, split, seed, data, base,
+                                          overrides=overrides if model == "xgboost" else None,
+                                          scores_dir=scores_dir)
+                    results.append((model, feature_set, overrides, seed, m))
+                    shown = " ".join(f"{k}={v}" for k, v in overrides.items()) if model == "xgboost" else ""
+                    print(f"[floor] {model}/{feature_set} {shown} seed={seed}: "
+                          f"ROC-AUC={m['fraud_auc']:.4f} AUPRC={m['fraud_auprc']:.4f} "
+                          f"(prevalence {m['prevalence']:.4%}, {m['n_score_fraud']:,} fraud)  {run_id}")
+
+    if args.mode == "retune":
+        print("\n== floor retune, validation AUPRC (ADR-012 clause 2: selection metric) ==")
+        gated = [r for r in results if r[1] == "parity"]
+        for model, fs, ov, _, m in sorted(gated, key=lambda r: -r[4]["fraud_auprc"]):
+            print(f"  {model}/{fs} {ov}  AUPRC={m['fraud_auprc']:.4f}  ROC-AUC={m['fraud_auc']:.4f}")
+        if gated:
+            best = max(gated, key=lambda r: r[4]["fraud_auprc"])
+            print(f"\n  winner (parity floor): {best[2]}  AUPRC {best[4]['fraud_auprc']:.4f}")
+            print("  Record it in ADR-012 as a dated amendment; this script edits no document.")
+            if best[2]["subsample"] == 1.0:
+                print("  NOTE: the winner does not subsample -> the floor is deterministic and "
+                      "s_floor = 0 (clause 2); the pilot must verify its rows are identical.")
 
 
 if __name__ == "__main__":

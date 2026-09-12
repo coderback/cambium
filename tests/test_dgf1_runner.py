@@ -18,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from preregistration import require_accepted_preregistration, require_clean_tree  # noqa: E402
+from run_dgf1_floor import resolve_floor_batch  # noqa: E402
 from run_dgf1_gnn import PILOT_SEEDS, resolve_batch  # noqa: E402
 
 from adapters.dgf1.eval import dgf1_hparams, dgf1_retune_grid  # noqa: E402
@@ -73,6 +74,47 @@ def test_the_real_adr_012_still_keeps_the_test_window_shut():
     adr = REPO_ROOT / "decisions" / "ADR-012-dgf1-gate1-preregistration.md"
     with pytest.raises(SystemExit, match="no stage-1 seed count"):
         require_accepted_preregistration(adr)
+
+
+# -- the floor runner's modes mirror the GNN runner's -------------------------------------------
+def _fargs(**kw):
+    return Namespace(**{"max_depth": None, "subsample": None, "preregistration": None, **kw})
+
+
+def test_floor_retune_is_the_nine_config_grid_on_validation():
+    configs, seeds, window, tag = resolve_floor_batch("retune", _fargs())
+    assert window == "val" and tag == "retune" and seeds == [0]
+    assert len(configs) == 9 and len({tuple(sorted(c.items())) for c in configs}) == 9
+    assert {k for c in configs for k in c} == {"max_depth", "subsample"}
+
+
+def test_floor_pilot_seed_count_follows_whether_the_winner_subsamples():
+    """Clause 2: a deterministic winner needs only enough seeds to evidence identical rows."""
+    _, seeds, window, tag = resolve_floor_batch("pilot", _fargs(max_depth=6, subsample=1.0))
+    assert seeds == [0, 1, 2] and window == "val" and tag == "pilot"
+    _, seeds, _, _ = resolve_floor_batch("pilot", _fargs(max_depth=6, subsample=0.8))
+    assert seeds == list(range(PILOT_SEEDS))
+
+
+def test_floor_gate_takes_its_seed_count_from_the_adr(tmp_path):
+    args = _fargs(max_depth=6, subsample=1.0, preregistration=str(_adr(tmp_path, seeds="9")))
+    configs, seeds, window, tag = resolve_floor_batch("gate", args)
+    assert window == "test" and tag == "gate" and seeds == list(range(9))
+    assert configs == [{"max_depth": 6, "subsample": 1.0}]
+
+
+def test_floor_gate_is_refused_without_an_accepted_preregistration(tmp_path):
+    with pytest.raises(SystemExit, match="no --preregistration"):
+        resolve_floor_batch("gate", _fargs(max_depth=6, subsample=1.0))
+    with pytest.raises(SystemExit, match="no stage-1 seed count"):
+        resolve_floor_batch("gate", _fargs(max_depth=6, subsample=1.0,
+                                           preregistration=str(_adr(tmp_path, seeds=None))))
+
+
+def test_floor_pilot_and_gate_require_the_retune_winner(tmp_path):
+    for mode, extra in (("pilot", {}), ("gate", {"preregistration": str(_adr(tmp_path))})):
+        with pytest.raises(SystemExit, match="needs --max-depth and --subsample"):
+            resolve_floor_batch(mode, _fargs(**extra))
 
 
 # -- the clean-tree guard -------------------------------------------------------------------------
