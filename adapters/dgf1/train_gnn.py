@@ -51,6 +51,12 @@ from adapters.dgf1.sampling import assert_temporal_batch
 VIEWS: tuple[str, ...] = ("gated", "window_only", "first_appearance")
 REPORTED_VIEWS: tuple[str, ...] = ("window_only", "first_appearance")
 PROVENANCE_KEYS: tuple[str, ...] = ("arm", "experiment", "features", "window")
+
+# The retuned knobs, echoed flat into every row so a row states the configuration that produced it
+# (ADR-012 clause 7). They were always inside the hashed `gnn` config, so the first retune batch's
+# rows were recoverable only by rebuilding hashes — the same gap the floor had, and the detour
+# ADR-008 was forced into. `epochs` is included because clause 3's runtime fallback can change it.
+TUNED_KNOBS: tuple[str, ...] = ("lr", "batch_size", "epochs")
 SCORING_BATCH_SIZE = 1024   # deliberately *not* hp.batch_size: that is ADR-012's tuned knob, and
                             # a retune must not silently change what scoring costs.
 
@@ -189,5 +195,7 @@ def run_dgf1(
         logged["backbone"] = hp.backbone
         logged["n_train"] = int(train_seed_mask(data, split).sum())
         logged.update({k: cfg_values[k] for k in PROVENANCE_KEYS if k in cfg_values})
+        hp_values = hp.as_dict()
+        logged.update({k: hp_values[k] for k in TUNED_KNOBS})
         run.log_metrics(logged)
     return run.run_id, logged

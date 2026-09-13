@@ -190,6 +190,9 @@ def test_one_run_writes_one_row_with_gated_and_prefixed_reported_metrics(tmp_pat
         assert key in row, f"reported view key {key} missing — a sensitivity would be unreadable"
     assert set(REPORTED_VIEWS) == {"window_only", "first_appearance"}
     assert row["arm"] == "dgf1-parity" and row["window"] == "9-12"
+    # ADR-012 clause 7: the row states its own configuration — written out literally, not derived
+    # from TUNED_KNOBS, so emptying that constant cannot make this assertion vacuous.
+    assert row["lr"] == HP.lr and row["batch_size"] == HP.batch_size and row["epochs"] == HP.epochs
 
     saved = load_scores(scores / f"{run_id}.npz")
     assert np.array_equal(saved["node_ids"], score_ids(_synthetic(), SPLIT_VAL))
