@@ -215,6 +215,21 @@ def test_xgboost_is_reproducible_and_weights_the_positive_class():
     assert (d.y_train == 1).sum() > 0 and (d.y_train == 0).sum() > 0
 
 
+def test_a_row_states_the_configuration_that_produced_it(tmp_path):
+    """ADR-012 clause 7: the gate file must say which configuration each arm's tuning selected.
+    The tuned axes were always inside the hashed config, so they were recoverable only by
+    rebuilding hashes — the detour ADR-008 was forced into when Gate-3's rows carried no arm key.
+    A row must say what it is on its own."""
+    registry = tmp_path / "registry.csv"
+    _, m = run_floor("xgboost", "parity", SPLIT_VAL, 0, _synthetic(), dgf1_base_config(),
+                     registry_path=registry, overrides={"max_depth": 4, "subsample": 0.8})
+    assert m["max_depth"] == 4 and m["subsample"] == 0.8
+
+    logged = json.loads(list(csv.DictReader(registry.open(encoding="utf-8", newline="")))[0]["metrics_json"])
+    assert logged["max_depth"] == 4 and logged["subsample"] == 0.8, "row cannot state its own config"
+    assert logged["arm"] == "xgboost-parity" and logged["baseline"] == "xgboost"
+
+
 def test_run_floor_persists_the_scored_vector_with_its_ids(tmp_path):
     """ADR-012 clause 10: path + content hash in the row, ids in the file."""
     from gbe.eval import load_scores

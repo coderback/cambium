@@ -94,6 +94,13 @@ STANDARDISED: dict[str, bool] = {"xgboost": False, "rf": False, "lr": True}
 # recomputing hashes (the ELL-1 lesson, GATE-ELL1-3). Explicit, so a typo cannot invent a field.
 PROVENANCE_KEYS: tuple[str, ...] = ("arm", "experiment", "features", "window")
 
+# The tuned axes are echoed too, flattened, because a *row* must say which configuration produced
+# it: ADR-012 clause 7 requires the gate file to state what each arm's tuning selected. They were
+# always in the hashed config, so they were recoverable by rebuilding hashes — which is exactly the
+# detour ADR-008 had to take when Gate-3's rows carried no `ablation` key, and the reason
+# PROVENANCE_KEYS exists at all.
+TUNED_AXES: tuple[str, ...] = ("max_depth", "subsample")
+
 
 @dataclass(frozen=True)
 class FloorDesign:
@@ -225,6 +232,9 @@ def run_floor(
         logged = evaluate(design, proba, pred)
         logged["baseline"] = model
         logged.update({k: cfg_values[k] for k in PROVENANCE_KEYS if k in cfg_values})
+        # Flattened tuned axes, so the row states its own configuration (ADR-012 clause 7).
+        params = cfg_values.get("floor_params", {})
+        logged.update({k: params[k] for k in TUNED_AXES if k in params})
 
         # ADR-012 clause 10: the scored vector survives the run, with the ids it belongs to, so a
         # paired bootstrap (or any later question) never needs the arm re-run.
