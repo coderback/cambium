@@ -201,6 +201,16 @@ budget, window and selection metric as the GNN's retune (clause 3):
   postponed and the batch rented (clause 5), never shortened further. Conditioned on wall-clock,
   never on a result.
 
+> **Amendment 2026-09-14 — the GNN retune is resolved.** Clause 3's grid ran on the validation
+> window on 2026-09-13 at commit `2bd88e0` (9 configs × 1 seed, `experiment=retune`, all clean and
+> deterministic, every row stating its own `lr`/`batch_size`/`epochs`). **Winner:
+> `lr=3.318335548548489e-4` (0.5× ADR-003), `batch_size=2048`, val AUPRC 0.0413** (ROC-AUC 0.7810),
+> run `dgf1-20260913T153524Z-ac72170d`. Every batch-512 configuration ranked in the bottom three,
+> which is ADR-009's named second knob binding on measurement. The top two differ by 0.0007 AUPRC
+> on one seed each — within plausible seed noise, as this clause anticipated; the pilot is the check.
+> The winning configuration runs in ~10 min, well inside this clause's 2-hour rule, so the 40-epoch
+> budget stands.
+
 ### Clause 4 — The pilot (validation window only)
 
 After acceptance, and after both tuning grids (clause 2's 9 floor configurations and clause 3's 9
