@@ -156,6 +156,17 @@ budget, window and selection metric as the GNN's retune (clause 3):
   directions (a winner's curse on each arm). Clause 5's ½ factor absorbs this; that is now one of
   its two stated jobs, not a coincidence.
 
+> **Amendment 2026-09-13 — the floor's tuning is resolved.** Clause 2's grid ran on the validation
+> window (9 configs × 1 seed, `experiment=retune`, 9 rows, all `git_dirty=false` and deterministic).
+> **Winner: `max_depth=8, subsample=0.8`, val AUPRC 0.0323** (ROC-AUC 0.7399), run
+> `dgf1-20260912T235406Z-7e30aa90`. Spread across the grid was AUPRC 0.0305–0.0323, so the floor is
+> insensitive to its own tuning.
+>
+> **The winner subsamples, so the branch this clause left open resolves the second way:**
+> `s_floor ≠ 0`. The floor's pilot therefore runs **5 seeds**, not 3, and under clause 5 the floor
+> runs at **the same seed count as the GNN** in the gate batch. Determinism was a measured outcome,
+> and the measurement went against the pre-commitment I nearly wrote.
+
 ### Clause 3 — The DGF-1 arm is specified here, in full
 
 * **Architecture and budget inherited from ADR-003** unchanged: GraphSAGE, 3 layers, hidden 128,
