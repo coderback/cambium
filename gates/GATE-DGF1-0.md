@@ -118,7 +118,52 @@ ADR-010 clause 1 makes those numbers **reported, never gated** — "They acquire
 _All numbers computed by `scripts/assemble_gate_dgf1_0.py` from `experiments/registry.csv`, the frozen ELL-1 manifest and `git`. No cell is filled by estimate, extrapolation, or smoothing._
 
 ## Verdict
-<!-- Left blank. Decided by the researcher, not by Claude. -->
+
+**PASSED** — 2026-09-14, coderback.
+
+All three conditions of doc-02 §7 hold as worded. **ELL-1's reference set reproduces bit-for-bit
+on the refactored core** (ADR-008): three independent batches, each compared against its own
+commit's rows only — 49/49 rows, 199 metric values, 0 mismatches, 0 missing, all clean and
+deterministic. The certificate is `d614671`, the last extraction commit, and nothing it certifies
+changed before the Gate-1 commit or since. **Sampled training completes at full scale:** all 16
+GNN runs on the validation window finished — 858,702 training seeds, 183,430 users scored per
+run, at batch sizes 512, 1024 and 2048 — clean, deterministic, none errored. **The baseline logs
+both metrics:** 30/30 floor rows carry ROC-AUC and AUPRC, the first logged before any GNN row; the
+selected parity floor reads 0.7388 ± 0.0024 ROC-AUC and 0.0321 ± 0.0003 AUPRC on validation, at
+prevalence 1.3493%.
+
+**Three qualifications are part of this verdict, not footnotes.**
+
+**1. This verdict is recorded late, and only the record is late.** Gate 1 ran and was signed before
+this file existed, although doc-02 places Gate 0 first and ADR-008 clause 5 ties Gate 0's signature
+to the check. The evidence was not late: the reproduction check was green at `d614671` before any
+Gate-1 run, no certified path changed before Gate 1's commit, and every row this gate relies on
+predates the first test-window row. So GATE-DGF1-1 did not run on an uncertified core. The
+lesson is procedural: a gate file is assembled when its evidence completes, not when the next gate
+needs it.
+
+**2. "No OOM" rests on completion, not on a measured margin.** The registry records no memory
+figure. Two retune batches were stopped by the Claude Code harness for low host memory and wrote
+no rows; the process was measured healthy, and the grid completed in the researcher's own terminal.
+That is an environment constraint, not a model failure — but it binds: long DGF-1 batches run
+outside the harness.
+
+**3. The official-split positioning numbers are owed.** No DGF-1 row exists on the official
+(random) split. Gate 0's wording names no split, so their absence does not fail it, but doc-02's
+Phase-0 tasks and §8 step 3 require them. ADR-010 clause 1 makes them reported and never gated, so
+producing them later cannot move this verdict or Gate 1's.
+
+| claim | status |
+|---|---|
+| the refactored core reproduces ELL-1 bit-for-bit | **supported** — 3 batches × 49/49, 0 of 199 values moved; covers the Gate-1 commit |
+| sampled DGF-1 training completes at full scale | **supported** — 16/16 validation runs finished (8 more on test, GATE-DGF1-1) |
+| memory headroom is measured | **not recorded** — no memory figure in any row |
+| the floor logs ROC-AUC and AUPRC | **supported** — 30/30 rows |
+| official-split positioning logged | **not run** — owed; reported, never gated |
+| Gate 0 recorded before Gate 1 | **no** — assembled afterwards; the evidence predates Gate 1 |
+
+*DGF-1 runs at scale on a core that still computes exactly what ELL-1 computed. The gate was
+earned on time and recorded late.*
 
 ---
 _Verdict, seeds, and table are sacred once dated. Papers are assembled from gate files; nothing is reported that is not in one._
