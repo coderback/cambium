@@ -3,9 +3,9 @@
 **Status:** accepted
 **Date:** 2026-09-12 · **accepted** 2026-09-12
 **Deciders:** coderback
-**Stage-1 seeds:** _not yet derived — recorded here after the validation pilot (clause 5). Until
-this line carries an integer, `scripts/run_dgf1_floor.py` and the DGF-1 GNN runner refuse the test
-window (clause 8)._
+**Stage-1 seeds:** 8
+_Derived 2026-09-14 from the validation pilots by clause 5's rule: GNN and floor at 5 seeds each,
+both metrics clearing at n=8 (the rule's floor). Recorded before any test-window run._
 **Inherits, does not re-open:** the metric pair and resolvability test (**ADR-007**), the split,
 views, parity floor and leakage protocol (**ADR-011**), determinism (**ADR-005**), `ddof=1` and the
 two-stage seed design (**ADR-006**), the frozen hyperparameter region (**ADR-003**) and the

@@ -69,11 +69,15 @@ def test_pilot_and_gate_require_the_retune_winner(tmp_path):
             resolve_batch(mode, _args(**extra))
 
 
-def test_the_real_adr_012_still_keeps_the_test_window_shut():
-    """Its seed count is a placeholder until the pilot derives it — so gate mode must refuse."""
+def test_the_real_adr_012_unlocks_the_test_window_with_exactly_the_derived_count():
+    """Re-pinned 2026-09-14. Until the pilots ran, this test asserted the real ADR *refused* the
+    test window, because its seed count was a placeholder. Clause 5's rule has since derived 8 and
+    it is recorded in the header, so the state being pinned changed by design — not the guard.
+
+    What stays pinned is the property that matters: the gate batch runs the number the document
+    fixed, and a later edit to that line cannot silently change it without failing here."""
     adr = REPO_ROOT / "decisions" / "ADR-012-dgf1-gate1-preregistration.md"
-    with pytest.raises(SystemExit, match="no stage-1 seed count"):
-        require_accepted_preregistration(adr)
+    assert require_accepted_preregistration(adr) == 8
 
 
 # -- the floor runner's modes mirror the GNN runner's -------------------------------------------
