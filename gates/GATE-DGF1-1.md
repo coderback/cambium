@@ -180,7 +180,57 @@ _Per seed: the recall each arm reaches at its own argmax, then the **other** arm
 _All numbers computed by `scripts/assemble_gate_dgf1_1.py` from `experiments/registry.csv` and the score files those rows reference. No cell is filled by estimate, extrapolation, or smoothing._
 
 ## Verdict
-<!-- Left blank. Decided by the researcher, not by Claude. -->
+
+**PASSED** — 2026-09-14, coderback.
+
+Both pre-registered clauses of ADR-012 hold on the temporal holdout (482–821; 183,469 users,
+2,717 fraud, prevalence 1.4809%), 8 seeds per arm, deterministic, against the parity floor re-run
+in the same batch. **ROC-AUC:** DGF-1 0.7533 ± 0.0037 vs floor 0.7282 ± 0.0008, a difference of
++0.0251 against 2×SE_diff 0.0027 (Welch p 1.2e-7). **AUPRC:** 0.0388 ± 0.0005 vs 0.0318 ± 0.0002,
++0.0070 against 0.0004 (Welch p 1.8e-11). Both survive the exact Welch multipliers (2.33, 2.25), so
+neither rests on the 2× approximation, and stage 2 was not triggered. The uncertainty the criterion
+does not model agrees with it: paired bootstraps over test users exclude zero for all 8 seed pairs
+on both metrics (smallest lower bounds +0.0132 ROC-AUC, +0.0042 AUPRC), and DGF-1's precision at
+matched recall is higher on every seed, in both directions.
+
+**Four qualifications are part of this verdict, not footnotes.**
+
+**1. The gain is resolvable, and it is small.** AUPRC 0.0388 is about 2.6× the chance level of
+0.0148; the floor sits at about 2.1×. doc-02 §0 predicted a small structural delta, and that is what
+was measured. Neither arm is near usable precision: at its own operating point DGF-1 flags about 34
+licit users for every fraud case it catches.
+
+**2. What the floor saw bounds what this licenses.** The floor received every node-level statistic
+DGF-1's inputs contain (ADR-011 clause 4), so the gain is not degree, edge-type histograms or recency.
+It is not yet attributable to message passing either: DGF-1 differs from XGBoost in model class as
+well as in structure, and separating the two is Gate 3's GNN-removed arm, which needs its own
+pre-registration before it runs.
+
+**3. Activity after users appear is only partly ruled out.** The gated view scores a user who joined
+at step 490 with edges up to 821 — a channel only the GNN can read. DGF-1's own AUPRC barely moves
+when restricted to edges up to each user's first appearance (0.0382 vs 0.0388). But the floor was
+never scored under that view, so the GNN-vs-floor gap under it is unmeasured; that pre-registered
+comparison (ADR-011 clause 4) is owed.
+
+**4. Two clauses are not two confirmations.** They share one floor arm, so their errors are
+correlated. The estimand is seed variability on this fixed window, and undated labels and snapshot
+features make both arms' absolute numbers optimistic.
+
+| claim | status |
+|---|---|
+| sampled GraphSAGE beats a tabular floor given identical node-level information, on this temporal holdout | **supported** — +0.0251 ROC-AUC, +0.0070 AUPRC, both resolvable |
+| the gain comes from message passing rather than model class | **not established** — Gate 3's GNN-removed arm |
+| the gain survives destroying the graph's wiring | **not established** — Gate 3 |
+| the gain does not depend on activity after users appear | **not established** — floor unscored under the first-appearance view |
+| the model is operationally useful for fraud detection | **not established** — AUPRC ≈ 2.6× chance |
+
+**Against ELL-1, stated without re-litigating it:** there, a tree beat the neural model on identical
+features, and the graph helped but not by enough. Here the neural model beats a tree given the same
+node-level information. The datasets, floors and scales all differ, so this is a contrast worth
+reporting, not a reversal of ELL-1's lesson.
+
+*At 3.7M users on a temporal holdout, the GNN beats a tree given the same node-level information —
+by a margin that is small, resolvable on every check we ran, and far from operationally useful.*
 
 ---
 _Verdict, seeds, and table are sacred once dated. Papers are assembled from gate files; nothing is reported that is not in one._
