@@ -19,6 +19,48 @@ applying:**
   becomes "both arms re-scored under ADR-013", and item 1 of the header's Next list changes to match.
 - `CLAUDE.md`: item 1 of the phase block's Next list, and the Gate-1 qualification "only partly clear of
   post-appearance activity", which gains a pointer to this ADR.
+- `decisions/ADR-011-dgf1-temporal-split-derivation.md` clause 4 and *Consequences* ("logged in the
+  same registry row"), and `decisions/ADR-012-dgf1-gate1-preregistration.md` clause 1's reported
+  list: a dated pointer to this ADR in each, because corrected reported scores now live in separate
+  rows (clause 4).
+
+> **Review note (2026-09-14, pre-acceptance): adversarial pass.** Two findings were serious and
+> changed what the ADR claims. Seven were defects in the mechanics. All nine are fixed below.
+> - **The corrected rows trade a leak for a distribution shift, and the draft did not say so.**
+>   Measured label-free:
+>   - under first appearance, every scored user has age 0 and last-edge recency 0; of 858,702
+>     training seeds as of 369, only 1,270 (0.148%) do;
+>   - under window-only, 36.66% of labelled test users get all-zero statistics, and no training seed
+>     has them (0 of 858,702);
+>   - at first appearance, test users have mean degree 1.382 with 74.09% at degree 1, against 1.874
+>     and 47.61% for training seeds.
+>
+>   Both arms were trained on the ≤ 369 view, so a gap that shrinks under these views cannot be put
+>   down to post-appearance activity alone. The draft's "that is the answer to qualification 3's
+>   question" was an overclaim. New clause 7 states what the rows can show, and the addendum must
+>   print these figures.
+> - **Clause 4 edited the assemblers of two signed gates for no protection.** Both call their
+>   signed-verdict refusal before reading a single row. If regenerated for audit, their existing
+>   checks refuse on a sensitivity row, so they fail closed. The edit would only have changed the
+>   script a signed file names as its provenance. They are now left untouched.
+> - **Per-view score vectors were not persisted**, so clause 5's paired bootstrap could not be
+>   recomputed from stored files, which is ADR-012 clause 10's standard. They are now persisted.
+> - **Moving corrected reported scores into separate rows departs from ADR-011's *Consequences***
+>   ("logged in the same registry row"). Now acknowledged: the pairing ADR-011 wanted survives
+>   because each new row carries the reproduced gated metrics. Pointer notes are added to *Docs
+>   affected*.
+> - **No outcome was stated for a failed reproduction.** Now: no rows, the failure is recorded, and
+>   there is no fallback.
+> - **The runner guard named "this ADR accepted" as if it carried a seed line**, which it does not.
+>   The four checks are now spelled out.
+> - **The addendum's name matched `gates/GATE-*.md`**, the files CLAUDE.md says gates are decided
+>   from, while carrying no verdict. Renamed.
+> - **The addendum printed `2 × SE_diff` without ruling out a pass/fail reading of it.** Its wording
+>   is now fixed.
+> - **The cost omitted that view building repeats for every seed** (projected 46–57 minutes across 8
+>   GNN passes, from single timings), and that view statistics do not depend on weights, so each
+>   group's view may be built once and shared. Both are now stated, and the timings are marked as
+>   single measurements.
 
 ## Disclosure — what had been seen when this was written
 
@@ -32,7 +74,8 @@ applying:**
   rows, at `adapters/dgf1/train_gnn.py:110–111`. No number was computed to find it or to size it.
 - **No new label look.** The only measurements taken for this ADR are label-free: the number of
   distinct node times among scored users, where "scored" means label *presence* (`y ∈ {0, 1}`) and
-  no fraud label is read, and the time to build one graph view.
+  no fraud label is read, and the time to build one graph view. The adversarial pass added the
+  training-support figures in clause 7, measured the same way.
 - **What these rows will show is not predicted here.** The fix could move the GNN's reported
   numbers either way, and the floor's too.
 
@@ -154,9 +197,13 @@ built once, and that group is scored on it with exact neighbourhoods (`num_neigh
   where the numbers are produced.
 - **Measured, label-free:** scored users span **340** distinct node times on test (183,469 users)
   and **112** on validation (183,430). Building one view took **1.01 s** as of step 482 and
-  **1.26 s** as of step 821 on this machine.
-  - **Projection only:** about 340 view builds per test scoring pass. The first real run measures
-    the actual cost, and the result is recorded.
+  **1.26 s** as of step 821 on this machine, one measurement each.
+  - **Projection only, from those two timings:** 340 view builds per test scoring pass takes about
+    6–7 minutes. Built separately for each of 8 GNN seeds, that becomes about 46–57 minutes.
+  - **View statistics do not depend on weights**, so building each time group's view once and
+    scoring every seed's model on it is permitted, provided each seed still writes its own row. The
+    floor needs only the scored users' own statistics, so it builds them once for all seeds.
+  - The first real run measures the actual cost, and the result is recorded.
 - **Holding every view in memory at once is ruled out:** 340 × 3.7M × 13 statistics do not fit
   in 15 GB. Views are built and released one group at a time.
 
@@ -174,6 +221,15 @@ built once, and that group is scored on it with exact neighbourhoods (`num_neigh
   Its gated metrics must equal its GATE-DGF1-1 rows bit-for-bit, under the same stop rule.
 - **Eight seeds**, ADR-012's stage-1 count. No new count is derived, because these rows have no
   pass condition (ADR-011 clause 4, ADR-012 clause 1).
+- **If either reproduction check fails, no sensitivity row is logged.** The failure and its root
+  cause are recorded in the addendum, which then reports that the rows could not be produced. There
+  is no fallback to unreproduced weights, and none to the superseded scoring path.
+- **Every row persists its scored vectors for all three views**, with node ids and SHA-256 hashes
+  (ADR-012 clause 10's standard), so the addendum's bootstrap can be recomputed from stored files.
+- **Separate rows, not the gated row.** ADR-011's *Consequences* put reported scores "in the same
+  registry row" as the gated number, so the two could never be reported apart. The gate rows are
+  written and cannot be amended. Each sensitivity row instead carries its reproduced gated metrics
+  beside its reported ones, which keeps that pairing inside the new row.
 - **Validation is not re-run.** The retune and pilot GNN rows carry the same defect in their
   reported keys. They were selection and sizing runs, their reported views fed no decision, and
   they are reported nowhere.
@@ -184,29 +240,40 @@ built once, and that group is scored on it with exact neighbourhoods (`num_neigh
 - **The reproduced gated metrics are logged under a `gated_` prefix, never bare.** A sensitivity row
   therefore has **no** `fraud_auc` or `fraud_auprc` key, and a reader looking for a gated number finds
   nothing to mistake. The reported views keep their `window_only_` and `first_appearance_` prefixes.
-- **Every gate reader selects `experiment == "gate"` explicitly.**
-  - `scripts/assemble_gate_dgf1_1.py` currently refuses on any non-gate row in the test window.
-  - `scripts/assemble_gate_dgf1_0.py` requires all test-window rows to share one commit.
-  - Both would stop working once these rows exist. Each gains an explicit filter, plus a test that
-    a sensitivity row is never returned. (Both also refuse to overwrite a signed verdict, so neither
-    can rewrite a gate file.)
-- **The runner mode refuses to start** without, in order:
-  1. this ADR accepted;
-  2. ADR-012's recorded seed count;
-  3. a signed verdict in GATE-DGF1-1;
-  4. a clean tree.
+- **The two signed gates' assemblers are not changed.**
+  - Each calls its signed-verdict refusal before reading any row, so neither reaches its loader
+    while a verdict exists.
+  - If one is ever regenerated for audit, its existing checks refuse on a sensitivity row rather
+    than misread it: `assemble_gate_dgf1_1.py` refuses any non-gate row on the test window, and
+    `assemble_gate_dgf1_0.py` refuses test-window rows from more than one commit. That is the safe
+    failure.
+  - An audit regenerates against the registry prefix that ends with the gate batch, which the
+    append-only registry makes well-defined.
+  - Editing either script would change only the provenance a signed file names.
+- **Every later reader of DGF-1 test-window rows** selects on `experiment` explicitly. That covers
+  the addendum assembler and Gate 3's.
+- **The runner mode refuses to start** unless all four hold:
+  1. ADR-013's status line reads `accepted`. This is a status check only, since this ADR carries no
+     seed line.
+  2. ADR-012 is accepted and carries its `**Stage-1 seeds:**` count, read by the existing
+     `require_accepted_preregistration`.
+  3. GATE-DGF1-1's Verdict section is signed.
+  4. The tree is clean.
 - **The reported-view keys already in the 24 GNN rows (retune, pilot, gate) are superseded, not
   deleted** (the registry is append-only). Any reader of DGF-1's reported views reads the sensitivity
   rows.
 
 ### Clause 5 — Where the result is reported
 
-- **A dated addendum, `gates/GATE-DGF1-1-sensitivity.md`**, assembled by script from the
-  sensitivity rows, with every cell computed.
+- **A dated addendum, `gates/ADDENDUM-DGF1-1-sensitivity.md`**, assembled by script from the
+  sensitivity rows, with every cell computed. It is deliberately not named `GATE-*`: CLAUDE.md
+  names those as the files gates are decided from, and this file decides nothing.
 - **Per view, for both arms:** mean ± std (`ddof = 1`), the difference, and `2 × SE_diff`, stated
-  explicitly as having **no pass condition**. It also gives prevalence and positive count
-  (ADR-007), and a paired bootstrap per seed pair (ADR-012 clause 10's settings: 1,000 replicates,
-  seed 0).
+  explicitly as having **no pass condition**. The words *pass*, *fail* and *resolvable* do not
+  appear in the file. It also gives prevalence and positive count (ADR-007), and a paired bootstrap
+  per seed pair (ADR-012 clause 10's settings: 1,000 replicates, seed 0).
+- **Clause 7's training-support figures are printed beside the view rows**, so no reader meets a
+  gap without the distribution shift that qualifies it.
 - **The superseded GNN numbers are printed beside the new ones**, with this ADR as the reason, so
   the correction is visible where the old numbers were.
 - **The addendum carries no verdict.** It ends with a *Reading* section left blank for the
@@ -231,8 +298,35 @@ built once, and that group is scored on it with exact neighbourhoods (`num_neigh
 6. **Determinism.** Two runs of the grouped first-appearance scoring are identical.
 7. **The registry guard.**
    - A sensitivity row has no bare `fraud_*` key.
-   - Both gate assemblers' loaders ignore sensitivity rows.
+   - GATE-DGF1-1's loader, handed a sensitivity-tagged test-window row, refuses rather than
+     returning it.
    - The runner refuses each missing precondition, one test per refusal.
+8. **Persistence.** Each view's stored vector reloads with its ids aligned to the scored users, and
+   its hash matches the row.
+
+### Clause 7 — What these rows can and cannot show
+
+Correcting the inputs removes a leak, and it introduces a distribution shift. Both arms were
+trained on the ≤ 369 view, where users have a history. Measured label-free (node times, edges and
+label presence only):
+
+| | training seeds as of 369 (858,702) | test targets under the view (183,469) |
+|---|---|---|
+| age 0 and last-edge recency 0 | 1,270 (0.148%) | **all of them**, under first appearance |
+| all 13 statistics zero | **0** | 67,266 (36.66%, ADR-011), under window-only |
+| mean degree / share at degree 1 | 1.874 / 47.61% | 1.382 / 74.09%, under first appearance |
+
+So:
+- **A gap under these views compares the arms on inputs they rarely or never saw in training.** If
+  the GNN's advantage shrinks or vanishes, that fits the advantage depending on post-appearance
+  activity. It **equally** fits the GNN transferring worse than the tree to users with no history.
+  These rows cannot separate the two.
+- **If the advantage survives**, it survives both the removal and the shift, which is the stronger
+  statement.
+- **Neither reading licenses a deployment claim** ("detect at sign-up"). ADR-011 reserves that for its
+  own ADR, with first-appearance views decided before any score exists.
+- **Separating removal from shift needs arms trained on first-appearance inputs.** That is a
+  different experiment, not pre-registered here (ADR-011 clause 4).
 
 ## Alternatives rejected
 
@@ -258,6 +352,14 @@ built once, and that group is scored on it with exact neighbourhoods (`num_neigh
   is the same model.
 - **Also re-run the validation pilots.** Their reported keys informed no decision and are reported
   nowhere. Re-running them adds compute and no information any document uses.
+- **Retrain both arms on first-appearance inputs, to remove clause 7's shift.** It would separate
+  information removal from distribution shift, but it is a new experiment with its own training sets
+  and seeds. ADR-011 clause 4 leaves it out of the pre-registration, and deciding it now, after the
+  gated results, is what ADR-011's *Revisit when* forbids. It belongs in its own ADR, if a write-up
+  needs it.
+- **Add `experiment == "gate"` filters to the two signed gates' assemblers.** Neither can reach its
+  loader while a verdict exists, and both already fail closed on a sensitivity row. The edit would
+  protect nothing and would change the provenance script of two signed files.
 - **Edit GATE-DGF1-1's view table or verdict.** Dated gate files are never edited. A corrected result
   is a new result (ADR-008 clause 2's precedent).
 - **Report the rows in Gate 3's file.** Gate 3 has its own question and needs its own ADR. ADR-011
@@ -267,8 +369,9 @@ built once, and that group is scored on it with exact neighbourhoods (`num_neigh
 
 - **Compute, run in the researcher's own terminal:**
   - 8 GNN retrains at about 10 minutes each, the measured cost of a batch-2048 run (Session 30; gate
-    row seed 7 took 590 s), plus the grouped first-appearance scoring of clause 2, which is
-    unmeasured and will be recorded on the first run;
+    row seed 7 took 590 s), plus the grouped first-appearance scoring of clause 2. Its view building
+    is projected at about 6–7 minutes if views are shared across seeds, or 46–57 minutes if not, and
+    is measured on the first run;
   - 8 floor runs taking seconds each, plus their view builds.
 - **Code:**
   - a statistics function for an arbitrary edge set. `view_node_features` asserts that `node_time`
@@ -276,17 +379,17 @@ built once, and that group is scored on it with exact neighbourhoods (`num_neigh
     needs its own path, under its own tests;
   - `score_view` builds inputs per view, and first appearance is scored in time groups;
   - the floor gains view scoring from one fit;
-  - a `sensitivity` runner mode;
-  - the addendum assembler;
-  - the gate loaders' explicit filters.
+  - a `sensitivity` runner mode, persisting three score vectors per row;
+  - the addendum assembler. The two signed gates' assemblers are untouched (clause 4).
 - **The reported-view keys in all 24 existing GNN rows are superseded.** GATE-DGF1-1's view table
   must be read with the addendum.
 - **The trainer's test for reported views (`test_dgf1_trainer.py:135–136`) was a symptom check.** It
   passed because the edges differed, which is the pattern this programme has hit four times before.
   Clause 6 test 1 is written to fail against the code it replaces.
-- **Whatever the rows show is reported** (ADR-011 clause 4: "That is a result, not an embarrassment").
-  If the GNN's first-appearance advantage over the floor shrinks or vanishes once post-appearance
-  counts leave both arms' inputs, that is the answer to qualification 3's question.
+- **Whatever the rows show is reported** (ADR-011 clause 4: "That is a result, not an embarrassment"),
+  always with clause 7's reading beside it. The rows sharpen qualification 3 but cannot close it: a
+  shrinking gap is ambiguous between post-appearance dependence and worse transfer to users with no
+  history.
 
 ## Revisit when
 
