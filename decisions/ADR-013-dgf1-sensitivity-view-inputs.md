@@ -284,6 +284,74 @@ exist get read.
   - **The row is written either way,** because `RunSession` writes on error. The check is decided by
     the comparison, never by whether the row exists.
 
+> **Amendment 2026-09-15 (proposed; not yet accepted) — the re-certification states the environment
+> it ran under, and drift cannot produce a pass.**
+>
+> **Why.** Clause 3 as accepted fixes a bit-for-bit bar and says nothing about the stack that bar is
+> measured on. `CLAUDE.md`: "Reproducibility is **same-environment** — claim it that way, never
+> 'reproducible anywhere'." ADR-008 clause 4 already encodes exactly this for the EXTRACT check, and
+> `scripts/check_extract_regression.py` refuses to report a pass under drift. The adversarial pass on
+> `ccb986f` found the DGF-1 check printing `REPRODUCED … bit-for-bit` with no environment statement at
+> all. That is an overclaim when it passes, and a false condemnation when it fails: a torch or PyG
+> move changes the arithmetic for reasons unrelated to this ADR's code change, and clause 3's
+> no-retry rule would then block Gate 3 on a trainer that is sound. The omission is mine, not the
+> clause's, but the clause is where the bar is stated, so the bar is where the fix belongs.
+>
+> 1. **The pin is ADR-008's**, `experiments/extract_reference_env.txt`, read through
+>    `environment_drift` and `CRITICAL_PACKAGES` from `scripts/check_extract_regression.py` — the five
+>    packages (`torch`, `torch-geometric`, `pyg-lib`, `numpy`, `scikit-learn`) plus the GPU name and
+>    CUDA runtime. No new pin file is captured. A pin captured now would record *today's* stack, not
+>    the pilot's, and would dress an assumption as a measurement. `scripts/assemble_gate_dgf1_0.py`
+>    already reuses this same pin for DGF-1, so this adds no dependency the programme lacks.
+> 2. **Three outcomes, not two.** The check reports exactly one, and its exit code says which:
+>
+>    | environment | comparison | outcome | exit |
+>    |---|---|---|---|
+>    | matches the pin | every compared field equal | **PASS** — the trainer is re-certified | 0 |
+>    | matches the pin | any field differs | **FAIL** — a regression; root-cause it, never retry | 1 |
+>    | drifted | either | **INCONCLUSIVE** — equality is void (ADR-008 clause 4); certifies nothing | 2 |
+>
+>    A drifted run that matches is **not** a pass, and a drifted run that differs is **not** evidence
+>    of a regression. Both are uninterpretable, which is the point of separating the third outcome
+>    rather than folding it into either.
+> 3. **Drift refuses before training**, beside the existing configuration-hash refusal, so a stack
+>    that cannot certify costs a second rather than ten minutes. The refusal names the drift and the
+>    two ways forward: restore the pinned stack, or re-establish the reference on the new one and
+>    record the delta (ADR-008's own wording).
+> 4. **Re-running after restoring the pin is not a retry.** ADR-008 clause 2 forbids re-running a
+>    failed reproduction in the hope of a different answer. To keep that rule un-loopholed, a second
+>    `repro_check` run is permitted **only** when the first outcome was INCONCLUSIVE, the environment
+>    has since been changed *towards* the pin, and both rows are cited together in the lab notebook.
+>    A re-run after a **FAIL** under a matching environment is forbidden, without exception.
+> 5. **The environment line is part of the record.** Whatever the outcome, the lab entry and the
+>    timeline state it — "matches the pin" or the drift list — so a later reader knows what the
+>    certification was worth. Gate 3's ADR cites the outcome *and* that line, not the outcome alone.
+> 6. **Tests, in the implementation session.** Each of the three outcomes is produced and asserted,
+>    including that drift plus a perfect comparison yields INCONCLUSIVE and a non-zero exit; and that
+>    the drift refusal fires before the dataset is loaded. Written literally, not derived from the
+>    constant the code uses.
+>
+> **What this does not establish, stated plainly.** The pilot row records `deterministic` and
+> `cublas_workspace_config` and **no package version at all** (verified 2026-09-15 against
+> `dgf1-20260913T232506Z-1acd5067`). So "no drift" means *the live stack matches ADR-008's pin*, and
+> the further claim that the pilot ran on that pin is inherited from `CLAUDE.md`, not measured from
+> the row. Measured today: no drift on any of the five packages, the GPU or the CUDA runtime. A pass
+> is therefore reported as *reproduced on a stack matching ADR-008's pin*, never as unconditional.
+>
+> **Named follow-up, not decided here:** registry rows record no environment, which is why the
+> paragraph above has to exist. Making a row state its own stack is a change to `gbe/run`, affects
+> every model, and belongs in its own ADR — not in a DGF-1 amendment.
+>
+> **Why an amendment and not ADR-014.** This tightens an existing clause's bar rather than deciding
+> anything new: no number moves, no claim changes, no experiment is added or removed, and nothing is
+> loosened. It is the same correction-of-omission this ADR performed on ADR-011. A new ADR would be
+> right if the bar were being *relaxed*, or if a result already rested on it — neither holds, because
+> the re-certification has not been run.
+>
+> **Implementation is a later session's** (`CLAUDE.md`, doc-first): this amendment was conceived in
+> the session that found the omission. Until it is accepted and implemented, no `repro_check` run
+> should be treated as certifying.
+
 ### Clause 4 — The deviation from pre-registration is recorded
 
 This follows the form recommended by Lakens (2024, *Collabra: Psychology* 10(1):117094) and Nosek et
