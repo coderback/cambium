@@ -30,6 +30,8 @@ from run_dgf1_gnn import (  # noqa: E402
     REPRO_REFERENCE_RUN,
     REPRO_ROW_COLUMNS,
     compare_repro,
+    device_problems,
+    pin_runtime,
     read_row,
     rebuilt_reference_hash,
     repro_check_reference,
@@ -422,6 +424,84 @@ def test_main_refuses_a_dirty_tree_in_repro_check_mode(monkeypatch, tmp_path):
     main, loaded = _fake_repro_run(monkeypatch, tmp_path)
     monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: True)
     with pytest.raises(SystemExit, match="uncommitted"):
+        main()
+    assert loaded == []
+
+
+# -- the CPU-fallback guard -------------------------------------------------------------------------
+# The defect: `environment_drift` puts its GPU/CUDA comparisons behind `torch.cuda.is_available()`,
+# and `resolve_device("auto")` falls back to CPU silently. Lose CUDA and the check reported no drift,
+# trained on CPU, differed on every float, and recorded a sound trainer as a regression under a rule
+# that forbids retrying. A second route reaches the same place with no driver failure: `device:` in
+# `adapters/dgf1/config.yaml` is returned by `dgf1_hparams()`, not `dgf1_base_config()`, so it is in
+# neither the hashed config nor the row.
+REAL_PIN = REPO_ROOT / "experiments" / "extract_reference_env.txt"
+
+
+def test_the_pin_runtime_block_parses_including_its_awkward_lines():
+    """The pin's `[runtime]` block is CRLF, and `cublas_workspace_config` carries a trailing prose
+    comment. A parser that ignores either refuses a stack that has not moved."""
+    fields = pin_runtime(REAL_PIN)
+    assert fields["gpu"] == "NVIDIA GeForce RTX 3050 Ti Laptop GPU"
+    assert fields["cublas_workspace_config"] == ":4096:8", "the trailing comment was not stripped"
+    assert fields["python"] == "3.13.5" and fields["cudnn"] == "91002"
+    assert "torch" in fields and "[pip freeze]" not in fields
+    # the pip-freeze section must not bleed in: it is `_pinned_versions`' territory
+    assert "scikit-learn" not in fields
+
+
+def test_a_cpu_device_is_refused_against_a_gpu_pin():
+    assert device_problems(REAL_PIN, "cuda") == []
+    assert device_problems(REAL_PIN, "cuda:0") == []
+    for cpu in ("cpu", "cpu:0"):
+        problems = device_problems(REAL_PIN, cpu)
+        assert problems and "cannot reproduce a CUDA reference" in problems[0]
+
+
+def test_a_pin_without_a_gpu_cannot_verify_the_device(tmp_path):
+    """Refuse rather than pass silently: an unverifiable device is not a verified one."""
+    pin = tmp_path / "pin.txt"
+    pin.write_text("[runtime]\npython = 3.13.5\n\n[pip freeze]\ntorch==2.13.0\n", encoding="utf-8")
+    assert any("records no gpu" in p for p in device_problems(pin, "cuda"))
+
+
+def test_the_device_guard_is_not_itself_conditional_on_cuda(monkeypatch):
+    """The mutation this guard exists to survive.
+
+    A previous review demonstrated that a `torch.cuda.is_available()`-guarded implementation passes
+    the CPU-fallback test vacuously — it skips exactly when it is needed. `device_problems` must
+    report the problem with CUDA unavailable, which is the only state in which it matters."""
+    import torch
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    from gbe.run import resolve_device
+
+    assert str(resolve_device("auto")) == "cpu", "fixture did not reproduce the CUDA-less state"
+    problems = device_problems(REAL_PIN, str(resolve_device("auto")))
+    assert problems, "the guard skipped precisely when CUDA was unavailable — it is vacuous"
+
+
+def test_main_refuses_a_cpu_run_before_loading_data(monkeypatch, tmp_path):
+    """End to end: CUDA gone, so `auto` resolves to CPU. The run must be REFUSED before the dataset
+    is touched and must write no row — not trained and then recorded as a regression."""
+    import torch
+
+    main, loaded = _fake_repro_run(monkeypatch, tmp_path)
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    with pytest.raises(SystemExit, match="cannot reproduce a CUDA reference"):
+        main()
+    assert loaded == [], "the dataset was loaded despite an unusable device"
+
+
+def test_main_refuses_the_config_yaml_device_route(monkeypatch, tmp_path):
+    """`device: cpu` in the adapter config bypasses the configuration-hash guard entirely, because
+    the device is in neither the hashed config nor the row."""
+    import adapters.dgf1.eval as dgf1_eval
+
+    main, loaded = _fake_repro_run(monkeypatch, tmp_path)
+    real_hparams = dgf1_eval.dgf1_hparams
+    monkeypatch.setattr(dgf1_eval, "dgf1_hparams", lambda *a, **k: (real_hparams()[0], "cpu"))
+    with pytest.raises(SystemExit, match="cannot reproduce a CUDA reference"):
         main()
     assert loaded == []
 

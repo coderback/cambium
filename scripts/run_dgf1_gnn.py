@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from preregistration import require_accepted_preregistration, require_clean_tree  # noqa: E402
 
 SCORES_DIR = REPO_ROOT / "experiments" / "scores"
+PIN_PATH = REPO_ROOT / "experiments" / "extract_reference_env.txt"   # ADR-008 clause 4
 PILOT_SEEDS = 5   # ADR-012 clause 4
 
 # -- ADR-013 clause 3: the re-certification's fixed reference -------------------------------------
@@ -180,6 +181,53 @@ def score_file_problems(row: dict[str, Any]) -> list[str]:
     return []
 
 
+def pin_runtime(pin_path: Path) -> dict[str, str]:
+    """The environment pin's ``[runtime]`` block as ``{field: value}``.
+
+    `check_extract_regression._pinned_versions` reads only the pin's ``[pip freeze]`` section, so the
+    runtime fields need their own parser. Two shapes to allow for, both present in the real file: the
+    block is CRLF, and ``cublas_workspace_config`` carries a trailing prose comment after the value.
+    """
+    fields: dict[str, str] = {}
+    in_runtime = False
+    for raw in pin_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line.startswith("["):
+            in_runtime = line == "[runtime]"
+            continue
+        if not in_runtime or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        fields[key.strip()] = value.strip().split("  ")[0].strip()   # drop any trailing comment
+    return fields
+
+
+def device_problems(pin_path: Path, resolved_device: str) -> list[str]:
+    """Refuse a device that cannot reproduce the reference. Empty means the device is usable.
+
+    **Deliberately not guarded by `torch.cuda.is_available()`.** The bug this closes is exactly the
+    case where CUDA has gone away: `environment_drift` puts its GPU and CUDA comparisons behind that
+    call, and `resolve_device("auto")` then falls back to CPU silently, so the check would report no
+    drift, train on CPU, differ on every float, and record a sound trainer as a regression under a
+    rule that forbids retrying (ADR-008 clause 2). A conditional check is vacuous precisely when it
+    is needed.
+
+    `adapters/dgf1/config.yaml`'s `device:` reaches the same place with no driver failure: it is
+    returned by `dgf1_hparams()`, not `dgf1_base_config()`, so it sits in neither the hashed config
+    nor the row, and editing it passes the configuration-hash guard untouched.
+    """
+    pinned_gpu = pin_runtime(pin_path).get("gpu", "")
+    if not pinned_gpu:
+        return [f"{pin_path.name} records no gpu in its [runtime] block, so the device cannot be "
+                "verified against the reference"]
+    if resolved_device.split(":")[0] == "cpu":
+        return [f"resolved device {resolved_device!r}, but the reference was produced on "
+                f"{pinned_gpu!r}. A CPU run cannot reproduce a CUDA reference: every float would "
+                "differ, and the result would be recorded as a regression rather than as the "
+                "environment change it is."]
+    return []
+
+
 def rebuilt_reference_hash(split, hp, base_cfg: dict[str, Any]) -> str:
     """The config hash this check's run *would* carry if it were tagged as the reference pilot.
 
@@ -242,9 +290,19 @@ def main() -> None:
         return GNNHParams(**{**base_hp.as_dict(), "lr": lr, "batch_size": batch_size,
                              "fan_out": tuple(base_hp.fan_out)})
 
+    device = args.device or cfg_device
     reference = None
     if args.mode == "repro-check":
-        # Before loading 4M nodes or training: the check must run the reference's configuration.
+        # Both refusals run before 4M nodes are loaded or anything is trained. The device is checked
+        # first: it is the cheaper of the two and the likelier to have moved.
+        from gbe.run import resolve_device
+
+        device = str(resolve_device(device))   # resolve once, run on what was checked
+        problems = device_problems(PIN_PATH, device)
+        if problems:
+            raise SystemExit("refusing repro-check: " + " ".join(problems))
+        print(f"[dgf1] repro-check: device {device} matches the reference environment")
+
         (lr, batch_size), = configs
         rebuilt = rebuilt_reference_hash(split, hparams(lr, batch_size), base_cfg)
         reference = repro_check_reference(registry_path, rebuilt)
@@ -256,13 +314,13 @@ def main() -> None:
     scores_dir = None if args.mode == "retune" else SCORES_DIR
 
     print(f"[dgf1] mode={args.mode} window={window} ({split.test_min}-{split.test_max}) "
-          f"configs={len(configs)} seeds={len(seeds)} device={args.device or cfg_device}")
+          f"configs={len(configs)} seeds={len(seeds)} device={device}")
 
     results = []
     for lr, batch_size in configs:
         hp = hparams(lr, batch_size)
         for seed in seeds:
-            run_id, m = run_dgf1(seed, data, split, hp, base_cfg, device=args.device or cfg_device,
+            run_id, m = run_dgf1(seed, data, split, hp, base_cfg, device=device,
                                  scores_dir=scores_dir)
             results.append((lr, batch_size, seed, m, run_id))
             print(f"[dgf1] lr={lr:.2e} batch={batch_size} seed={seed}: "
