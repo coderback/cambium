@@ -1,7 +1,7 @@
 # ADR-013 — DGF-1's reported sensitivity views: the defect recorded, the numbers withdrawn, the question given its own pre-registration
 
-**Status:** proposed
-**Date:** 2026-09-14
+**Status:** accepted
+**Date:** 2026-09-14 · **accepted** 2026-09-15
 **Deciders:** coderback
 **Replaces the first draft of this ADR** (commits `70f61a4`, `4667dfe`), withdrawn before acceptance.
 See *Draft history*.
@@ -10,9 +10,12 @@ See *Draft history*.
 determinism (**ADR-005**); the no-retry rule for a reproduction check (**ADR-008** clause 2).
 **Changes no gated quantity, and schedules no test-window run.** Both signed gates stand exactly as
 recorded: `gates/GATE-DGF1-0.md` and `gates/GATE-DGF1-1.md`, both PASSED 2026-09-14.
-**Docs affected — to apply on acceptance.** Sites were found by grepping `docs/`, `CLAUDE.md` and
-`decisions/` before drafting. `docs/` is gitignored, so ripgrep skips it. Re-run the grep after
-applying.
+**Docs affected — all amendments applied 2026-09-15 on acceptance.** Sites were found by grepping
+`docs/`, `CLAUDE.md` and `decisions/` before drafting. `docs/` is gitignored, so ripgrep skips it.
+The grep was re-run after applying. **Two sites were added on application, beyond the list below:**
+- `gates/ERRATUM-DGF1-1.md` was created. Clause 2 decides it, but the list omitted it.
+- The timeline's Gate-3 row gained clause 5.1's ordering constraint. Left unchanged, that row would
+  have been silently incomplete.
 - `docs/02-dgraph-fin-embedding-model-BUILD.md` §5: the two sensitivity rows of the reporting
   template (lines 212–213) and the ADR-011 note beneath them (lines 228–229) are marked *not produced
   in ADR-011's form — ADR-013; see its clause 5*.

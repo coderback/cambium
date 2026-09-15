@@ -115,6 +115,10 @@ window-only and first-appearance sensitivity rows (ADR-011 clause 4, both permit
 passed its determinism check on 2026-09-11); official random-split numbers, always labelled; and
 precision at matched recall, the diagnostic that made ADR-007 necessary.
 
+*Amended 2026-09-15 (ADR-013): the window-only and first-appearance rows are not produced in
+ADR-011's form. The GNN's logged values are withdrawn, and the question moves to ADR-013 clause 5's
+pre-registration. The other reported items stand.*
+
 Two definitions, so the reported rows are not left to later judgement:
 
 * **Precision at matched recall** is computed by taking the recall each **floor** seed reaches at
@@ -316,6 +320,8 @@ Not footnotes; part of the verdict:
 * **49.95% of raw feature values are the −1 sentinel**, standardised as a value;
 * the **window-only and first-appearance** sensitivity rows, which show how much of any gap depends
   on the scoring view (ADR-011's disclosure);
+  *Amended 2026-09-15 (ADR-013): GATE-DGF1-1 printed the GNN side of these rows only. Those figures
+  are withdrawn, and `gates/ERRATUM-DGF1-1.md` marks them.*
 * **the paired bootstrap CI of the difference** (clause 10) beside every gated number, and the
   explicit statement if the two disagree;
 * **which configuration each arm's tuning selected**, including whether the floor subsamples;
@@ -350,6 +356,8 @@ matched as `^\*\*Stage-1 seeds:\*\*\s*(\d+)` — one line, one integer, the same
   receives.
 * **The first-appearance row is permitted**: the sampler passed its determinism check on the real
   graph (both modes deterministic, every sampled edge within its seed's time).
+  *Amended 2026-09-15 (ADR-013): the sampler's determinism result stands, but no first-appearance
+  row is produced under this ADR. Its logged GNN values are withdrawn; see ADR-013 clause 5.*
 
 ### Clause 10 — Per-node scores are persisted, and uncertainty beyond seeds is reported
 

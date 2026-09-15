@@ -306,6 +306,17 @@ If the GNN beats the floor on the gated view but not on the first-appearance vie
 the gain depends on structure that forms after users appear. That is a result, not an embarrassment,
 and it is reported either way.
 
+> **Amended 2026-09-15 (ADR-013): the two sensitivity rows were not produced in this clause's form.**
+> - **Why:** the GNN's implementation built its node inputs from the window-end graph under every
+>   view, breaking clause 3. Its reported-view numbers are **withdrawn** from all inference (ADR-013
+>   clauses 1–2; `gates/ERRATUM-DGF1-1.md`).
+> - **Correctly built, the rows cannot answer their question.** They score at-arrival inputs with
+>   snapshot-trained models, so they cannot separate post-appearance dependence from worse transfer.
+> - **Where the question goes:** a matched-time pre-registration, with these rows run beside it as
+>   exploratory (ADR-013 clause 5).
+>
+> The clause above is kept as accepted.
+
 ### Clause 5 — Leakage tests, written in the implementation session (untested guards don't exist)
 
 **pytest, on synthetic fixtures.** This is the repo's practice (`tests/test_ell1_leakage.py`,
@@ -406,6 +417,9 @@ That is our own definition, not a claim about any third party's protocol. It is 
   **GNN-only** is *who* a user's later neighbours are and what their features say. The
   first-appearance sensitivity row measures how much the result depends on it. A reviewer may call
   that remainder post-outcome leakage; the ADR does not claim it is not.
+  *Amended 2026-09-15 (ADR-013): no valid first-appearance row exists. The GNN figure once reported
+  under that name carried post-appearance node statistics and is withdrawn. This dependence stays
+  **not established** until ADR-013 clause 5's pre-registration produces rows.*
 - **Prevalence drifts upward** across the windows: 1.20% → 1.35% → 1.48%. The val pilot's AUPRC and
   the test AUPRC have different chance levels. Per ADR-007 they are never compared, and each is
   reported with its own prevalence and positive count.
@@ -485,6 +499,9 @@ That is our own definition, not a claim about any third party's protocol. It is 
 - **Every gated row gains two reported sensitivity scores**, window-only and first-appearance (the
   latter conditional on the determinism test), logged in the same registry row under distinct keys,
   so they can never be confused with the gated number or reported apart from it.
+  *Amended 2026-09-15 (ADR-013): these keys, as logged in all 24 DGF-1 GNN rows, are withdrawn, and
+  `run_dgf1` no longer computes them. Any future reported-view scores live in their own rows,
+  carrying the reproduced gated metrics beside them (ADR-013 clauses 2, 3 and 5).*
 - **DGF-1 Gate 3 inherits a problem ELL-1 never had.** ELL-1's ablations kept cutoff integrity by
   rewiring within a time step. DGraph edges don't live in steps, so any rewiring has to preserve
   each edge's date, or it forges future edges into the training graph. That belongs to Gate 3's own
