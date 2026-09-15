@@ -24,3 +24,6 @@ __pycache__/
 .pytest_cache/
 /gbe/CLAUDE.md
 /.mcp.json
+
+# Literature log — kept local for now, by the researcher's decision (2026-09-15)
+/notebooks/literature/
