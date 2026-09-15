@@ -16,15 +16,54 @@ applying.
 - `docs/02-dgraph-fin-embedding-model-BUILD.md` §5: the two sensitivity rows of the reporting
   template (lines 212–213) and the ADR-011 note beneath them (lines 228–229) are marked *not produced
   in ADR-011's form — ADR-013; see its clause 5*.
-- `docs/timeline.md`: the Phase-1 row "Floor under the window-only and first-appearance views"
-  becomes "Withdrawn; routed to the matched-time pre-registration (ADR-013)". Header Next item 1
-  changes to match.
-- `CLAUDE.md`: phase-block Next item 1, and the Gate-1 qualification at lines 50–51 (clause 2 below
-  gives the wording).
+- `docs/timeline.md`:
+  - the Phase-1 row "Floor under the window-only and first-appearance views" (line 188) becomes
+    "Withdrawn; routed to the matched-time pre-registration (ADR-013)";
+  - header Next item 1 (line 21) changes to match;
+  - both places that state Gate 1's post-appearance qualification take clause 2's wording: the
+    header summary (line 15) and the Gate-1 row (lines 203–204).
+- `CLAUDE.md`: phase-block Next item 1 (line 38), and the Gate-1 qualification at lines 50–51 (clause 2
+  below gives the wording).
 - `decisions/ADR-011-dgf1-temporal-split-derivation.md` gets a dated pointer to this ADR in three
   places: clause 4 (lines 285–307), *Limitations* (lines 403–408) and *Consequences* (lines 485–487).
 - `decisions/ADR-012-dgf1-gate1-preregistration.md` gets the same pointer in clause 1 (lines
   113–116), clause 7 (lines 317–318) and clause 9 (lines 351–352).
+
+> **Review note (2026-09-15, pre-acceptance): adversarial pass on the rewrite.** Two findings were
+> serious. Eight were defects. All ten are fixed below. One suspicion was checked and held: clause 3's
+> hash comparison is sound, because `content_hash` covers only the arrays (`gbe/eval/scores.py:29–34`),
+> so identical scores give an identical hash however the file is written.
+> 1. **Clause 5's matched-time design did not say which time, and read naturally it is a sign-up
+>    detector.** ADR-011 allows that only as "a different experiment" (line 302), and labels carry no
+>    date (lines 398–400). The time is now each user's node time, for training and scoring alike.
+>    ADR-011 line 302 is cited as the licence, and absolute numbers may not be read as detection at
+>    sign-up.
+> 2. **Clause 5 bound Gate 3 to an experiment whose cost nobody had sized.** Measured label-free:
+>    training seeds span **369** distinct node times, and one view at a training-era cutoff took
+>    **0.30–0.70 s** (one warm timing each at steps 1, 100, 200 and 369). Rebuilt every epoch, that
+>    projects to 1.8–4.3 minutes of view building per epoch, or 1.2–2.9 hours per 40-epoch seed,
+>    before any training compute. It is now stated under *Consequences*, with clause 5.1's decline
+>    named as the outlet.
+> 3. **The withdrawal was not marked where readers meet the numbers.** Papers are assembled from gate
+>    files, GATE-DGF1-1 cannot be edited, and `CLAUDE.md` is gitignored, so a rule stated only there
+>    is missing from the versioned record. A dated notice, `gates/ERRATUM-DGF1-1.md`, now does it
+>    (clause 2).
+> 4. **Clause 5.1 fixed the order of acceptance, not of execution**, so an accepted matched-time ADR
+>    could simply never run. Its batch now runs before Gate 3's, behind a guard in Gate 3's runner.
+> 5. **Clause 5.3 contradicted a rejected alternative without saying why.** The literal rows are kept
+>    in clause 5 yet rejected as a standalone batch. Now reconciled in the clause.
+> 6. **Clause 5 dropped the first draft's confirmed implementation traps.** They are now requirements
+>    (clause 5.7).
+> 7. **Clause 3's re-certification had nothing to launch it.** `scripts/run_dgf1_gnn.py` offers only
+>    retune, pilot and gate (line 61), and pilot mode would write rows tagged `pilot`. A
+>    validation-only `repro-check` mode is now specified, and the ADR says plainly that enforcing it
+>    on later runs is procedural.
+> 8. ***Docs affected* missed two timeline sites** (lines 15 and 203–204).
+> 9. **Clause 1 claimed "the fifth" such test without a verified count**, and the category was
+>    slightly off: the test read a symptom present whether or not the property held. Reworded, with
+>    no count.
+> 10. **Clause 4 said qualification 3 moves from "partly supported".** The verdict's own words are
+>     "only partly ruled out", and they are now quoted.
 
 ## Draft history — why the first draft was withdrawn
 
@@ -188,8 +227,10 @@ exist get read.
   clause 3.
 - **Since when:** the trainer's first commit (lab Session 25). Every DGF-1 GNN row carries it.
 - **Why undetected:** the only reported-view test checked a symptom, that the scores differ, not the
-  property, that the inputs follow the view. This is the fifth test in this programme that shared
-  its source of truth with what it tested, or read a symptom the failure does not produce.
+  property, that the inputs follow the view. The symptom appears whether or not the property holds,
+  so the test could not detect this defect. The programme has met this pattern before (lab Session
+  25): an assertion that shares its source of truth with the code, or reads a symptom that does not
+  track the failure.
 
 ### Clause 2 — The reported-view numbers are withdrawn from all inference
 
@@ -198,6 +239,12 @@ exist get read.
   cite, aggregate or compare them, except to report this withdrawal.**
 - **GATE-DGF1-1 is not edited.** Its view table and the figures in qualification 3 are read as
   withdrawn under this ADR. Its claims table already records the claim as "not established".
+- **A dated notice marks the withdrawal where readers meet it: `gates/ERRATUM-DGF1-1.md`.**
+  - It is deliberately not a `GATE-*` file, and it carries no verdict.
+  - It lists GATE-DGF1-1's withdrawn passages: the view table (lines 133–141) and qualification 3's
+    figures (lines 209–213). It cites no other number, and points here.
+  - **Why a file:** papers are assembled from gate files, and `CLAUDE.md` is gitignored. A mark stated
+    only there would be missing from the versioned record and from any open release.
 - **CLAUDE.md's Gate-1 qualification** (lines 50–51) becomes:
   > **Post-appearance activity: not established.** The first-appearance figure cited in the verdict
   > is withdrawn (ADR-013); no valid row bears on this claim.
@@ -219,10 +266,18 @@ exist get read.
 - **Real-data re-certification, validation window only.**
   - **The run:** after the change, re-run the validation pilot's seed 0
     (`dgf1-20260913T232506Z-1acd5067`) tagged `experiment = "repro_check"`.
+  - **The launcher:** `scripts/run_dgf1_gnn.py` gains a `repro-check` mode.
+    - It is hard-wired to the validation window, seed 0 and ADR-012's winning configuration, and
+      cannot select the test window.
+    - It tags its row `repro_check`, compares it with the pilot row, and exits non-zero on any
+      mismatch.
+    - Pilot mode is not reused, because it would write rows tagged `pilot`.
   - **The bar:** its gated metrics must equal the pilot row's bit-for-bit, **and** its score file's
     SHA-256 must equal the pilot row's `scores_sha256`.
   - **On a mismatch:** investigate to root cause, never retry (ADR-008 clause 2). No later DGF-1 run,
     Gate 3's included, may rely on the trainer until the check passes.
+  - **That rule is enforced procedurally, not in code.** The result is recorded in the lab notebook and
+    the timeline, and Gate 3's ADR cites it. No runner checks for it.
   - **The row is written either way,** because `RunSession` writes on error. The check is decided by
     the comparison, never by whether the row exists.
 
@@ -238,24 +293,37 @@ al. (2018, *PNAS* 115(11)): state what, where and why, then the impact on the te
 | ADR-012 clauses 1 and 7: these rows reported beside the gated numbers | GATE-DGF1-1 printed the GNN side only; now withdrawn | as above | none on the gated test |
 
 **Net direction:** the only number withdrawn favoured the GNN, and no claim is strengthened by this
-deviation. Qualification 3's claim moves from "partly supported" to "not established", which is
-harder for the GNN.
+deviation. Qualification 3's claim moves from "only partly ruled out" (the verdict's words) to "not
+established", which is harder for the GNN.
 
 ### Clause 5 — The question goes to its own pre-registration, under binding conditions
 
 A new ADR, the **matched-time sensitivity pre-registration**, numbered when drafted, answers the
 question the withdrawn rows were meant to answer. It must meet all of the following:
 
-1. **Ordering.** It is accepted, or explicitly declined by the researcher with a dated reason
-   recorded in both it and Gate 3's ADR, **before Gate 3's pre-registration is accepted**. Gate 3's
-   ADR must cite this clause and state which view each of its arms is scored under.
+1. **Ordering, of acceptance and of execution.**
+   - It is accepted, or explicitly declined by the researcher with a dated reason recorded in both it
+     and Gate 3's ADR, **before Gate 3's pre-registration is accepted**.
+   - If accepted, **its batch runs before Gate 3's.** Gate 3's ADR must give its runner a guard that
+     refuses the test window until those rows exist or the dated decline is on record.
+   - Gate 3's ADR must cite this clause and state which view each of its arms is scored under.
 2. **A matched-time design.**
-   - Both arms are **trained and scored** on inputs dated to each user's own time, the
-     RelBench-style seed time. Statistics come from the edge set that feeds them (ADR-011 clause 3).
+   - Both arms are **trained and scored** on inputs as of **each user's own node time** (ADR-011
+     clause 1), for training seeds and scored users alike. This is RelBench's seed-time rule.
+     Statistics come from the edge set that feeds them (ADR-011 clause 3).
    - It has its own seed count, derived from a validation pilot (ADR-007).
+   - **Its licence is ADR-011 line 302:** "A model *trained* on first-appearance views is a
+     different experiment and is not pre-registered here." This ADR is that different experiment,
+     reported only (item 6). It does not revise Gate 1's view.
+   - **Its absolute numbers are never read as detection at sign-up.** Labels carry no date (ADR-011
+     *Limitations*), so a user's label may reflect behaviour long after appearance.
 3. **ADR-011's literal rows run in the same batch.** Both reported views, with inputs correctly built
    under ADR-011 clause 3, are labelled **exploratory**. The pre-registered comparison then appears,
    beside one that can be read.
+   - **This does not contradict the rejected alternative** "Produce the corrected rows now, labelled
+     exploratory only". That alternative paid for a new builder and a test-window look for these rows
+     alone. Once item 2's builder exists, adding them is cheap, and reporting pre-registered analyses
+     beside a readable comparison is the norm (Nosek et al. 2018).
 4. **Optionally, a GNN-only-channel arm.** Each scored user keeps its own gated-view statistics, which
    the floor shares. Message passing and neighbour statistics are limited to its own time. This arm
    sits near the withdrawn figure, so it is **disclosed as informed**, not blind.
@@ -264,6 +332,13 @@ question the withdrawn rows were meant to answer. It must meet all of the follow
    data (lab Session 18).
 6. **Reported only.** No pass condition, and no deployment claim ("detect at sign-up"). ADR-011's
    *Revisit when* reserves that for an ADR decided before any score exists.
+7. **The first draft's confirmed implementation traps become requirements.**
+   - **No row from weights that fail reproduction.** `RunSession` writes a row on error unless
+     `write_on_error=False` (`gbe/run/session.py:40,66–71`).
+   - **A per-batch time guard must actually run.** `assert_temporal_batch` needs `batch.batch`, which
+     the installed PyG builds only for temporal or disjoint sampling.
+   - **View statistics count forward edges only.** `window_only_edges` keeps reverse edges.
+   - **Reproduction is checked on score-file hashes**, not on metrics alone.
 
 **Until that ADR's rows exist**, every report of DGF-1 Gate 1 states the post-appearance claim as
 **not established** (clause 2's CLAUDE.md wording).
@@ -310,6 +385,9 @@ The real-data re-certification is clause 3's.
 - **Leave `run_dgf1` unchanged and "ignore" the keys.** Gate 3's re-runs would write new flawed
   numbers, and numbers that exist get read.
 - **Delete the keys from the registry.** The registry is append-only.
+- **Mark the withdrawal only in `CLAUDE.md`.** `CLAUDE.md` is gitignored, so the mark would be
+  missing from the versioned record and from any open release, while the withdrawn numbers stay
+  printed in a file papers are assembled from.
 - **Edit GATE-DGF1-1's view table or verdict.** Dated gate files are never edited. A correction is a
   new record (ADR-008 clause 2's precedent).
 
@@ -322,11 +400,18 @@ The real-data re-certification is clause 3's.
   - `tests/test_dgf1_trainer.py`, per clause 6;
   - the sampler module, its verify script and `window_only_edges` stay.
 - **Reporting:**
-  - GATE-DGF1-1's view table and qualification 3's figures are read as withdrawn;
+  - GATE-DGF1-1's view table and qualification 3's figures are read as withdrawn, and
+    `gates/ERRATUM-DGF1-1.md` says so beside the gate file;
   - the post-appearance claim has no valid evidence either way, which is where ADR-011 placed it
     until a valid row exists;
   - CLAUDE.md carries the wording.
-- **Gate 3 gains an ordering constraint:** clause 5.1.
+- **Gate 3 gains an ordering constraint, and may have to wait on real cost** (clause 5.1).
+  - **Measured, label-free:** training seeds span 369 distinct node times, and one view at a
+    training-era cutoff took 0.30–0.70 s (one warm timing each at steps 1, 100, 200 and 369).
+  - **Projection only:** rebuilt every epoch, view building alone is 1.8–4.3 minutes per epoch, or
+    1.2–2.9 hours per 40-epoch seed, before any training compute.
+  - Caching is the matched-time ADR's design problem. If it cannot be made affordable, clause 5.1's
+    dated decline is the outlet, and the claim stays not established.
 - **GNN rows get cheaper.** Each gate-length GNN run drops two scoring passes, measured at about
   11 s together on validation in lab Session 27.
 - **The selective-reporting risk moves rather than disappears.** It is held by clause 5's binding
