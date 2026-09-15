@@ -1,9 +1,9 @@
-"""DGF-1 trainer guards — ADR-011 clauses 2-4, ADR-012 clauses 1/3/10.
+"""DGF-1 trainer guards — ADR-011 clauses 2-3, ADR-012 clauses 1/3/10, ADR-013 clauses 3 and 6.
 
 Synthetic DGraph-shaped fixture (shared with the floor tests). The load-bearing properties:
-training sees only the training view, the three scoring views really differ from **one** set of
-weights, scored vectors line up with the ids they are saved against, and the reported views can
-never be confused with the gated one in a registry row.
+training sees only the training view, scoring applies the frozen transform to the gated view,
+scored vectors line up with the ids they are saved against, and **no row carries a reported-view
+key** — ADR-013 withdrew those numbers and removed the views from the scoring path.
 """
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ from adapters.dgf1.datasource_dgraph import graph_view, window_target_mask
 from adapters.dgf1.eval import dgf1_base_config
 from adapters.dgf1.features import fit_input_transform, node_inputs
 from adapters.dgf1.train_gnn import (
-    REPORTED_VIEWS,
     SCORING_BATCH_SIZE,
     evaluate_view,
     run_dgf1,
@@ -116,24 +115,27 @@ def test_each_probability_belongs_to_its_own_node_id():
     assert np.allclose(direct, scored["proba"][order], atol=1e-6), "scores are not aligned to ids"
 
 
-def test_all_three_views_score_the_same_targets_in_the_same_order():
+# ADR-013 clause 6 item 5: the two tests here used to loop over all three views. The first is
+# restricted to the gated view. The second asserted that the views' scores differ, a symptom that
+# held whether or not the inputs followed the view, which is why it never caught ADR-013's defect.
+# With one view it has nothing to compare, so it is replaced by the refusal test below it.
+def test_the_gated_view_scores_the_window_targets_in_order():
     data = _synthetic()
     model, transform, _ = _trained(data, SPLIT_TEST)
     targets = window_target_mask(data, SPLIT_TEST).nonzero().view(-1).numpy()
-    for kind in ("gated",) + REPORTED_VIEWS:
-        scored = score_view(model, data, SPLIT_TEST, transform, HP, DEV, kind, batch_size=16)
-        assert np.array_equal(scored["node_ids"], targets), f"{kind} mis-aligned its ids"
-        assert scored["proba"].shape == targets.shape
+    scored = score_view(model, data, SPLIT_TEST, transform, HP, DEV, "gated", batch_size=16)
+    assert np.array_equal(scored["node_ids"], targets), "gated view mis-aligned its ids"
+    assert scored["proba"].shape == targets.shape
 
 
-def test_the_views_actually_differ_from_identical_weights():
-    """If they agreed, the sensitivity rows would be decoration."""
+def test_score_view_refuses_the_withdrawn_reported_views():
+    """ADR-013 clause 6 item 2. Written literally rather than looped over a module constant, so a
+    restored view list cannot make this vacuous."""
     data = _synthetic()
     model, transform, _ = _trained(data, SPLIT_TEST)
-    out = {k: score_view(model, data, SPLIT_TEST, transform, HP, DEV, k, batch_size=16)["proba"]
-           for k in ("gated",) + REPORTED_VIEWS}
-    assert not np.allclose(out["gated"], out["window_only"])
-    assert not np.allclose(out["gated"], out["first_appearance"])
+    for kind in ("window_only", "first_appearance"):
+        with pytest.raises(ValueError, match="only 'gated' is scored"):
+            score_view(model, data, SPLIT_TEST, transform, HP, DEV, kind, batch_size=16)
 
 
 def test_window_only_keeps_just_the_edges_inside_the_window():
@@ -172,7 +174,7 @@ def test_metrics_carry_prevalence_and_the_positive_count():
     assert m["prevalence"] == pytest.approx(m["n_score_fraud"] / m["n_score"])
 
 
-def test_one_run_writes_one_row_with_gated_and_prefixed_reported_metrics(tmp_path):
+def test_one_run_writes_one_row_with_gated_metrics_and_no_reported_view_key(tmp_path):
     registry, scores = tmp_path / "registry.csv", tmp_path / "scores"
     seed_everything(0)
     run_id, logged = run_dgf1(0, _synthetic(), SPLIT_VAL, HP, dgf1_base_config(),
@@ -181,14 +183,12 @@ def test_one_run_writes_one_row_with_gated_and_prefixed_reported_metrics(tmp_pat
     assert len(rows) == 1 and rows[0]["model"] == "dgf1"
     row = json.loads(rows[0]["metrics_json"])
 
-    # The expected keys are written out rather than derived from REPORTED_VIEWS: looping the same
-    # constant the code uses makes this assertion vacuous the moment that constant is emptied,
-    # which a mutation check demonstrated.
     assert "fraud_auprc" in row and "fraud_auc" in row          # gated, bare
-    for key in ("window_only_fraud_auprc", "first_appearance_fraud_auprc",
-                "window_only_prevalence", "first_appearance_prevalence"):
-        assert key in row, f"reported view key {key} missing — a sensitivity would be unreadable"
-    assert set(REPORTED_VIEWS) == {"window_only", "first_appearance"}
+    # ADR-013 clause 6 item 1. The prefixes are written literally, never taken from a module
+    # constant, so no edit to the trainer can make this vacuous. Mutation-checked: restoring the
+    # reported-view loop (the pre-ADR-013 trainer) fails here.
+    leaked = sorted(k for k in row if k.startswith("window_only_") or k.startswith("first_appearance_"))
+    assert not leaked, f"withdrawn reported-view keys written to a row: {leaked}"
     assert row["arm"] == "dgf1-parity" and row["window"] == "9-12"
     # ADR-012 clause 7: the row states its own configuration — written out literally, not derived
     # from TUNED_KNOBS, so emptying that constant cannot make this assertion vacuous.

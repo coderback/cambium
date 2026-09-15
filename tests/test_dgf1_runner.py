@@ -1,4 +1,5 @@
-"""Guards for the DGF-1 runners and their shared pre-registration module (ADR-012 clauses 3-5, 8).
+"""Guards for the DGF-1 runners and their shared pre-registration module (ADR-012 clauses 3-5, 8;
+ADR-013 clause 3's repro check).
 
 No batch is executed here: what is pinned is the *policy* — which window a mode may touch, where
 the seed count comes from, and what each mode is allowed to persist. The one property worth stating
@@ -12,6 +13,7 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +21,15 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from preregistration import require_accepted_preregistration, require_clean_tree  # noqa: E402
 from run_dgf1_floor import resolve_floor_batch  # noqa: E402
-from run_dgf1_gnn import PILOT_SEEDS, resolve_batch  # noqa: E402
+from run_dgf1_gnn import (  # noqa: E402
+    PILOT_SEEDS,
+    REPRO_BATCH_SIZE,
+    REPRO_LR,
+    REPRO_REFERENCE_RUN,
+    compare_repro,
+    read_row,
+    resolve_batch,
+)
 
 from adapters.dgf1.eval import dgf1_hparams, dgf1_retune_grid  # noqa: E402
 
@@ -78,6 +88,97 @@ def test_the_real_adr_012_unlocks_the_test_window_with_exactly_the_derived_count
     fixed, and a later edit to that line cannot silently change it without failing here."""
     adr = REPO_ROOT / "decisions" / "ADR-012-dgf1-gate1-preregistration.md"
     assert require_accepted_preregistration(adr) == 8
+
+
+# -- ADR-013 clause 3: the repro check --------------------------------------------------------------
+def test_repro_check_is_hard_wired_to_validation_seed_0_and_adr_012s_winner():
+    configs, seeds, window, tag = resolve_batch("repro-check", _args())
+    assert window == "val" and seeds == [0] and tag == "repro_check"
+    # ADR-012's dated amendment of 2026-09-14, written out here too
+    assert configs == [(3.318335548548489e-4, 2048)] == [(REPRO_LR, REPRO_BATCH_SIZE)]
+
+
+def test_repro_check_refuses_every_flag_that_could_redirect_it(tmp_path):
+    for extra in ({"lr": 1e-3}, {"batch_size": 512}, {"preregistration": str(_adr(tmp_path))}):
+        with pytest.raises(SystemExit, match="hard-wired"):
+            resolve_batch("repro-check", _args(**extra))
+
+
+def test_the_real_pilot_row_is_the_reference_and_its_config_hash_rebuilds():
+    """The pre-run refusal would fire on the real reference if the hard-wired configuration, the
+    adapter config or the hashing had drifted since the pilot."""
+    from gbe.gnn import GNNHParams
+    from gbe.run.config import resolve_config
+    from gbe.run.registry import default_registry_path
+    from adapters.dgf1.eval import dgf1_base_config, dgf1_splits
+    from adapters.dgf1.train_gnn import run_config_values
+
+    ref = read_row(default_registry_path(REPO_ROOT), REPRO_REFERENCE_RUN)
+    m = ref["metrics"]
+    assert m["experiment"] == "pilot" and ref["seed"] == "0" and m["window"] == "370-481"
+    assert (m["lr"], m["batch_size"]) == (REPRO_LR, REPRO_BATCH_SIZE)
+
+    base_hp, _ = dgf1_hparams()
+    hp = GNNHParams(**{**base_hp.as_dict(), "lr": REPRO_LR, "batch_size": REPRO_BATCH_SIZE,
+                       "fan_out": tuple(base_hp.fan_out)})
+    values = run_config_values(0, dgf1_splits()["val"], hp,
+                               {**dgf1_base_config(), "phase": "P1", "experiment": "pilot"})
+    assert resolve_config(values).config_hash == ref["config_hash"]
+
+
+def _row(**metric_overrides):
+    metrics = {"fraud_auc": 0.7810034416168538, "fraud_auprc": 0.04127410516906848,
+               "fraud_f1": 0.05, "fraud_precision": 0.03, "fraud_recall": 0.8, "n_score": 100,
+               "n_score_fraud": 2, "prevalence": 0.02, "n_train": 50, "scores_sha256": "a" * 64,
+               "arm": "dgf1-parity", "window": "370-481", "features": "parity",
+               "backbone": "graphsage", "lr": REPRO_LR, "batch_size": REPRO_BATCH_SIZE, "epochs": 40,
+               "deterministic": True, "cublas_workspace_config": ":4096:8", "experiment": "pilot"}
+    metrics.update(metric_overrides)
+    metrics = {k: v for k, v in metrics.items() if v is not None}
+    return {"run_id": "r", "model": "dgf1", "phase": "P1", "seed": "0",
+            "data_snapshot_id": "snap", "git_dirty": "false", "notes": "", "metrics": metrics}
+
+
+def test_compare_repro_passes_only_on_exact_equality():
+    ref, obs = _row(), _row(experiment="repro_check")
+    assert compare_repro(ref, obs) == []
+
+    one_ulp = float(np.nextafter(ref["metrics"]["fraud_auprc"], 1.0))
+    assert compare_repro(ref, _row(experiment="repro_check", fraud_auprc=one_ulp))
+    assert compare_repro(ref, _row(experiment="repro_check", scores_sha256="b" * 64))
+    assert any("missing" in p for p in compare_repro(ref, _row(experiment="repro_check", n_train=None)))
+
+
+def test_compare_repro_rejects_a_row_that_cannot_certify():
+    ref = _row()
+    assert compare_repro(ref, _row())                                   # not tagged repro_check
+    dirty = {**_row(experiment="repro_check"), "git_dirty": "true"}
+    errored = {**_row(experiment="repro_check"), "notes": "dgf1 gnn on 370-481 | ERRORED"}
+    assert compare_repro(ref, dirty) and compare_repro(ref, errored)
+    other_seed = {**_row(experiment="repro_check"), "seed": "1"}
+    assert compare_repro(ref, other_seed)
+
+
+def test_withdrawn_keys_are_ignored_on_the_reference_and_refused_on_the_check():
+    """The reference pilot row carries the withdrawn keys; that is history, not a mismatch. A check
+    row carrying them means the reported-view scoring came back."""
+    ref = _row(window_only_fraud_auprc=0.0369, first_appearance_fraud_auprc=0.0396)
+    assert compare_repro(ref, _row(experiment="repro_check")) == []
+    problems = compare_repro(ref, _row(experiment="repro_check", first_appearance_fraud_auprc=0.0396))
+    assert any("withdrawn" in p for p in problems)
+
+
+def test_read_row_requires_exactly_one_match(tmp_path):
+    from gbe.run.registry import append_run
+
+    registry = tmp_path / "registry.csv"
+    append_run({"run_id": "a", "metrics_json": {"x": 1}}, path=registry)
+    assert read_row(registry, "a")["metrics"] == {"x": 1}
+    with pytest.raises(SystemExit, match="found 0"):
+        read_row(registry, "b")
+    append_run({"run_id": "a", "metrics_json": {"x": 2}}, path=registry)
+    with pytest.raises(SystemExit, match="found 2"):
+        read_row(registry, "a")
 
 
 # -- the floor runner's modes mirror the GNN runner's -------------------------------------------

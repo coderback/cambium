@@ -3,18 +3,20 @@
 * **Train** on the graph as of ``train_max`` (369): the view's edges are already edge-date filtered
   (`gbe.eval.edges_as_of`, via `graph_view`), the inputs are raw-17 + view statistics standardised
   by a transform fitted on that same view, and the seeds are labelled users existing by the cutoff.
-* **Score** a window from **one set of weights**, under three views (ADR-012 clause 1):
+* **Score** a window under the **gated view only**: the graph as of the window's last step
+  (ADR-011 clause 2), with inputs built from that same graph and the training transform frozen.
 
-  - ``gated`` — the graph as of the window's last step;
-  - ``window_only`` — edges with both endpoints first appearing inside the window (ELL-1's rule;
-    measured to isolate 36.66% of labelled test users, which is why it is reported, not gated);
-  - ``first_appearance`` — each user sees only edges dated at or before its own node time
-    (permitted because the temporal sampler passed its determinism check on the real graph).
+The two reported sensitivity views ADR-011 clause 4 pre-registered (window-only, first appearance)
+are **not scored here**. Their first implementation built the GNN's inputs from the window-end
+graph under every view, breaking ADR-011 clause 3, so ADR-013 withdrew their numbers and removed
+them from this code path. The building blocks stay, tested and wired into no row:
+`window_only_edges` below, and `adapters.dgf1.sampling`. Whether and how they are used again is the
+matched-time pre-registration's decision (ADR-013 clause 5).
 
-Every view scores with **exact neighbourhoods** (``num_neighbors = [-1] * layers``), so no score
-depends on an evaluation seed (ADR-012 clause 3; measured feasible at ~8k nodes/batch). Seeds
-arrive in ``input_nodes`` order (``shuffle=False``, verified for both the plain and the temporal
-loader), which is what lets the scored vector be aligned to its node ids.
+Scoring uses **exact neighbourhoods** (``num_neighbors = [-1] * layers``), so no score depends on an
+evaluation seed (ADR-012 clause 3; measured feasible at ~8k nodes/batch). Seeds arrive in
+``input_nodes`` order (``shuffle=False``), which is what lets the scored vector be aligned to its
+node ids.
 
 The trainer is **window-agnostic**: it takes a `TemporalSplit`. Nothing here may open the test
 window — that is the runner's pre-registration guard (ADR-012 clause 8).
@@ -46,10 +48,7 @@ from adapters.dgf1.datasource_dgraph import (
     window_target_mask,
 )
 from adapters.dgf1.features import fit_input_transform, node_inputs
-from adapters.dgf1.sampling import assert_temporal_batch
 
-VIEWS: tuple[str, ...] = ("gated", "window_only", "first_appearance")
-REPORTED_VIEWS: tuple[str, ...] = ("window_only", "first_appearance")
 PROVENANCE_KEYS: tuple[str, ...] = ("arm", "experiment", "features", "window")
 
 # The retuned knobs, echoed flat into every row so a row states the configuration that produced it
@@ -84,7 +83,11 @@ def train_dgf1(
 
 
 def window_only_edges(data: Data, view: GraphView, split: TemporalSplit) -> Tensor:
-    """ELL-1's eval rule applied to DGraph: both endpoints must first appear inside the window."""
+    """ELL-1's eval rule applied to DGraph: both endpoints must first appear inside the window.
+
+    A tested building block wired into no row (ADR-013 clause 3). It keeps reverse edges, so a view
+    statistic built from it would double-count; ADR-013 clause 5 item 7 makes that a requirement.
+    """
     hi = split.test_max if split.test_max is not None else int(data.node_time.max())
     inside = (data.node_time >= split.test_min) & (data.node_time <= hi)
     return view.edge_index[:, inside[view.edge_index[0]] & inside[view.edge_index[1]]]
@@ -101,9 +104,16 @@ def score_view(
     view_kind: str = "gated",
     batch_size: int = SCORING_BATCH_SIZE,
 ) -> dict[str, np.ndarray]:
-    """Score the window's targets under one view -> ``{node_ids, y_true, proba, pred}``."""
-    if view_kind not in VIEWS:
-        raise ValueError(f"unknown view {view_kind!r}; expected one of {VIEWS}")
+    """Score the window's targets under the gated view -> ``{node_ids, y_true, proba, pred}``.
+
+    ``view_kind`` survives only so that a caller asking for anything else is refused loudly rather
+    than handed gated numbers under another name (ADR-013 clauses 3 and 6).
+    """
+    if view_kind != "gated":
+        raise ValueError(
+            f"unknown view {view_kind!r}: only 'gated' is scored. ADR-013 removed the reported "
+            "sensitivity views from this path; ADR-013 clause 5 governs any replacement."
+        )
     if split.test_max is None:
         raise ValueError("a DGF-1 window must have an explicit last step (test_max)")
 
@@ -111,24 +121,15 @@ def score_view(
     x = transform.transform(node_inputs(data, view))
     targets = window_target_mask(data, split).nonzero().view(-1)
 
-    graph = Data(x=x, y=data.y, num_nodes=data.num_nodes,
-                 edge_index=window_only_edges(data, view, split)
-                 if view_kind == "window_only" else view.edge_index)
-    loader_kw: dict[str, Any] = {}
-    if view_kind == "first_appearance":
-        graph.edge_time = view.edge_time
-        loader_kw = {"time_attr": "edge_time", "input_time": data.node_time[targets]}
-
+    graph = Data(x=x, y=data.y, num_nodes=data.num_nodes, edge_index=view.edge_index)
     loader = NeighborLoader(
         graph, num_neighbors=[-1] * hp.num_layers, input_nodes=targets,
-        batch_size=batch_size, shuffle=False, num_workers=0, **loader_kw,
+        batch_size=batch_size, shuffle=False, num_workers=0,
     )
 
     model.eval()
     proba, pred = [], []
     for batch in loader:
-        if view_kind == "first_appearance":
-            assert_temporal_batch(batch)   # the guard runs where the numbers are produced
         batch = batch.to(device)
         _, logits = model(batch.x, batch.edge_index)
         seeds = logits[: batch.batch_size]
@@ -152,6 +153,20 @@ def evaluate_view(scored: dict[str, np.ndarray]) -> dict[str, Any]:
             "n_score": n, "n_score_fraud": n_pos, "prevalence": n_pos / max(n, 1)}
 
 
+def run_config_values(
+    seed: int,
+    split: TemporalSplit,
+    hp: GNNHParams,
+    base_cfg: dict[str, Any],
+    feature_set: str = "parity",
+) -> dict[str, Any]:
+    """The config a DGF-1 run hashes into its row. Factored out so the repro check can confirm,
+    before spending a training run, that it would hash the same configuration as its reference."""
+    return {**base_cfg, "seed": seed, "gnn": hp.as_dict(),
+            "window": f"{split.test_min}-{split.test_max}",
+            "arm": f"dgf1-{feature_set}", "features": feature_set}
+
+
 def run_dgf1(
     seed: int,
     data: Data,
@@ -163,17 +178,15 @@ def run_dgf1(
     scores_dir: str | Path | None = None,
     feature_set: str = "parity",
 ) -> tuple[str, dict[str, Any]]:
-    """One DGF-1 run: train once, score all three views, write exactly one registry row.
+    """One DGF-1 run: train once, score the gated view, write exactly one registry row.
 
-    The gated view's metrics are logged bare (``fraud_auc``, ``fraud_auprc``, …); the two reported
-    views are prefixed (``window_only_*``, ``first_appearance_*``), so a sensitivity can never be
-    mistaken for the gated number (ADR-012 clause 1). Gated scores are persisted with their ids
-    (clause 10).
+    Metrics are logged bare (``fraud_auc``, ``fraud_auprc``, …) and scores are persisted with their
+    ids (ADR-012 clause 10). Rows before ADR-013 also carry ``window_only_*`` and
+    ``first_appearance_*`` keys; those are withdrawn, and this function no longer writes them.
     """
     dev = resolve_device(device)
-    window = f"{split.test_min}-{split.test_max}"
-    cfg_values = {**base_cfg, "seed": seed, "gnn": hp.as_dict(), "window": window,
-                  "arm": f"dgf1-{feature_set}", "features": feature_set}
+    cfg_values = run_config_values(seed, split, hp, base_cfg, feature_set)
+    window = cfg_values["window"]
     cfg = resolve_config(cfg_values)
 
     with RunSession(cfg, notes=f"dgf1 gnn on {window}", registry_path=registry_path) as run:
@@ -181,9 +194,6 @@ def run_dgf1(
 
         gated = score_view(model, data, split, transform, hp, dev, "gated")
         logged: dict[str, Any] = evaluate_view(gated)
-        for kind in REPORTED_VIEWS:
-            other = evaluate_view(score_view(model, data, split, transform, hp, dev, kind))
-            logged.update({f"{kind}_{k}": v for k, v in other.items()})
 
         if scores_dir is not None:
             path = Path(scores_dir) / f"{run.run_id}.npz"
