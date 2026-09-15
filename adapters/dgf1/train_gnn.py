@@ -85,8 +85,9 @@ def train_dgf1(
 def window_only_edges(data: Data, view: GraphView, split: TemporalSplit) -> Tensor:
     """ELL-1's eval rule applied to DGraph: both endpoints must first appear inside the window.
 
-    A tested building block wired into no row (ADR-013 clause 3). It keeps reverse edges, so a view
-    statistic built from it would double-count; ADR-013 clause 5 item 7 makes that a requirement.
+    A tested building block wired into no row (ADR-013 clause 3). It keeps reverse edges, so any
+    view statistic built from its output would double-count — which is why ADR-013 clause 5 item 7
+    requires forward edges only.
     """
     hi = split.test_max if split.test_max is not None else int(data.node_time.max())
     inside = (data.node_time >= split.test_min) & (data.node_time <= hi)

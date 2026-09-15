@@ -63,7 +63,7 @@ def test_later_edges_and_later_users_cannot_change_training_inputs():
     assert torch.equal(before.mean, after.mean) and torch.equal(before.std, after.std)
 
 
-# -- the three views --------------------------------------------------------------------------
+# -- scoring the gated view -------------------------------------------------------------------
 def test_scoring_uses_the_transform_it_is_handed_and_never_refits_on_the_view():
     """ADR-011 clause 3's other half. `train_dgf1` returning a frozen transform is worth nothing
     if `score_view` quietly refits on the scoring view — a mutation check found exactly that hole,
