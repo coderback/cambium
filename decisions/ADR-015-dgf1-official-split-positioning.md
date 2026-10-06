@@ -1,8 +1,8 @@
 # ADR-015 — DGF-1's official-split positioning batch
 
 **Status:** proposed
-**Date:** first proposed 2026-09-15 · **seventh draft 2026-10-06**, replacing `5f7f388`, `30fbf92`,
-an uncommitted third, `8296f4b`, `f769880` and `a029413`. See *Draft history*.
+**Date:** first proposed 2026-09-15 · **eighth draft 2026-10-06**, replacing `5f7f388`, `30fbf92`,
+an uncommitted third, `8296f4b`, `f769880`, `a029413` and `3b58edc`. See *Draft history*.
 **Deciders:** coderback
 **Positioning seeds:** 5
 **Opens no gated window.** This document carries no `Stage-1 seeds:` line, so the shared guard's seed
@@ -56,21 +56,26 @@ fallback to 20 epochs (`ADR-012:200-206`); see clause 2.
 
 ## Draft history
 
-Six drafts were rejected.
+Seven drafts were rejected.
+
 - **Drafts 1–3** (`5f7f388`, `30fbf92`, uncommitted) cited sources for propositions they do not
   contain.
 - **Draft 4** (`8296f4b`) left its once-only rule as prose and carried hyperparameters that had seen
   official-test labels.
-- **Draft 5** (`f769880`) let the defect route re-score one arm and tied code identity to commit ids.
-- **Draft 6** (`a029413`) was judged acceptable with edits; both reviews found four blocking gaps:
-  - its code identity left out the configuration the runner reads at runtime
-    (`adapters/dgf1/config.yaml`, read by path at `adapters/dgf1/eval.py:18`), and the environment
-    pin;
-  - a failed repro-check could be escaped by a cosmetic edit that made a new code identity, and a
-    repro-check that errored could not be found by its tags;
-  - the four-point check on published figures was judged after our numbers existed, on figures
-    chosen then;
-  - nothing bounded what counts as a "defect".
+- **Drafts 5–7** (`f769880`, `a029413`, `3b58edc`) each enforced once-only scoring with a larger
+  state machine: resume, `adopt`, restarts after unscored crashes, superseded identities, and
+  resolved failures held as constants in the runner. Each review closed holes in that machine and
+  found new ones in the parts added to close them. Draft 7's focused review found four:
+  - the figures file unfrozen once positioning ended;
+  - the override constants changing the code identity mid-batch, so positioning would refuse for
+    ever;
+  - no time anchor on what counts as a defect;
+  - a repro lookup that rebuilt the pilot's config hash rather than the repro-check's.
+
+**Draft 8 replaces the state machine with two invariants** (clause 5): one pinned identity per
+batch, and every result at that identity must reproduce. A re-computation that reproduces the same
+number offers nothing to choose, so re-runs need no special handling, and most of the machinery is
+deleted rather than patched.
 
 `becb85c`, committed after draft 2, re-added draft 1's text as a stray root file `xaa`. It was removed
 at `54b8367`.
@@ -120,8 +125,8 @@ at `54b8367`.
   users.**
 - **This ADR's own choices were made after Gate 1's test results were known.** Gate 1 passed on
   2026-09-14, and its test window shares users with `official_test_mask`. The decisions to retune
-  here, to allow verified comparisons (clause 3) and to set the claim rules were made 2026-10-06.
-  Published DGraph-Fin figures are public, and this ADR does not claim they were unseen.
+  here, to allow comparisons that pass clause 3's check, and to set the claim rules were made
+  2026-10-06. Published DGraph-Fin figures are public, and this ADR does not claim they were unseen.
 
   Clause 3 makes these a mandatory weakness.
 
@@ -159,9 +164,8 @@ at `54b8367`.
   scores validation only after training completes, and only in the retune.
 - **Scoring uses exact neighbourhoods**, as `ADR-012:190-191` requires "for every arm and every
   reported row".
-- **Only deterministic rows count.** Every row records `deterministic`
-  (`gbe/run/seeding.py:59`). Selection, completeness, resume and the assembler count only rows
-  recording `true`.
+- **Only deterministic rows count.** Every row records `deterministic` (`gbe/run/seeding.py:59`).
+  Only rows recording `true` count, and clause 5 checks that results actually reproduce.
 - **All code lives in `adapters/dgf1/` and `scripts/`.** Nothing about official masks enters `gbe/`.
 
 ### Clause 2 — Arms, tuning and seeds
@@ -194,13 +198,12 @@ at `54b8367`.
     selection reads parity rows only (`scripts/run_dgf1_floor.py:122`).
   - **Selection is mechanical.**
     - Each arm's winner is the configuration with the highest validation AUPRC.
-    - A non-finite AUPRC ranks below every finite one. An arm with no finite value is refused, and
-      that refusal is a defect (clause 5).
+    - A non-finite AUPRC ranks below every finite one. An arm with no finite value is refused.
     - Ties go to the earlier configuration in the grid's product order: the first-listed knob outer
       (`lr`, `max_depth`), the second inner (`batch_size`, `subsample`), each in ADR-012's listed
       order.
-    - The positioning stage reads the winner from the retune rows, and every positioning row records
-      the winner's run id. No configuration is typed.
+    - Positioning reads the winner from the retune rows, and every positioning row records the
+      winner's run id. No configuration is typed.
   - **An inherited weakness, stated:** "a 9-way selection on one seed can pick seed-luck rather than
     a better configuration" (`ADR-012:185-186`). This batch has no validation pilot. A pilot could
     not change the configuration anyway: re-selecting after one "would be tuning on the same data
@@ -229,7 +232,6 @@ at `54b8367`.
   - **ADR-007's "hard floor of 5 per arm" is not the authority.** Its scope is the gates: "**Scope:**
     DGF-1's binary-classification gates — **Gate 1** (structure vs the tabular floor) and **Gate 3**
     (defending ablations)." (`ADR-007:104-105`).
-  - The count is frozen by clause 5.
 
 ### Clause 3 — What may be claimed, and where
 
@@ -238,22 +240,32 @@ at `54b8367`.
   - There is no difference, standard error, p-value or superiority claim between our arms.
   - Five seeds was chosen by judgement, not to power a comparison.
   - No gated claim attaches, now or later.
-- **Published figures are fixed before the retune, in a file.** The file is
-  `configs/dgf1-official-published-figures.yaml`, committed before the retune's first row (clause 8).
-  - **Inclusion rule:** every ROC-AUC or AUPRC on DGraph-Fin's official test mask, for a model doc-02
-    §5 lists as a comparator (`docs/02-dgraph-fin-embedding-model-BUILD.md:194-199`), reported in
-    the sources ADR-007 names — "published DGraph/GADBench numbers" (`ADR-007:120-121`) — as of the
-    file's commit date. Every figure meeting the rule goes in, whatever it shows.
+- **Published figures are fixed before the retune, in a file:**
+  `configs/dgf1-official-published-figures.yaml`, committed before the batch's first official score
+  (clause 8). An empty file is valid.
+  - **Sources.** Exactly the three ADR-007 names as "published DGraph/GADBench numbers"
+    (`ADR-007:120-121`):
+    - DGraph-Fin's own publication;
+    - its official leaderboard;
+    - the GADBench publication.
+
+    Each is taken at the version current on the file's commit date, and the file's header records
+    each one's citation, version and access date.
+  - **Inclusion.** Every ROC-AUC or AUPRC that those sources report for DGraph-Fin goes in, with the
+    model's name verbatim, whatever it shows. Whether it used the official masks is judged by point
+    1 below, not used to filter.
   - **Each entry records:**
-    - the source, citation and access date;
-    - the model and its class (graph or tabular);
     - the metric and value;
     - the run count, spread and model-selection rule, where the source states them;
-    - a verdict on each of the four points below: `matches`, `differs`, `not stated`, or
+    - a verdict on each of the four points: `matches`, `differs`, `not stated` or
       `not applicable`. Each verdict quotes the publication's own words.
-  - **The file is in the code identity** (clause 5), so it is frozen from the retune's first row.
-    The assembler reads only this file. A figure found later is printed as *unverified*, never
-    ranked.
+  - **Procedural, not enforced.** That the file is complete, and that its verdicts are right, is
+    procedural. The runner checks only that the file exists and parses against its schema.
+  - **The file is frozen by clause 5's identity.** Rows record its git blob id, and the assembler
+    reads that blob, never the working copy.
+  - **Later figures and corrections** go in a second file, `experiments/dgf1-official-figures-errata.yaml`,
+    outside the identity. They are printed beside the frozen entries as *unverified* or *erratum*.
+    They are never ranked, and never change a frozen entry's ranking.
 - **The four points, judged against the publication's stated protocol:**
   1. **masks:** the DGraph-Fin official train/val/test masks, as distributed;
   2. **metric:** the same metric on `official_test_mask`;
@@ -261,17 +273,23 @@ at `54b8367`.
      track. For a model that uses no graph, this point is `not applicable`;
   4. **labels and data:** fraud and normal labels of `official_train_mask` nodes only, no use of the
      background classes' labels, and no data beyond the distributed dataset.
+- **Which of our arms a figure may be ranked against** is fixed here, by model class and input set:
+
+  | published model | ranked against |
+  |---|---|
+  | a GNN using the distributed graph and node features | DGF-1 |
+  | XGBoost on the distributed node features alone | the raw-17 floor |
+  | anything else, or a model whose class or inputs the source leaves unclear | nothing: shown beside, unranked |
+
+  Our parity floor is ranked against no published figure. Ranking DGF-1 against a published
+  tabular model would be a structure-versus-features claim, which this clause forbids.
 - **Ranking:**
   - **Only a figure whose applicable points all read `matches` is ranked** ("protocol matches as
     published"). Every other figure is shown beside ours, labelled *unverified*, with no ranking and
     no delta.
-  - **Each figure is ranked against one of our arms only.**
-    - DGF-1 is ranked only against published graph models.
-    - Each floor is ranked only against published figures of its own model class.
-
-    Ranking DGF-1 against a published tabular model would be a structure-versus-features claim,
-    which this clause forbids.
-  - **A ranking is three-valued:** above, within, or below our arm's five-seed range.
+  - **A ranking is three-valued:** above, within, or below our arm's five-seed range. "Within" means
+    the closed interval from our lowest seed to our highest. The publication's own spread is printed
+    but not used.
   - **The named delta** is our five-seed mean minus the figure, printed beside our band.
   - **There is never a significance claim** against a published figure.
 - **"Leaderboard-comparable" means:** the same masks and metric as the public leaderboard. It implies
@@ -299,23 +317,23 @@ at `54b8367`.
      track. The input design was informed by a label look at a window containing official-test users.
      This ADR's choices were made after Gate 1's test results were known (*Disclosure*). Nothing this
      batch fits or selects reads an official-test label.
-- **Where: a positioning report**, assembled from the registry and the figures file by
+- **Where: a positioning report**, assembled from the registry and the figures by
   `scripts/assemble_dgf1_positioning.py`.
-  - The first report is `gates/POSITIONING-DGF1-OFFICIAL.md`. A report after a clause-5 re-run is
-    `gates/POSITIONING-DGF1-OFFICIAL-<YYYY-MM-DD>.md`.
+  - The first report is `gates/POSITIONING-DGF1-OFFICIAL.md`. A report after a change of identity
+    (clause 5) is `gates/POSITIONING-DGF1-OFFICIAL-<YYYY-MM-DD>.md`. The assembler refuses to
+    overwrite any existing report.
   - It is not a `GATE-*` file and carries no verdict, the treatment ADR-013 clause 2 gave
     `gates/ERRATUM-DGF1-1.md`.
-  - **The assembler counts, for each arm, exactly `positioning_seeds` deterministic, non-ERRORED
-    positioning rows, all at one code identity.** An identical concurrent duplicate is counted once.
-    Rows at a superseded identity (clause 5) are printed beside the counted ones, never counted.
+  - **It counts only rows at the pinned identity** (clause 5), and requires every arm to have a
+    result for every positioning seed. Rows at an identity a records entry has superseded are printed
+    beside the counted ones, never counted.
   - It prints, rather than relying on a hand edit:
     - the label *random-split, leaderboard-comparable*, and its meaning above;
     - the five weaknesses;
     - every AUPRC's prevalence and positive count;
     - the retune table, labelled *selection runs, one seed, not results*;
-    - the figures file, with each entry's four verdicts and quotes.
+    - the frozen figures with their verdicts and quotes, and the errata.
   - It refuses to write a ranking or delta that this clause does not allow.
-  - It refuses to overwrite a dated report.
   - `gates/GATE-TEMPLATE.md:30-31` ("Papers are assembled from gate files; nothing is reported that is
     not in one.") gains this file type; see *Docs affected*.
 - **Validation numbers are never reported as results.** The only ones are selection values, which
@@ -333,28 +351,27 @@ at `54b8367`.
     (`scripts/run_dgf1_gnn.py:286`).
 - **Every row also carries:**
   - the knobs it ran (`lr` and `batch_size`, or `max_depth` and `subsample`);
-  - `code_identity` (clause 5);
+  - `code_identity` and `env_identity` (clause 5);
+  - the figures file's git blob id;
   - the resolved device (`cpu` for the floors);
-  - `positioning_seeds`, the header's count at run time, on retune and positioning rows alike.
+  - `positioning_seeds`, the header's count at run time.
 
   Positioning rows also carry `retune_winner_run_id`.
-- **A stage's rows** are every registry row whose `window` is `official-val` (the retune) or
-  `official-test` (positioning), and whose (`model_class`, `input_set`) is one of the three arms. That
-  holds at any commit, code identity or arm name, and includes ERRORED rows. A later model's official
-  rows are therefore never this stage's. The window strings are pinned literally by a test, and
-  changing them is a defect under clause 5.
 - **Logging order.**
   - **The tags are logged at session entry, not at the end**, so an ERRORED row carries them. The
     temporal trainers log theirs last (`adapters/dgf1/train_gnn.py:208-211`;
     `adapters/dgf1/baselines_tabular.py:232-234`), and `RunSession` writes a row on error
     (`gbe/run/session.py:66-71`). So a temporal row that errors carries no tags.
   - **`scores_sha256` is logged the moment the score file is saved.** Metrics are logged last.
+- **Score files** go to `experiments/scores/official/<batch_identity>/`, one file per result, named
+  `<stage>-<arm>-<configuration or seed>-<run_id>.npz`. The directory name is the identity the file
+  was produced under, so a file records its identity even if its row is lost.
 - **The official path has its own config builders, for all three arms.** Both temporal entry points
   write `arm` and `window` after `**base_cfg` (`adapters/dgf1/train_gnn.py:166-168`,
   `adapters/dgf1/baselines_tabular.py:219-224`), so neither can be steered through config.
 - **A tested predicate, `is_official(row)`**, lives in `adapters/dgf1/`. It is true when `window` is
   `official-val` or `official-test`. Every DGF-1 assembler written from now on, Gate 3's included,
-  excludes official rows through it.
+  excludes official rows through it. The tag strings are pinned literally by a test.
 - **Existing consumers, as checked.** This list records what was checked; it does not claim to be
   complete.
   - `scripts/assemble_gate_dgf1_1.py:83` keeps only rows with `window == "482-821"`, so official
@@ -370,116 +387,126 @@ at `54b8367`.
     scores an RF or LR arm on the official split must reckon with both.**
   - The repro-check's `read_row` and the tests that read the registry select by run id.
 
-### Clause 5 — `official_test_mask` is scored once, and the code enforces it
+### Clause 5 — One pinned identity, and every result at it reproduces
 
-- **A separate entry point, `scripts/run_dgf1_official.py`, with modes `retune`, `positioning` and
-  `adopt`:**
+**The principle.** The held-out rule exists so that no choice can follow from seeing a test result.
+A re-computation that reproduces the same number offers no such choice. So this clause does not
+count runs. It fixes the conditions under which a result is produced, refuses any change to them
+once a result exists, and requires every re-computation to reproduce. "Scored once" is enforced as
+**one result per arm and seed, which every re-computation must reproduce**.
+
+- **The runner, `scripts/run_dgf1_official.py`, has three modes: `certify`, `retune` and
+  `positioning`.**
   - **No pre-registration path argument.** It reads this file by a path fixed in its source, refuses
     unless `**Status:**` is `accepted`, and takes the seed count from this file's `**Positioning
-    seeds:**` line, never from a flag. Every mode requires acceptance.
-  - **No `--allow-dirty` and no window, model, seed, knob or device options.** A dirty tree is refused
-    in every mode. Smoke testing uses fixtures, never the snapshot.
-  - **It refuses to start if the figures file (clause 3) is missing or malformed.**
+    seeds:**` line. Every mode requires acceptance.
+  - **No `--allow-dirty` and no window, model, seed, knob or device options.** A dirty tree is refused.
+    Smoke testing uses fixtures, never the snapshot.
+  - **It refuses to start if the figures file is missing or fails its schema.**
   - **The GNN never runs on CPU, and runs only on the GPU the environment pin names.** It applies
     `device_problems` (`scripts/run_dgf1_gnn.py:205`), which refuses a CPU device. It also compares
-    `torch.cuda.get_device_name()` with the pin's `gpu` field, a comparison `device_problems` does not
-    make (`:219-228`). The floors run on CPU, as their temporal rows did.
+    `torch.cuda.get_device_name(0)` with the pin's `gpu` field, which `device_problems` does not do
+    (`:219-228`). The floors run on CPU, as their temporal rows did.
   - **A mask check on every load, before anything trains.** The three official masks must be
     boolean, pairwise disjoint, and together exactly `labelled_mask`. It refuses otherwise, and
     prints only pass or fail: no class count and no prevalence. A failure is a fact about the
     snapshot, recorded in a new ADR. The check is never relaxed.
-- **Code identity.** The runner lists, as a constant, **every repository file it imports or opens**.
-  - The list includes `adapters/dgf1/config.yaml`, which holds the epochs, architecture and grid and
-    is read by path (`adapters/dgf1/eval.py:18`), and the environment pin
-    `experiments/extract_reference_env.txt` (`scripts/run_dgf1_gnn.py:49`). It also includes the
-    figures file.
-  - **Excluded:** the registry, this ADR, `experiments/scores/` and `data/`.
-  - **The runner imports neither `scripts/run_dgf1_gnn.py` nor `scripts/preregistration.py`.** The
-    helpers it needs from the former (`device_problems`, `repro_check_verdict` and what they call)
-    move to `adapters/dgf1/`. Step 4's repro-check then confirms that the move changed nothing in
-    the gated runner.
-  - `code_identity` is a SHA-256 over the listed files' git blob ids at HEAD. Because a dirty tree is
-    refused, HEAD equals the working tree. It is recorded on every official row.
-  - At an older commit, a listed path that does not exist, or a `git_commit` of `"unknown"`, means
-    "not matching".
-  - **The listed files are frozen from the retune's first row to positioning's last.** Every
-    comparison below is by `code_identity`, never by commit id. When it refuses, the runner prints
-    which listed paths differ. Work that touches a listed file, such as Gate-3 changes to `gbe/`,
-    waits or happens on another checkout.
-- **The gated paths are re-certified first.**
-  - **Finding repro rows.** The runner finds each temporal runner's `repro_check` rows by its rebuilt
-    reference config hash, not by tag, so a repro-check that errored is found too.
-  - **It refuses if any repro row of either runner, at any code identity, fails its recomputed
-    verdict.** The verdict is the stored comparison plus the score-file re-hash (`repro_check_verdict`;
-    the floor gets the same). An ERRORED row fails. So does a row whose score file is gone.
-  - **The only exception** is a row whose run id appears in a constant, `RESOLVED_REPRO_FAILURES`,
-    beside the ADR or dated lab entry that records its root cause. The runner checks that the named
-    file exists.
-  - **It also requires at least one passing repro row at HEAD's code identity**, for each runner.
+  - **It imports neither `scripts/run_dgf1_gnn.py` nor `scripts/preregistration.py`.** The helpers it
+    needs from the former (`device_problems`, `repro_check_verdict` and what they call) move to
+    `adapters/dgf1/`.
+- **The batch identity**, computed afresh at every invocation and recorded on every row, has two
+  parts:
+  - **`code_identity`** is a SHA-256 over the git blob ids of every repository file the runner imports
+    or opens, **its own file included**. That covers `adapters/dgf1/config.yaml`, which holds the
+    epochs, architecture and grid and is read by path (`adapters/dgf1/eval.py:18`); the environment
+    pin `experiments/extract_reference_env.txt` (`scripts/run_dgf1_gnn.py:49`); and the figures
+    file.
 
-  The registry records no verdict; the runner only prints it (`scripts/run_dgf1_gnn.py:342-353`).
-  Retrying, or making a cosmetic edit to get a fresh identity, therefore cannot satisfy this rule.
-  For official runs it supersedes ADR-013's "No runner checks for it" (`ADR-013:282-283`). If a check
-  fails, the batch waits while the mismatch is investigated to root cause (ADR-008:108-109). A root
-  cause in the environment bears on every DGF-1 row from that code path, not only on this batch.
-- **Each stage runs once: the retune on `official_val_mask`, positioning on `official_test_mask`.**
-  - **A stage's first row pins its code identity.** ERRORED rows count. Thereafter the stage runs
-    only at that identity.
-  - **No fresh start once any stage row exists**, ERRORED or not. `--resume` runs only the missing
-    pairs, (arm, configuration) or (arm, seed): those with no deterministic, non-ERRORED row. It runs
-    at the pinned identity. At identical code, a deterministic re-run reproduces what an ERRORED run
-    would have produced, so nothing can be chosen by resuming.
-  - **A crash that scored nothing.** A stage in which no row carries `scores_sha256`, and for which
-    `experiments/scores/official/` holds no file, may restart at new code. Its identity must be named
-    in `SUPERSEDED_IDENTITIES` beside a dated amendment to this ADR recording the crash. The runner
-    checks that no row at that identity carries a score hash.
-  - **Positioning requires a complete retune.** That is exactly one clean, deterministic,
-    non-ERRORED row per (arm, configuration). A duplicate from a concurrent launch is accepted only
-    if its `scores_sha256` equals the first's; otherwise the runner refuses. Positioning's code
-    identity must equal the retune's.
-  - **The seed count is frozen.** Every official row records `positioning_seeds`. The runner refuses
-    if any existing official row records a value different from this file's header.
-  - **Score files go to `experiments/scores/official/`, named by run id,** for both stages. The runner
-    refuses if that directory holds a file whose run id has no registry row.
-  - **`adopt <run_id>`.** A hard kill between saving a score file and writing its row (a closed
-    console, the out-of-memory killer) leaves such a file. `adopt` appends an ERRORED row for it
-    under the stage's pinned identity and keeps the file. The pair then counts as missing, and
-    resuming reproduces it at identical code.
-  - **What the code cannot close.**
-    - Deleting rows together with their score files.
-    - Merging rows written by another checkout.
+    **Excluded:** the registry; this ADR; `experiments/scores/`; `data/`; the records file below and
+    the documents its entries name; and the errata file. Because a dirty tree is refused, HEAD
+    equals the working tree.
+  - **`env_identity`** is a SHA-256 over every installed Python distribution and version
+    (`importlib.metadata`), the Python version, the CUDA and cuDNN versions, the GPU name, and the
+    NVIDIA driver version as `nvidia-smi` reports it. It replaces a hand comparison with the pin:
+    `environment_drift` (`scripts/check_extract_regression.py:155`) compares only what the pin lists,
+    and the pin lists neither xgboost nor the driver.
 
-    Only deliberate acts do either, and the registry is append-only (CLAUDE.md). The researcher
-    commits the registry after each stage (clause 8). A revert of rows that scored nothing leaves no
-    trace, and since nothing was seen, it gives nothing to choose.
-- **The defect route.** A defect found after a stage has rows is not re-run until an accepted ADR
-  allows it.
-  - **What counts as a defect.** It is behaviour that an accepted clause, of this ADR or one it
-    inherits, or the code's committed contract (its docstrings and tests) rules out. It must be shown
-    by a test that uses fixtures only and fails at the pinned identity. ADR-013's defect met this bar:
-    it broke accepted ADR-011 clause 3 (`ADR-013:229-230`), and it was "found by reading code" with
-    "No number … computed to find it or to size it" (`ADR-013:119-120`). **An improvement the
-    accepted text does not require is not a defect.** It is a new arm, and these three arms are
-    never re-scored.
-  - **What the defect ADR must contain.**
+  On a refusal, the runner prints which files or environment fields differ.
+- **Invariant 1 — one pinned identity.**
+  - **The batch's pinned identity is the identity of its first official score file**: the one
+    directory under `experiments/scores/official/`. A run that crashes before saving a score file
+    pins nothing, because nothing was scored.
+  - **Every later `retune` or `positioning` invocation must run at the pinned identity**, or the
+    runner refuses.
+  - **A second identity directory refuses everything**, unless the records file supersedes the
+    first.
+  - **The only change of identity** is clause 5's defect route below.
+- **Invariant 2 — every result at the pinned identity reproduces.**
+  - **Re-runs at the pinned identity are allowed**, after a crash, an interrupt or a registry revert.
+  - For each (stage, arm, configuration or seed), every score file and every non-ERRORED row's
+    `scores_sha256` at the pinned identity must agree. A disagreement refuses, and it is
+    investigated to root cause as a determinism failure (ADR-005).
+  - A re-run that reproduces adds nothing to choose from. One that would not is refused.
+  - Rows at any other identity are never counted.
+- **Certification first.** `certify` re-runs the two temporal references through the gated trainers:
+  - the GNN pilot's seed 0, `dgf1-20260913T232506Z-1acd5067`;
+  - the floor pilot's seed 0, `dgf1-20260913T232205Z-c2af9760` (validation, `max_depth=8`,
+    `subsample=0.8`, commit `2c8f484`, carrying `scores_sha256`).
+
+  Each certify run writes an ordinary `repro_check` row on the validation window, with `code_identity`
+  and `env_identity` added. Its verdict is the stored comparison plus the score-file re-hash
+  (`repro_check_verdict`, given a floor key list).
+  - **Before running, `retune` and `positioning` refuse** unless both references have a passing
+    certify row at the current identity.
+  - **They also refuse if any `repro_check` row anywhere fails its recomputed verdict.** That covers
+    every identity, and rows the gated runner wrote too. ERRORED repro rows are found by their
+    config hash, rebuilt with `experiment` set to `repro_check`. The gated helper rebuilds the
+    pilot's hash instead (`scripts/run_dgf1_gnn.py:241`), so it cannot be reused for this lookup.
+  - **A failure stays blocking until the records file resolves it.** A dated lab entry may resolve
+    only a row that errored before its comparison ran. A mismatch needs an accepted ADR. The runner
+    checks only that the named document exists, and for an ADR that it is accepted. The quality of
+    the root cause is procedural.
+  - **This replaces ADR-013's "No runner checks for it"** (`ADR-013:282-283`) for official runs. A root
+    cause in the environment bears on every DGF-1 row from that code path, not only on this batch.
+- **The records file**, `experiments/dgf1-official-records.yaml`, is append-only. It is outside the
+  identity, so a record never moves the identity. It holds two kinds of entry:
+  - resolved repro failures;
+  - superseded identities.
+- **Positioning requires a complete retune**: an agreed result for every (arm, configuration) at the
+  pinned identity. **The seed count is frozen**: the runner refuses if any official row records a
+  `positioning_seeds` different from this file's header.
+- **The defect route — the only change of identity.**
+  - **What counts as a defect.** It is behaviour ruled out by a clause **accepted**, or a docstring or
+    test **committed**, before the batch's first official score file. It must be shown by a test
+    that uses fixtures only and fails at the pinned identity. ADR-013's defect met this bar: it broke
+    accepted ADR-011 clause 3 (`ADR-013:229-230`), and it was "found by reading code" with "No
+    number … computed to find it or to size it" (`ADR-013:119-120`). **An improvement the accepted
+    text does not require is not a defect.** It is a new arm, and these three arms are never
+    re-scored.
+  - **A change of environment that cannot be restored**, such as a failed GPU, takes the same route,
+    since it too yields a second draw.
+  - **What the ADR must contain.**
     - It locates the defect in ADR-013 clause 1's form: where, what, since when, why undetected
       (`ADR-013:225-236`).
     - It discloses how the defect was found and which official numbers its author had seen.
-    - **After any positioning row exists**, it states the defect's expected effect on each arm and
-      its direction, in ADR-013 clause 4's form ("state what, where and why, then the impact on the
+    - Once any positioning score exists, it states the defect's expected effect on each arm and its
+      direction, in ADR-013 clause 4's form ("state what, where and why, then the impact on the
       test's severity", `ADR-013:305-306`).
-    - It is **accepted** before anything re-runs.
-  - **What re-runs.**
-    - Before any positioning row exists: the retune re-runs in full at the new identity.
-    - After: both stages re-run **in full, for all three arms**. There is never a partial re-run.
-  - **How the refusal changes.** The implementation records the superseded identity in
-    `SUPERSEDED_IDENTITIES`, beside the ADR's path, and that is the only way the refusal changes. The
-    runner checks that the named ADR exists, carries `**Status:** accepted`, and names that identity.
-  - **What stays.** The original rows stay, printed beside the new ones in a new dated report. The
-    original report is not edited.
+    - It is **accepted** before anything runs at the new identity.
+  - **How the runner applies it.** The records file names the superseded identity beside the ADR's
+    path. The runner checks only that the ADR exists, carries `**Status:** accepted`, and names that
+    identity. Whether the defect meets the bar is procedural, and judged when the ADR is accepted.
+  - **What re-runs.** Every stage with a score file at the superseded identity re-runs **in full, for
+    all three arms**, at the new identity. There is never a partial re-run.
+  - **What stays.** The original rows and files stay, printed beside the new ones in a new dated
+    report.
 
   This follows ADR-008's rule: "**A mismatch is investigated to root cause — never re-run until it
   matches** (that is the optional-stopping error in another costume)." (`ADR-008:108-109`).
+- **What the code cannot close.** Only one act defeats Invariant 1: deleting the score-file
+  directory, rows and all. That act is deliberate, and the registry is append-only (CLAUDE.md). The
+  researcher commits the registry after each stage (clause 8). Merging rows from another checkout is
+  harmless, because rows at another identity are never counted.
 - **Other models later.** A future ADR may score `official_test_mask` with a model class or input
   set this batch does not run; doc-02 §5's other baselines are owed. These three arms are never
   re-scored, whatever a later arm is named or however it is tuned.
@@ -534,71 +561,72 @@ at `54b8367`.
    - The runner accepts no path argument and refuses this file unless it is accepted.
    - It parses `Positioning seeds` with the stated regex, refuses a missing or malformed line, and
      runs seeds 1 to that count.
+   - It refuses a missing figures file, and one that fails its schema.
 
    Mutations: accepting a path argument; dropping the status check; starting seeds at 0.
-5. **Code identity.**
-   - Static import analysis (AST or `modulefinder`, since the runners import inside functions) finds
-     every repo module the runner imports.
-   - A `sys.addaudithook` "open" hook, during a fixture run, records every file it opens.
-   - Both sets must lie within the listed files, apart from the four exclusions.
-   - Changing a listed file changes `code_identity`.
-   - The runner imports neither `scripts/run_dgf1_gnn.py` nor `scripts/preregistration.py`.
+5. **Identity.**
+   - Static, transitive import analysis (AST or `modulefinder`, since the runners import inside
+     functions) finds every repo module the runner imports.
+   - A `sys.addaudithook` "open" hook records every file opened while `main()` is driven on fixtures
+     in every mode.
+   - After stdlib, site-packages and `__pycache__` paths are filtered out, every repo path found must
+     be in `code_identity`, apart from the stated exclusions. The runner's own file must be in it.
+   - Changing a listed file, or any environment field, changes the identity.
+   - Editing the records file or the errata file does not change the identity.
 
-   Mutation: dropping `adapters/dgf1/config.yaml` from the list.
-6. **Once-only.**
-   - A fresh start is refused when any stage row exists, including an all-ERRORED stage.
-   - `--resume` runs only missing pairs, and only at the pinned identity.
-   - Positioning refuses each of: an incomplete retune; differing duplicates; a different identity; a
-     changed `positioning_seeds`.
-   - An orphan score file is refused, and `adopt` clears it.
-   - A nothing-scored restart is honoured only through `SUPERSEDED_IDENTITIES`, and only when no row
-     there carries a hash.
-   - A later model's official rows are not counted as this stage's.
+   Mutations: dropping `adapters/dgf1/config.yaml`; omitting the runner's own file.
+6. **The two invariants.**
+   - The first score file pins the identity, and a crash before any score file pins nothing.
+   - A run at a different identity is refused, naming what differs.
+   - A second identity directory is refused unless superseded.
+   - A re-run at the pinned identity that disagrees with an earlier result is refused, and one that
+     agrees is accepted.
+   - Rows at other identities are not counted.
+   - A changed `positioning_seeds` is refused.
+   - Positioning refuses an incomplete retune.
 
-   Mutations: removing the existing-row check; treating an all-ERRORED stage as absent.
-7. **The repro precondition.**
-   - An ERRORED repro row is found by its config hash.
-   - A failing row at **any** identity refuses until it is listed in `RESOLVED_REPRO_FAILURES` with an
-     existing record.
-   - A fresh identity does not clear a failure.
-   - A passing row at HEAD's identity is required.
+   Mutations: pinning on the newest identity rather than the first; skipping the agreement check.
+7. **Certification.**
+   - `retune` and `positioning` are refused without a passing certify row for each reference at the
+     current identity.
+   - A failing `repro_check` row at **any** identity blocks until the records file resolves it.
+     ERRORED rows are found by the hash rebuilt with `repro_check`.
+   - A lab entry resolves only an ERRORED row.
 
-   Mutation: scoping the failure check to HEAD's identity.
-8. **Row identity and refusals.**
+   Mutations: scoping failures to the current identity; rebuilding the lookup hash with the pilot's
+   tag.
+8. **The defect route.**
+   - A records entry that supersedes an identity is honoured only if its named ADR exists, is
+     accepted, and names that identity.
+   - After it, the assembler counts the new identity only once every superseded stage has re-run in
+     full.
+9. **Row identity and refusals.**
    - Tags are present on an ERRORED row (a fixture that raises mid-training).
    - `scores_sha256` is logged at save.
-   - The window strings are pinned literally.
-   - `is_official` is correct on official and temporal rows.
-   - Rows record the device (`cpu` for floors).
-   - Only rows recording `deterministic: true` are counted.
-   - A dirty tree is refused, and no `--allow-dirty` or `--device` option exists.
-9. **The mask check** refuses fixture masks that overlap, miss a labelled node, or include an
-   unlabelled one. Its output carries no class count.
-10. **Selection.**
+   - Score files land under their identity's directory.
+   - The tag strings are pinned literally, and `is_official` is correct on official and temporal
+     rows.
+   - Rows record the device (`cpu` for floors). Only rows recording `deterministic: true` are counted.
+   - A dirty tree, a CPU device for the GNN, and a GPU whose name differs from the pin's are each
+     refused.
+   - No `--allow-dirty` or `--device` option exists.
+10. **The mask check** refuses fixture masks that overlap, miss a labelled node, or include an
+    unlabelled one. Its output carries no class count.
+11. **Selection.**
     - It picks the highest validation AUPRC under the stated tie-break.
     - Non-finite values rank last, and an arm with none finite is refused.
     - Positioning rows carry the winner's run id and knobs.
     - Scored ids align to `official_val_mask` in the retune and to `official_test_mask` in positioning.
-11. **The assembler.**
-    - It refuses an arm short of `positioning_seeds` rows at one identity.
-    - It refuses each of: a ranking or delta for a figure not in the file, or with an applicable
-      point not `matches`; DGF-1 ranked against a tabular figure; a floor ranked against another
-      class; an overwrite of a dated report.
-    - It prints three-valued rankings, superseded rows beside counted ones, the label, the five
-      weaknesses, the prevalences, the retune table and the figures file.
+12. **The assembler.**
+    - It reads the figures from the blob id the rows record, never the working copy.
+    - It counts only rows at the pinned identity, and refuses an arm missing a seed.
+    - It ranks only per clause 3's table and four points, three-valued over the closed range.
+    - It prints errata and superseded rows beside the counted ones, never ranked or counted.
+    - It refuses to overwrite any existing report.
+    - It prints the label, the five weaknesses, the prevalences and the retune table.
 
-    Mutation: dropping a weakness line.
-12. **The defect route.** The runner refuses a `SUPERSEDED_IDENTITIES` entry whose named document is
-    missing, is not accepted, or does not name that identity.
+    Mutations: reading the working-tree figures file; dropping a weakness line.
 13. **The shared guard refuses this ADR**, accepted or not: the header claim.
-14. **The gated paths are unchanged.**
-    - The floor runner gains a repro-check against its pilot's seed 0,
-      `dgf1-20260913T232205Z-c2af9760`: validation, `max_depth=8`, `subsample=0.8`, commit `2c8f484`.
-      Its row carries `scores_sha256`.
-    - The floor runner's inline config values are factored out so the reference hash can be rebuilt,
-      and the floor gets its own compared-key list.
-    - After implementation, both repro-checks are run on the snapshot, and test 7's precondition
-      enforces the result.
 
 ### Clause 8 — Execution order
 
@@ -606,14 +634,15 @@ at `54b8367`.
 2. Implement clauses 1–5 and 7, one component per session, each with its tests. The batch does not
    start until every clause-7 test passes and the suite is green.
 3. Compile and commit the figures file (clause 3).
-4. Run both repro-checks at the implementation's code identity. Both must pass.
-5. Run the official retune on `official_val_mask`, then commit the registry.
-6. Run positioning on `official_test_mask` (5 seeds × 3 arms), then commit the registry.
+4. Run `certify` at the identity after step 3. Both references must pass.
+5. Run `retune` on `official_val_mask`, then commit the registry.
+6. Run `positioning` on `official_test_mask` (5 seeds × 3 arms), then commit the registry.
 7. Assemble the positioning report. The researcher reviews and dates it.
 8. Record the winners and run ids here as a dated amendment, and in `notebooks/lab/`.
 
-The runner enforces steps 3–6: it refuses without the figures file, and its identity includes it.
-Steps 7 and 8, and the registry commits, are procedural.
+The runner enforces steps 3–6: the figures file, certification, the pinned identity and
+reproduction. Steps 7 and 8, the registry commits, and the figures file's completeness are
+procedural.
 
 ## Docs affected — to apply on acceptance
 
@@ -628,7 +657,8 @@ ADR-011 was (`ADR-011:28-29`).
     7 test 1's label flip, since that track has no cutoff.
   - The DGF-1 bullet (`:127-129`) is marked as governing the temporal track.
   - The held-out rule (`:102`) gains two sentences:
-    - `official_test_mask` is scored once per arm (clause 5);
+    - `official_test_mask` yields one result per arm and seed, at one pinned identity, which every
+      re-computation must reproduce (clause 5);
     - under the official protocol its nodes' features reach the model through message passing,
       while their labels enter nothing and their features enter no fitted statistic.
 - **doc-00 §7** (`docs/00-shared-core-graph-embedding-GUIDE.md:154`), "**Time-split, not
@@ -662,6 +692,11 @@ ADR-011 was (`ADR-011:28-29`).
 
 ## Alternatives rejected
 
+- **Count runs with a state machine** (drafts 5–7): resume, `adopt`, restarts, override constants.
+  Each piece added to close a hole opened another. Invariant 2 makes a reproducing re-run harmless,
+  so runs need not be counted.
+- **Forbid every re-run.** A crash would then need an ADR, which pushes towards reverting the
+  registry. Re-computation at the pinned identity offers nothing to choose.
 - **Transfer ADR-012's winners** (draft 4). They were selected partly on official-test labels
   (*Disclosure*).
 - **Show published figures beside ours, never ranked** (draft 5). It contradicts DGF-1's stated
@@ -673,10 +708,7 @@ ADR-011 was (`ADR-011:28-29`).
 - **Code identity by commit id** (draft 5), or **by import closure alone** (draft 6). The first
   refuses for ever after an unrelated commit. The second misses the configuration the runner reads by
   path.
-- **Scope repro failures to the current identity** (draft 6). A cosmetic edit escapes it.
 - **Seeds 0–4.** Seed 0 retrains the model the retune selected.
-- **A lock file against concurrent launches.** A stale lock refuses for ever. Identical duplicates are
-  harmless, and differing ones are refused.
 - **Type the winner on the command line**, ADR-012's pattern. A typed configuration can be any
   configuration.
 - **Fit the transform over all nodes** (draft 5). It puts scored users into a fitted statistic, which
@@ -695,19 +727,19 @@ ADR-011 was (`ADR-011:28-29`).
 ## Consequences
 
 - **New code, all in `adapters/dgf1/` and `scripts/`:**
-  - the official runner, with its code identity, once-only, orphan and adopt logic;
+  - the official runner, with its identity, two invariants and certification;
   - mask-based equivalents of the `TemporalSplit`-based functions it needs (`train_dgf1`,
     `score_view`, `floor_design`, `run_floor`, `run_dgf1`, `train_seed_mask`, `window_target_mask`);
   - config builders for all three arms;
   - `is_official`;
-  - `device_problems` and the repro verdict moved into `adapters/dgf1/`;
-  - a floor repro-check;
-  - the figures file;
+  - `device_problems` and the repro verdict moved into `adapters/dgf1/`, with a floor key list;
+  - the figures, errata and records files;
   - the positioning-report assembler.
 
   Each comes with clause 7's tests.
-- **Cost:** two 9-configuration grids and 15 positioning runs. The temporal track's measured cost is
-  in clause 2; the official cost is not predicted. The batch runs in the researcher's own terminal.
+- **Cost:** two references re-certified, two 9-configuration grids and 15 positioning runs. The
+  temporal track's measured cost is in clause 2; the official cost is not predicted. The batch runs
+  in the researcher's own terminal.
 - **The constitution records the non-temporal exception**, rather than leaving it implicit in a
   script.
 - **The numbers are weak by construction**, for clause 3's five reasons, and every citation of them
