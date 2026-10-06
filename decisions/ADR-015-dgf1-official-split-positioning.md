@@ -1,9 +1,9 @@
 # ADR-015 — DGF-1's official-split positioning batch
 
 **Status:** proposed
-**Date:** first proposed 2026-09-15 · **ninth draft 2026-10-06**, replacing `5f7f388`, `30fbf92`,
-an uncommitted third, `8296f4b`, `f769880`, `a029413`, `3b58edc` and `a01d865`. See *Draft
-history*.
+**Date:** first proposed 2026-09-15 · **tenth draft 2026-10-06**, replacing `5f7f388`, `30fbf92`,
+an uncommitted third, `8296f4b`, `f769880`, `a029413`, `3b58edc`, `a01d865` and `e9c3ea7`. See
+*Draft history*.
 **Deciders:** coderback
 **Positioning seeds:** 5
 **Opens no gated window.** This document carries no `Stage-1 seeds:` line, so the shared guard's seed
@@ -74,9 +74,27 @@ Eight drafts were rejected.
   - **a route let an "unrestorable" environment change take the defect route.** It could never
     certify, and it was a second draw the author would adjudicate.
 
-  The review also found rules that would have caught a later ADR's rows. Draft 9 completes the
-  identity, compares before saving, reads the pin from rows as well as files, deletes that route,
-  and scopes every rule to this batch.
+  The review also found rules that would have caught a later ADR's rows. Draft 9 completed the
+  identity, compared before saving, read the pin from rows as well as files, deleted that route,
+  and scoped every rule to this batch.
+- **Draft 9** (`e9c3ea7`) was checked narrowly, on clause 5 alone. Probes run on this machine, and
+  reproduced, showed three unset environment variables that change results while lying outside the
+  identity:
+  - `TORCH_ALLOW_TF32_CUBLAS_OVERRIDE`;
+  - `DISABLE_ADDMM_CUDA_LT`;
+  - `ATEN_CPU_CAPABILITY`.
+
+  The check also found three further gaps: a disagreement row whose keys were unspecified; an
+  identity whose components were not recorded, so "what differs" could not be printed; and
+  automatic updates that would make a stop likely. Draft 10 fixes these:
+  - it hashes environment variables by family;
+  - it hashes the loaded data rather than its files;
+  - it names the disagreement keys;
+  - it logs the identity's components;
+  - it pauses updates for the batch.
+
+  One claim in that check did not reproduce. `torch.save` is byte-stable for a fixed filename, and
+  the probe had compared two filenames.
 
 `becb85c`, committed after draft 2, re-added draft 1's text as a stray root file `xaa`. It was removed
 at `54b8367`.
@@ -366,7 +384,10 @@ at `54b8367`.
   so a later ADR's official rows never touch this batch, and this batch never touches them.
 - **Every row also carries:**
   - the knobs it ran (`lr` and `batch_size`, or `max_depth` and `subsample`);
-  - `code_identity`, `env_identity` and `data_identity` (clause 5);
+  - `code_identity`, `env_identity` and `data_identity` (clause 5), and the **components** each is
+    computed from: code paths with their blob ids, every environment field's value, and the hash of
+    each data tensor. These are logged at session entry through the unhashed metrics channel
+    (clause 5), so a refusal can name what differs and a drifted environment can be restored;
   - the figures file's git blob id;
   - the resolved device (`cpu` for the floors);
   - `positioning_seeds`, the header's count at run time.
@@ -377,12 +398,20 @@ at `54b8367`.
      temporal trainers log theirs last (`adapters/dgf1/train_gnn.py:208-211`;
      `adapters/dgf1/baselines_tabular.py:232-234`), and `RunSession` writes a row on error
      (`gbe/run/session.py:66-71`). So a temporal row that errors carries no tags.
-  2. **The new result's hash is computed in memory and compared first.** It is checked against every
-     recorded hash for the same key at the pinned identity, before a score file is written and before
-     any metric is computed or printed. A disagreeing result is discarded unsaved; its row is marked
-     ERRORED and records both hashes, and the runner refuses (clause 5, Invariant 2).
-  3. Only after that comparison is the score file saved, its `scores_sha256` logged, and the metrics
-     logged last.
+  2. **The new result's hash is computed in memory and compared first.**
+     - The hash is `content_hash` over the result's node ids, labels and probabilities. Those are the
+       same dtype casts `save_scores` applies, so the hash equals the saved file's.
+     - It is checked against every recorded hash for the same key at the pinned identity, before a
+       score file is written and before any metric is computed or printed.
+     - A disagreeing result is discarded unsaved. Its row is marked ERRORED and records the two hashes
+       as `scores_sha256_expected` and `scores_sha256_observed`, **never** as `scores_sha256`. The
+       runner refuses (clause 5, Invariant 2).
+
+     The temporal trainers compute metrics before saving (`adapters/dgf1/train_gnn.py:197` before
+     `:201`; `adapters/dgf1/baselines_tabular.py:232` before `:244`), so the official stages do not
+     reuse `run_dgf1` or `run_floor` as they stand.
+  3. Only after that comparison is the score file saved, atomically: written to a temporary name and
+     then renamed. Its `scores_sha256` is logged next, and the metrics last.
 - **Score files** go to `experiments/scores/official/adr-015/<batch_identity>/`, one file per result,
   named `<stage>-<arm>-<configuration or seed>-<run_id>.npz`.
 - **The official path has its own config builders, for all three arms.** Both temporal entry points
@@ -449,19 +478,50 @@ result per arm and seed, which every re-computation must reproduce**.
     - every installed Python distribution and version (`importlib.metadata`) and the Python version;
     - the CUDA and cuDNN versions, the GPU name, and the NVIDIA driver version as `nvidia-smi`
       reports it;
-    - the CPU model and the operating system version;
+    - the CPU model, and the operating system as `platform.platform()` reports it;
     - `torch.get_num_threads()` and `torch.get_num_interop_threads()`;
-    - the values of `CUBLAS_WORKSPACE_CONFIG`, `OMP_NUM_THREADS`, `MKL_NUM_THREADS` and
-      `OPENBLAS_NUM_THREADS`, where an unset variable counts as a value.
+    - **environment variables, by family.** These are sorted `name=value` pairs: every variable
+      whose name starts with `TORCH_`, `PYTORCH_`, `ATEN_`, `CUDA_`, `CUBLAS`, `CUDNN`, `NVIDIA_`,
+      `OMP_`, `KMP_`, `MKL_` or `OPENBLAS_`, plus `DISABLE_ADDMM_CUDA_LT`.
 
-    `CUBLAS_WORKSPACE_CONFIG` must be included because the code keeps any value set outside the
-    process (`gbe/run/seeding.py:32`, `setdefault`). This replaces a hand comparison with the pin:
-    `environment_drift` (`scripts/check_extract_regression.py:155`) compares only what the pin lists,
-    and the pin lists neither xgboost nor the driver.
-  - **`data_identity`** is a SHA-256 over every file under the snapshot directory the loader reads
-    (`data/dgraph/`). The loader itself checks only counts (`adapters/dgf1/datasource_dgraph.py:149-159`).
+    **Why families, not a list.** Three unset variables change results on this machine, measured by
+    hashing a fixed synthetic computation in separate processes; the baseline reproduced exactly:
+    - `TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1` changes the GPU matmul and `Linear` outputs;
+    - `DISABLE_ADDMM_CUDA_LT=1` changes the GPU `Linear` output;
+    - `ATEN_CPU_CAPABILITY=default` changes CPU arithmetic, which moves initialisation and the
+      fitted transform.
 
-  On a refusal, the runner prints which files, environment fields or data files differ.
+    A named list would miss the next such variable.
+
+    **Read after the defaults are set.** The variables are read after `gbe.run.seeding` is
+    imported. It sets `CUBLAS_WORKSPACE_CONFIG` with `setdefault` and keeps any value set outside the
+    process (`gbe/run/seeding.py:32`), so reading earlier would give one identity for "unset" and
+    another for ":4096:8".
+
+    **`PYTHONHASHSEED` is excluded.** `seed_everything` rewrites it to each run's seed
+    (`gbe/run/seeding.py:79`), so it would vary with the seed and not with the environment.
+
+    This replaces a hand comparison with the pin: `environment_drift`
+    (`scripts/check_extract_regression.py:155`) compares only what the pin lists, and the pin lists
+    neither xgboost nor the driver.
+  - **`data_identity`** hashes the **loaded tensors**, not the files: `x`, `edge_index`,
+    `edge_time`, `edge_type`, `y`, `node_time` and the three official masks, each in
+    `content_hash`'s style. The repository already holds this principle for score files:
+
+    > **The hash is over the *content*, not the file.** `.npz` is a zip, whose bytes carry
+    > timestamps, so a file hash would differ on every rewrite of identical data.
+    > — `gbe/eval/scores.py:13-14`
+
+    A file hash would also move with stray files in `data/dgraph/`, or with PyG's processed cache
+    (`data/dgraph/processed/`) if a different PyG version re-pickled it. The loader itself checks
+    only counts (`adapters/dgf1/datasource_dgraph.py:149-159`).
+  - **Updates are paused for the batch** (clause 8). Pending Windows and NVIDIA driver updates are
+    installed before `certify`. Windows Update and driver updates then stay paused until positioning
+    is committed. An automatic update mid-batch would otherwise change `env_identity` for no reason
+    connected to the work.
+
+  On a refusal, the runner prints which code paths, environment fields or data tensors differ. It
+  compares the current components with the components the pinned rows logged (clause 4).
 - **Invariant 1 — one pinned identity.**
   - **The batch's pinned identity is its one unsuperseded identity.** It is read from two places:
     - this batch's score directories under `experiments/scores/official/adr-015/`;
@@ -471,7 +531,9 @@ result per arm and seed, which every re-computation must reproduce**.
   - **A score directory alone cannot be lost silently.** The score files are gitignored as
     "Regenerable" (`.gitignore:15-17`), so deleting them breaks no rule. The committed rows still
     carry the pin.
-  - **A run that crashes before its result is hashed pins nothing**, because nothing was scored.
+  - **A run that crashes before its score file is written pins nothing**, because nothing was
+    scored. A score directory pins only if it holds a readable score file. Files are written
+    atomically (clause 4), so a crash cannot leave a truncated file that pins.
   - **Every `retune` and `positioning` invocation must run at the pinned identity**, or the runner
     refuses.
   - **The only change of identity** is clause 5's defect route below.
@@ -480,8 +542,13 @@ result per arm and seed, which every re-computation must reproduce**.
   - For each (stage, arm, configuration or seed), every score file and every row's `scores_sha256` at
     the pinned identity must agree.
   - The comparison happens before the new result is saved or any metric computed (clause 4), so a
-    disagreeing result is never seen. A disagreement refuses, and it is investigated to root cause as
-    a determinism failure (ADR-005).
+    disagreeing result is never seen.
+  - A disagreement refuses, and it is investigated to root cause as a determinism failure (ADR-005).
+  - **The disagreement row** carries `scores_sha256_expected` and `scores_sha256_observed`, never
+    `scores_sha256`, so it neither pins nor counts as a result.
+  - **While any unresolved disagreement row exists at the pinned identity, every invocation refuses.**
+    It stays blocking until the records file resolves it with an accepted ADR, the same rule as a repro
+    mismatch. Re-running until a run agrees is not a route (ADR-008:108-109).
   - With every factor that determines a result inside the identity, a re-run that reproduces adds
     nothing to choose from.
   - Rows at any other identity are never counted.
@@ -523,8 +590,9 @@ result per arm and seed, which every re-computation must reproduce**.
       quality of the root cause is procedural.
   - **This replaces ADR-013's "No runner checks for it"** (`ADR-013:282-283`) for official runs. A root
     cause in the environment bears on every DGF-1 row from that code path, not only on this batch.
-- **The records file**, `experiments/dgf1-official-records.yaml`, holds resolved repro failures and
-  superseded identities. It is outside the identity, so a record never moves the identity.
+- **The records file**, `experiments/dgf1-official-records.yaml`, holds three kinds of entry:
+  resolved repro failures, resolved disagreements, and superseded identities. It is outside the
+  identity, so a record never moves the identity.
   - That it is append-only is procedural. Deleting an entry only makes the runner refuse more.
 - **Positioning requires a complete retune**: an agreed result for every (arm, configuration) at the
   pinned identity. **The seed count is frozen**: the runner refuses if any of this batch's rows
@@ -536,8 +604,9 @@ result per arm and seed, which every re-computation must reproduce**.
     ADR-011 clause 3 (`ADR-013:229-230`), and it was "found by reading code" with "No number …
     computed to find it or to size it" (`ADR-013:119-120`). **An improvement the accepted text does
     not require is not a defect.** It is a new arm, and these three arms are never re-scored.
-  - **An environment that cannot be restored is not a defect.** It cannot certify, so the batch stops.
-    Anything further is a question for a new ADR, decided then and not pre-authorised here.
+  - **An environment that cannot be restored is not a defect.** The batch cannot run at the pinned
+    identity, so it stops. Anything further is a question for a new ADR, decided then and not
+    pre-authorised here. The logged components (clause 4) say exactly what to restore.
   - **What the ADR must contain.**
     - It locates the defect in ADR-013 clause 1's form: where, what, since when, why undetected
       (`ADR-013:225-236`).
@@ -560,10 +629,13 @@ result per arm and seed, which every re-computation must reproduce**.
 
   This follows ADR-008's rule: "**A mismatch is investigated to root cause — never re-run until it
   matches** (that is the optional-stopping error in another costume)." (`ADR-008:108-109`).
-- **What the code cannot close.** Only one act defeats Invariant 1: removing this batch's rows from
-  the registry together with its score files. The registry is append-only (CLAUDE.md), and the
-  researcher commits it after each stage (clause 8). Once committed, removing rows means rewriting
-  committed history, a deliberate act.
+- **What the code cannot close.**
+  - Only one act defeats Invariant 1: removing this batch's rows from the registry together with
+    its score files.
+  - A registry revert can also erase an **uncommitted** disagreement row.
+
+  The registry is append-only (CLAUDE.md), and the researcher commits it after each stage (clause
+  8). Once committed, removing rows means rewriting committed history, a deliberate act.
 - **Other models later.** A future ADR may score `official_test_mask` with a model class or input
   set this batch does not run; doc-02 §5's other baselines are owed.
   - Its rows and score directories are outside this batch's scope (clause 4).
@@ -631,14 +703,21 @@ result per arm and seed, which every re-computation must reproduce**.
    - After stdlib, site-packages and `__pycache__` paths are filtered out, every repo path found must
      be in `code_identity`, apart from the stated exclusions. The runner's own file must be in it.
    - The runner imports neither `scripts/run_dgf1_gnn.py` nor `scripts/preregistration.py`.
-   - Changing a listed file, any listed environment field (thread counts and the four environment
-     variables included), or a file under a fixture data directory changes the identity.
-   - Editing the records file or the errata file does not.
+   - Changing a listed file, any environment field, or a variable in any listed family changes the
+     identity. So does changing any loaded data tensor.
+   - Re-saving the same tensors, or adding a stray file to the data directory, does not.
+   - Neither does editing the records file or the errata file.
+   - `PYTHONHASHSEED` is not in the identity.
+   - The identity is the same whether `CUBLAS_WORKSPACE_CONFIG` was unset or set to the seeding
+     default before import.
+   - Every component is logged at session entry.
 
    Mutations:
    - dropping `adapters/dgf1/config.yaml`;
    - omitting the runner's own file;
-   - omitting `CUBLAS_WORKSPACE_CONFIG`.
+   - hashing the four named variables instead of the families, which setting
+     `TORCH_ALLOW_TF32_CUBLAS_OVERRIDE` must catch;
+   - hashing data files rather than tensors.
 6. **The two invariants.**
    - **Pinning:**
      - the pin is read from score directories and from rows that carry a hash;
@@ -647,16 +726,22 @@ result per arm and seed, which every re-computation must reproduce**.
    - **A second unsuperseded identity** is refused by the runner and by the assembler.
    - **A run at a different identity** is refused, naming what differs.
    - **A re-run at the pinned identity:**
-     - one that disagrees is discarded before saving: no file is written, and no metric is computed
-       or printed. Its row is ERRORED with both hashes, and the runner refuses;
+     - one that disagrees is discarded before saving: no file is written, and no function of the
+       probabilities is computed or printed;
+     - its row is ERRORED, carries `scores_sha256_expected` and `scores_sha256_observed` and no
+       `scores_sha256`, and every later invocation refuses until a records entry backed by an
+       accepted ADR resolves it;
      - one that agrees is accepted.
+   - **Atomic writes:** a crash mid-write leaves no readable file and pins nothing.
    - **Rows outside this batch** do not count. A later model's rows and directories change nothing.
    - **Refused:** a changed `positioning_seeds`, and positioning on an incomplete retune.
 
    Mutations:
    - accepting a second unsuperseded identity;
    - saving before comparing;
-   - reading the pin from score directories only.
+   - reading the pin from score directories only;
+   - recording the disagreeing hash as `scores_sha256`;
+   - letting an agreeing re-run clear a disagreement.
 7. **Certification.**
    - **The certify row:**
      - its config hash equals the reference's rebuilt with `experiment=repro_check`, so the identity
@@ -721,15 +806,18 @@ result per arm and seed, which every re-computation must reproduce**.
 2. Implement clauses 1–5 and 7, one component per session, each with its tests. The batch does not
    start until every clause-7 test passes and the suite is green.
 3. Compile and commit the figures file (clause 3).
-4. Run `certify` at the identity after step 3. Both references must pass.
-5. Run `retune` on `official_val_mask`, then commit the registry.
-6. Run `positioning` on `official_test_mask` (5 seeds × 3 arms), then commit the registry.
-7. Assemble the positioning report. The researcher reviews and dates it.
-8. Record the winners and run ids here as a dated amendment, and in `notebooks/lab/`.
+4. Install pending Windows and NVIDIA driver updates, then pause both until step 7 is committed
+   (clause 5).
+5. Run `certify` at the identity after steps 3 and 4. Both references must pass.
+6. Run `retune` on `official_val_mask`, then commit the registry.
+7. Run `positioning` on `official_test_mask` (5 seeds × 3 arms), then commit the registry.
+8. Assemble the positioning report. The researcher reviews and dates it.
+9. Record the winners and run ids here as a dated amendment, and in `notebooks/lab/`.
 
-The runner enforces steps 3–6: the figures file, certification, the pinned identity and
-reproduction. Steps 7 and 8, the registry commits, and the figures file's completeness are
-procedural.
+The runner enforces steps 3 and 5–7: the figures file, certification, the pinned identity and
+reproduction. Step 4 is procedural, but the runner detects its failure: an update changes
+`env_identity`, and the batch refuses. Steps 8 and 9, the registry commits, and the figures file's
+completeness are procedural.
 
 ## Docs affected — to apply on acceptance
 
@@ -790,6 +878,13 @@ ADR-011 was (`ADR-011:28-29`).
   would be a second draw the author adjudicates.
 - **Require results a defect ADR declares unaffected to reproduce.** It would add machinery back for
   a case the full re-run already covers.
+- **Name the environment variables individually** (draft 9). Three unnamed ones were measured to
+  change results; families catch the next one.
+- **Hash the data directory's files** (draft 9). The repository's own principle is to hash content,
+  not bytes (`gbe/eval/scores.py:13-14`). File hashes also move with stray files or a re-pickled
+  cache.
+- **Include `PYTHONHASHSEED`.** `seed_everything` rewrites it to each run's seed, so it would vary
+  with the seed and not with the environment.
 - **Transfer ADR-012's winners** (draft 4). They were selected partly on official-test labels
   (*Disclosure*).
 - **Show published figures beside ours, never ranked** (draft 5). It contradicts DGF-1's stated
@@ -820,7 +915,10 @@ ADR-011 was (`ADR-011:28-29`).
 ## Consequences
 
 - **New code, all in `adapters/dgf1/` and `scripts/`:**
-  - the official runner, with its three-part identity, two invariants and certification;
+  - the official runner, with its three-part identity and logged components, two invariants and
+    certification;
+  - official stage functions that hash before saving and save before computing metrics, rather than
+    reusing `run_dgf1` and `run_floor` as they stand;
   - mask-based equivalents of the `TemporalSplit`-based functions it needs (`train_dgf1`,
     `score_view`, `floor_design`, `run_floor`, `run_dgf1`, `train_seed_mask`, `window_target_mask`);
   - config builders for all three arms;
