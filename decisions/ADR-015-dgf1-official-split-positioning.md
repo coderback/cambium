@@ -1,270 +1,289 @@
-# ADR-015 — DGF-1's official-split positioning batch: the protocol for a number that is reported and never gated
+# ADR-015 — DGF-1's official-split positioning batch
 
 **Status:** proposed
-**Date:** 2026-09-15 · **second draft**, replacing the first (commit `5f7f388`), rejected before
-acceptance. See *Draft history*.
+**Date:** 2026-09-15 · **fourth draft**, replacing `5f7f388`, `30fbf92` and the uncommitted third.
+See *Draft history*.
 **Deciders:** coderback
 **Positioning seeds:** 5
-**Inherits, does not re-open:** the official split is random and its numbers are *reported, never
-gated* (**ADR-010** clause 1); ROC-AUC + AUPRC together, each AUPRC with its prevalence and positive
-count, and the **hard floor of 5 seeds per arm** (**ADR-007**); official numbers come from a separate
-batch and may not share a table row with a gated number (**ADR-012**); the frozen architecture and
-the two-knob budget (**ADR-003**, **ADR-009**).
-**Changes no gated quantity and touches no gate.** Both signed gates stand exactly as recorded.
-**Opens no gated window:** this document deliberately carries **no** `Stage-1 seeds:` line — see
-clause 6, which is a correction to the first draft rather than a refinement of it.
-**Decides a protocol, not a result.** No metric value appears in this ADR.
+**Opens no gated window.** This document carries no `Stage-1 seeds:` line, so
+`scripts/preregistration.py`'s regex cannot parse it even when accepted (clause 5, test 4).
+**Decides a protocol, not a result.** No metric value appears here.
 
-**Docs affected — to apply on acceptance:**
-- `docs/02-dgraph-fin-embedding-model-BUILD.md` §5's reporting template: the official-split rows gain
-  a pointer here; §4 Phase 0's "both splits" line names this ADR as the protocol.
-- `CLAUDE.md`'s *Leakage discipline* section gains clause 2's invariant, alongside the temporal rule.
-  ADR-011 set the precedent of amending that section.
-- `CLAUDE.md` Next item 2 and `docs/timeline.md` gain the run ids once they exist. **Both are
-  gitignored**, so this ADR and `notebooks/lab/` are the versioned account.
-- `gates/GATE-DGF1-0.md` is **not edited** — signed and dated. Its §4 "not run" was true when signed.
+**Every external claim below carries its source verbatim, with file and line.** Three drafts were
+rejected for citing documents for propositions they do not contain; quoting in place is the
+mechanism that replaces intending to be accurate.
 
-## Draft history — why the first draft was rejected
+## Inherits, does not re-open
 
-Reviewed at `5f7f388` and rejected on four independent grounds, each verified against the repo:
+> **Reported, not gated:** official-split numbers, labelled explicitly as *random-split,
+> leaderboard-comparable*, for positioning against published baselines. They acquire no pass
+> condition and may not acquire one retroactively.
+> — `decisions/ADR-010-dgraph-snapshot-reconciliation.md:77-79`
 
-1. **It would have opened the temporal test window.** Clause 6 reused ADR-012's `**Stage-1 seeds:**`
-   line and the shared guard. `require_accepted_preregistration` authenticates nothing about *which*
-   document it is handed — it regexes `Status:` and the seed line out of any path. Measured: with the
-   status flipped to accepted, the guard returns **3**, so
-   `--mode gate --preregistration <this ADR>` would have run the temporal gate batch at 3 seeds in
-   place of ADR-012's pre-registered 8.
-2. **It named the wrong leakage discipline.** It called the transform fit "the one discipline that
-   still binds" and never constrained the **training loss mask**. A run seeding on every labelled
-   node would train directly on official test labels, produce an excellent number, and pass all six
-   tests the draft listed.
-3. **Its purpose contradicted its own prohibition.** Clause 3 justified the floor arms as making "our
-   temporal gap interpretable as a split effect rather than a model effect" — a claim about the
-   temporal gap, which its own clause 8 and ADR-010 clause 1 forbid.
-4. **It cited ADR-009 backwards.** It called ADR-009 "the ADR that exists because this programme does
-   not assume transfer". ADR-009's frame is the opposite: the frozen region *is* transferred, and it
-   fixes only *which second knob* is retuned per graph. Retuning here also adds a second difference
-   between the tracks, replacing ADR-011 clause 2's control (identical sizes and roles, "only how the
-   split is drawn differs") with a split-versus-configuration confound.
+> **Official random-split numbers come from a separate positioning batch**, not from the gate
+> batch: they require training on the official train mask, they are not part of clause 5's seed
+> counts, and they are labelled *random-split, leaderboard-comparable* wherever they appear
+> (ADR-010 clause 1). No gated number and no official-split number may share a table row.
+> — `decisions/ADR-012-dgf1-gate1-preregistration.md:128-131`
 
-Three factual errors are corrected below: the cost figure quoted the winner's runtime (9.6 min) as
-representative when the retune grid averaged **22.6 min** and totalled **4.1 h**; the claim that
-`assemble_gate_dgf1_1.py` could absorb an official row is **false** (`load_gate_rows` raises on any
-test-window row not tagged `gate`, and demands exactly seeds 0–7, clean, deterministic,
-single-commit); and `split` was proposed as a row field although it is already a hashed config key
-holding the temporal window block.
+ROC-AUC + AUPRC together, each AUPRC with its prevalence and positive count (**ADR-007**); the
+frozen architecture (**ADR-003**) under **ADR-009**'s transfer rule.
 
-## Disclosure — what had been seen when this was written
+## Draft history
 
-- **The official masks' label statistics are already on record**, in ADR-010 Finding 1 and ADR-011
-  clause 2's table: per-mask sizes, fraud counts and prevalences, including the test mask, computed
-  for ADR-010's split-verification task. This protocol is therefore **not** pre-registered against an
-  unseen mask, and the first draft's "those figures come from the run; none is stated here" implied a
-  freshness that does not exist. No figure is restated here, and none was recomputed for this draft.
-- **No model has been run on any official mask.** The masks are loaded
-  (`adapters/dgf1/datasource_dgraph.py:140–143`) and consumed nowhere in `adapters/`, `gbe/`,
-  `scripts/` or `tests/`. No registry row carries an official-split result.
-- **Temporal test-window figures have been seen**, from the signed `gates/GATE-DGF1-1.md`.
+Three rejections, all for the same class of fault. Draft 1 (`5f7f388`) reused ADR-012's
+`**Stage-1 seeds:**` line, so accepting it would have opened the temporal test window at 3 seeds,
+and justified its arms by a temporal-gap claim its own clause forbade. Draft 2 (`30fbf92`) relocated
+that forbidden argument into another clause, asserted the leaderboard's protocol while elsewhere
+calling it unverified, and claimed "gate assemblers are unaffected" having checked one of two.
+Draft 3 claimed to be written "verify-first" and was not: it stated the official masks were
+"consumed nowhere" (two scripts read them under unprefixed names), mis-stated ADR-011 clause 3's
+recency rule, and claimed 3 seeds was "below every count this programme has used with variance"
+when `gates/GATE-ELL1-1.md:42` reports `0.6790 ± 0.0306` at n=3.
 
-## Context
+**The meta-error worth recording:** draft 3's failure was a false claim about my own process. I
+greped this ADR's vocabulary (`official_*`) rather than the code's (`data.train_mask`), and
+summarised four citations from memory while believing I had read them. Verbatim quotation above is
+the structural fix; it is not a promise to be more careful.
 
-**Fixed already, and not re-decided.** ADR-010 clause 1 established the official split is a random
-node mask, so it cannot carry DGF-1's structural claim; its numbers are reported for positioning,
-labelled *random-split, leaderboard-comparable*, and "may not acquire a pass condition
-retroactively". ADR-012 added that they come from a separate batch. doc-02 §5 carries the template.
+## Disclosure
 
-**Not fixed, and why this ADR exists.** Every accepted document governs how the number is *reported*;
-none governs how it is *produced*. DGF-1's trainer is built entirely on `TemporalSplit` — `train_dgf1`
-filters edges via `graph_view(data, split.train_max)` and takes seeds from `train_seed_mask`, and
-`score_view` takes targets from `window_target_mask`. A random node mask has no cutoff and no window.
+- **No model has been trained or scored on any official mask, and no registry row carries an
+  official-split result.** The masks are attached at
+  `adapters/dgf1/datasource_dgraph.py:140-143` and no trainer or scorer reads them.
+- **Two scripts do read them**, which draft 3 wrongly denied:
+  `scripts/measure_dgf1_temporal_split.py:108-110` (`_window("o.trn", data.train_mask, y)`, `o.val`,
+  `o.tst` — per-mask fraud counts and prevalences) and
+  `scripts/verify_dgraph_snapshot.py:179-193` (sizes and node-time quartiles). They read the raw PyG
+  attributes, which are unprefixed.
+- **The per-mask fraud counts and prevalences are therefore already on record**, in ADR-011 clause
+  2's table, produced by `measure_dgf1_temporal_split.py` for **ADR-011's** window-derivation task.
+  ADR-010 Finding 1's table carries sizes and node-time quartiles only. This protocol is **not**
+  pre-registered against an unseen mask. No figure is restated here and none was recomputed.
 
 ## Decision
 
-### Clause 1 — What is produced, and what it may never become
+### Clause 1 — The protocol
 
-- **One positioning batch**, separate from every gate batch (ADR-012), producing on
-  `official_test_mask`: **ROC-AUC and AUPRC** (ADR-007) per arm, at clause 5's seed count, reported as
-  **mean ± SE over seeds**, each AUPRC with the mask's prevalence and positive count.
-- **Reported, never gated.** No pass condition now or retroactively. These numbers may never appear in
-  a `GATE-*` decision table, never be cited for or against the structural claim, and never share a
-  table row with a gated number.
-- **The claim available is narrow, and narrower than the first draft implied.** Clause 3's arms
-  contain **no fraud GNN**, so this batch cannot by itself support doc-02 §5's "competitive with
-  strong fraud GNNs". What it supports is: *DGF-1's ROC-AUC and AUPRC on the official random split,
-  beside its own tabular floors on that same split, for positioning.*
-- **Published leaderboard numbers may be quoted beside it, never differenced against it**, and only
-  with source and access date, labelled as **unverified third-party figures under a protocol this
-  programme has not reproduced** (ADR-007's original reason for demoting the comparison). No
-  arithmetic may combine one of ours with one of theirs.
+- **Transductive, by choice.** The whole graph and every edge is visible in training. This does
+  **not** follow from the split — a random node mask permits an inductive protocol that hides edges
+  incident to held-out nodes. It is chosen because the mask supplies no principled edge-exclusion
+  rule, and the cost is stated: the number is not an inductive one and may not be described as such.
+  This ADR asserts nothing about any third party's protocol.
+- **The leakage invariant**, replacing the temporal assertions, which are inapplicable here:
 
-### Clause 2 — The training protocol, its departure, and the invariant that replaces the temporal one
+  > **No label of an `official_val_mask` or `official_test_mask` node may enter any fitted
+  > quantity.** Training seeds are exactly the labelled nodes of `official_train_mask`.
 
-- **Transductive by construction.** The split is a random node mask, so the whole graph and every edge
-  is visible; there is no cutoff to filter on. That is what the leaderboard's protocol implies, and it
-  is the only way the number is comparable to it.
-- **This departs from CLAUDE.md's "temporal splits only", and is named as one.** It is confined to
-  this reported track under ADR-010 clause 1's two-track design. No gated number is produced this way,
-  and **no temporal leakage test is weakened**: the temporal assertions are inapplicable here, not
-  relaxed.
-- **The replacement invariant, which is what CLAUDE.md's DataSource rule becomes on this split:**
+  **It binds both arms.** For the GNN that is the loss and the class weights
+  (`gbe/gnn/train.py:149`, `balanced_class_weights(y, train_seed_mask, …)`); for the floor it is
+  ADR-012 clause 2's `scale_pos_weight = n_negative / n_positive`, which must be computed on
+  training rows only. Node *features* may aggregate over neighbours in any mask — that is what
+  transductive means. Only labels are withheld. No feature may be label-derived.
+- **The input transform is fitted on `official_train_mask` nodes only**, for both arms.
+- **Recency.** ADR-011 clause 3 says:
 
-  > **No tensor entering the loss may be indexed by an `official_val_mask` or `official_test_mask`
-  > node.** Training seeds are exactly the labelled nodes of `official_train_mask`.
+  > **Recency is measured from the view's own cutoff** (369 when training; the window's last step
+  > when scoring), never from step 821. Measuring from 821 would bake the dataset's end date into
+  > every training feature.
+  > — `decisions/ADR-011-dgf1-temporal-split-derivation.md:241-243`
 
-  This is the discipline the first draft omitted, and it is the one that matters: node *features* may
-  legitimately aggregate over neighbours in other masks (that is what transductive means, and what the
-  published baselines do), but no held-out **label** may reach the objective.
-- **The input transform is fitted on `official_train_mask` nodes only.** Node statistics come from the
-  full graph, which is inherent here; the standardiser has no such excuse.
-- **Recency is measured from step 821**, the full graph's last step, because that is this view's own
-  cutoff. ADR-011 clause 3 forbids measuring recency from 821 *for a temporal view*, since it would
-  bake the dataset's end date into a training feature; here there is no earlier cutoff to measure
-  from, so the feature means something different than it does on the temporal track. **Stated so the
-  two are never read as the same feature.**
-- **`reverse_edges` stays on** (the default, and part of the hashed provenance), so the official run
-  trains on the full 4.3M edges doubled — strictly more expensive than the ≤369 subgraph.
-- **Scoring** uses exact neighbourhoods (`num_neighbors = [-1] * layers`), as the gated path does.
+  The prohibition is on the **training** view. This batch's training view is the full graph, whose
+  own cutoff is 821, so measuring from 821 here is the training case clause 3 warns about and is
+  accepted as a consequence of a transductive protocol — stated, not hidden. At **scoring** time
+  clause 3 already requires the window's last step, which for the temporal test window is also 821,
+  so the two tracks' scoring features do not differ on this account. Draft 3 claimed the opposite.
+- **Hyperparameters, pinned literally here** rather than by reference, because
+  `adapters/dgf1/config.yaml:43,48` carries ADR-003's `lr: 0.0006636671097096978` and
+  `batch_size: 1024`, **not** ADR-012's winners:
+  - GNN: `lr = 3.318335548548489e-4`, `batch_size = 2048`
+    (`decisions/ADR-012-...:210-211`), `epochs = 40`, `reverse_edges: true`
+    (`adapters/dgf1/config.yaml:47,23`).
+  - Floor: `max_depth = 8, subsample = 0.8` (`decisions/ADR-012-...:165`), with ADR-012 clause 2's
+    other fixed parameters unchanged.
+- **No runtime escape valve is pre-registered.** If a run proves infeasible the batch is postponed,
+  never shortened.
+- **Scoring** uses exact neighbourhoods (`num_neighbors = [-1] * layers`, `train_gnn.py:127`).
 - **The code path lives in `adapters/dgf1/`.** Nothing about official masks enters `gbe/`.
 
-### Clause 3 — The arms, and why the floors are here
+### Clause 2 — Arms, and why hyperparameters are not retuned
 
-Three arms:
+- **Three arms:** DGF-1 (GraphSAGE, ADR-003's frozen architecture) on parity inputs; XGBoost on the
+  same parity inputs; XGBoost on the raw 17. Parity inputs are the raw 17 plus the 11-wide edge-type
+  histogram (its row sum is the degree) and the two recency columns.
+- **What obliges each arm.** The floors:
 
-1. **DGF-1** — GraphSAGE, ADR-003's frozen architecture unchanged, on parity inputs: the raw 17
-   features plus the view-derived statistics (the 11-wide edge-type histogram, whose row sum *is* the
-   degree, and the two recency columns — 30 columns in all), computed from the full graph.
-2. **XGBoost, parity features** — the same inputs.
-3. **XGBoost, raw 17 features.**
+  > Stand up baselines (§5) on **both** splits; log **ROC-AUC and AUPRC** for each, labelled by split
+  > — `docs/02-dgraph-fin-embedding-model-BUILD.md:126`
 
-**Why the floors are in this batch, stated without reference to the temporal gap:** doc-02 §4 Phase 0
-requires baselines "on **both** splits", and §5's template has a row for each. That obligation is the
-justification. The first draft instead argued the floors make the temporal gap interpretable as a
-split effect, which is a claim about the temporal gap and is forbidden by clause 8 — the arms stay,
-the argument for them does not.
+  The DGF-1 arm, which that line does **not** cover:
 
-### Clause 4 — Hyperparameters are ADR-012's winner, carried over and disclosed
+  > Comparators are graph + tabular methods, judged by **ROC-AUC and AUPRC** on **both splits,
+  > reported separately** — `docs/02-dgraph-fin-embedding-model-BUILD.md:190`
 
-- **The GNN uses ADR-012 clause 3's winner** (`lr` 0.5×, `batch_size` 2048); the floor uses ADR-012
-  clause 2's winner. Neither is retuned on the official masks.
-- **Why, and it reverses the first draft.** ADR-011 clause 2 built the temporal split so that sizes and
-  roles match the official masks and "only how the split is drawn differs". Retuning here would add a
-  second difference, so any gap between the tracks would confound split with configuration. Carrying
-  the configuration over preserves the one-variable design.
-- **It is a transfer, and is disclosed as one.** A configuration selected on temporal validation may be
-  suboptimal on a random split, so DGF-1's official number may understate what a split-specific tune
-  would reach. **Every report of this batch says so.** The batch is positioning, not a best-effort
-  leaderboard entry, and it is not presented as one.
-- **This does not invoke ADR-009**, which governs *which second knob* is retuned per graph, not
-  transfer across splits of one graph. The first draft cited it backwards.
-- **If a split-specific tune is ever wanted**, it is its own experiment with its own ADR, and its cost
-  is stated in advance: the temporal GNN retune grid took **4.1 h** (11 rows, mean 22.6 min, max 34.3),
-  and the official grid would be slower, since it trains on the full graph.
+  > **3. The official-split positioning numbers are owed.** No DGF-1 row exists on the official
+  > — `gates/GATE-DGF1-0.md:151`
 
-### Clause 5 — Seeds: 5, the floor ADR-007 already fixed
+  No argument about the temporal gap is made or relied on anywhere in this ADR.
+- **Hyperparameters are ADR-012's winners, not retuned**, for one reason that references no
+  comparison: retuning costs at least the temporal grid's **4.1 h** (11 rows, mean 22.6 min, max
+  34.3, from `experiments/registry.csv`) for a number that can never acquire a pass condition. The
+  programme's transfer rule (ADR-009, superseding ADR-003's transfer clause) already carries a
+  frozen region across models and graphs; carrying two knobs across splits of one graph is a smaller
+  step. **It is a transfer, and may understate what a split-specific tune would reach.**
+- **Seeds: 5**, reported as **mean ± sample standard deviation (`ddof=1`)** — ADR-006's convention,
+  used by both DGF-1 assemblers.
+  - **ADR-007's "hard floor of 5 per arm" is gate-scoped** and is **not** authority here:
 
-- **5 seeds per arm**, reported as mean ± SE.
-- **ADR-007 fixes "a hard floor of 5 per arm" for DGF-1**, and that floor is not scoped to gates. The
-  first draft argued 3 without naming it.
-- **ELL-1 is the precedent ADR-007 cites:** 3 seeds gave ±0.031 where 8 gave ±0.070. A 3-seed band
-  understated the spread by more than half on this programme's own arm, so "3 with variance" would
-  have reported a variance already measured to be wrong.
-- **Not 8:** 8 was derived by ADR-012 clause 5 to power a resolvable gate clause. Nothing here
-  resolves, so there is no effect size to power for.
-- **The floor arms take 5 seeds too.** ADR-012's floor winner subsamples (`subsample = 0.8`), so its
-  rows are not identical and its spread must be measured rather than assumed.
+    > **Scope:** DGF-1's binary-classification gates — **Gate 1** (structure vs the tabular floor) and
+    > **Gate 3** (defending ablations). — `decisions/ADR-007-dgf1-gate-metric.md:104-105`
+  - 5 is the count both validation pilots used. The argument against 3 is measurement, not
+    precedent-by-assertion: `gates/GATE-ELL1-1.md:42` reports `0.6790 ± 0.0306` at n=3 and
+    `gates/GATE-ELL1-3.md:51` reports `0.6629 ± 0.0702` at n=8 on the same arm — a 3-seed band
+    understated the 8-seed band by more than half.
+  - Not 8: 8 was derived to power a resolvable gate clause, and nothing here resolves.
 
-### Clause 6 — The held-out mask, and a guard that cannot be borrowed
+### Clause 3 — What may be claimed
 
-- **`official_test_mask` is a held-out eval set** (CLAUDE.md). It is scored **once**, after clause 4
-  and clause 5 are fixed and recorded. Every selection decision uses `official_val_mask` only.
-- **This document carries no `**Stage-1 seeds:**` line, deliberately.** Its count is on a differently
-  named line, so `scripts/preregistration.py`'s existing regex cannot parse this ADR even when it is
-  accepted — which closes the first draft's temporal-window unlock without waiting for a code change.
-- **The shared guard must bind document identity, and that is a deliverable of this ADR.**
-  `require_accepted_preregistration` currently accepts any path whose text matches two regexes. It
-  must take the batch kind it is authorising and refuse a document that does not declare the same
-  kind, with a test. Until that lands, the naming above is the whole defence, and it is recorded as
-  such rather than presented as sufficient.
-- **The official runner is a separate entry point** with its own guard reading this ADR's own line. It
-  cannot select a temporal window; the temporal runners cannot select a mask.
+- **The claim available:** *DGF-1's ROC-AUC and AUPRC on the official random split, beside its own
+  tabular floors on that same split.* It carries **no gated claim** and can never acquire one.
+- **Every appearance is labelled *random-split, leaderboard-comparable*** (ADR-010 clause 1,
+  ADR-012, both quoted above).
+- **Published leaderboard numbers may be quoted for context**, with source and access date, labelled
+  as figures this programme has not reproduced. They may not be differenced against ours, and no
+  ranking claim may rest on them.
+- **Two disclosed weaknesses, reported together wherever this batch is cited:** the configuration is
+  transferred from the temporal track rather than tuned for this split; and `official_val_mask` is
+  used for nothing — there is no retuning, no early stopping (`train_dgf1` passes no `on_epoch` hook;
+  `adapters/dgf1/train_gnn.py:80-81`, `gbe/gnn/train.py:126,162`) and no model selection, so the
+  **labels** of ~15% of labelled nodes go unused. Those nodes still participate as structure and
+  features.
+- **The official and temporal numbers are never differenced, ranked, or explained against each
+  other**, in either direction and whichever is larger. Draft 3 said "not a promotion either" and
+  then explained the case, which is the explanation this rule forbids.
+- **Never** to support or undermine "structure beats features at scale" or any claim about the
+  temporal gap; never as a comparator for Gate 3; never to revisit Gate 1; never in a cross-split
+  AUPRC comparison (the masks differ in prevalence; ADR-007 forbids it).
+
+### Clause 4 — How official rows are distinguishable
+
+- **Row identity:** `arm ∈ {official-dgf1-parity, official-xgboost-parity, official-xgboost-raw17}`,
+  `experiment = "official"`, `window = "official-test"`, `phase = "P0"`, and the base config's
+  `split` value becomes `"official-random-mask"` in place of the temporal block
+  `dgf1_base_config()` returns — so no official row asserts a split it did not apply.
+- **These cannot be set through `base_cfg`.** Both entry points write `arm` and `window` *after*
+  `**base_cfg`, so anything passed in is overwritten:
+  - `adapters/dgf1/train_gnn.py:166-168` — `{**base_cfg, …, "window": …, "arm": f"dgf1-{feature_set}"}`
+  - `adapters/dgf1/baselines_tabular.py:219-224` — `{**base_cfg, …, "window": window, "arm": f"{model}-{feature_set}"}`
+
+  So the official path needs its own config builder for **both** arms, not one GNN-shaped path.
+- **Checked against every consumer of `arm` and `experiment`:**
+  - `assemble_gate_dgf1_1.py:83` filters `window == "482-821"` first, then `:86-87` matches the three
+    gate arms by equality — official rows are invisible to it.
+  - `assemble_gate_dgf1_0.py:206` is `m(r)["arm"].startswith("xgboost")`, which the `official-`
+    prefix does not match. That is why the prefix leads.
+  - **But it is not unaffected.** `:219` counts `ERRORED` across all DGF-1 rows, `:221` counts rows
+    whose window is neither temporal window, and `:222` tabulates every `(experiment, arm, window)`.
+    Official rows would appear in all three — under a heading reading "The official (random) split —
+    not run". Today the only thing preventing that is `refuse_to_overwrite_a_signed_gate()`
+    (`:97-104`), which is a verdict guard, not a filter.
+  - **Therefore:** any future Gate-0-style assembly must filter `experiment != "official"` at `:206`,
+    `:219`, `:221` and `:222`. Recorded here rather than assumed.
+
+### Clause 5 — The held-out mask, and the guard
+
+- **`official_test_mask` is a held-out eval set** (CLAUDE.md). It is scored **once**, after this ADR
+  is accepted. The `experiment = "official"` tag is what makes a second batch visible in an
+  append-only registry.
+- **Interruption is the documented failure mode here, not a bug:**
+
+  > Two retune batches were stopped by the Claude Code harness for low host memory and wrote
+  > no rows — `gates/GATE-DGF1-0.md:146-147`
+
+  **If the batch is interrupted**, the completed rows stand, the remaining seeds are run at the same
+  commit to finish the batch, and the interruption is recorded in `notebooks/lab/`. **If a bug forces
+  a re-run**, the whole batch re-runs and both sets of rows are cited. Neither is a re-score chosen
+  after seeing a result.
+- **The official runner is a separate entry point** reading this ADR's `**Positioning seeds:**` line.
+  It cannot select a temporal window; the temporal runners cannot select a mask.
+- **The shared guard must bind document identity — a deliverable with an ordering condition.**
+  `require_accepted_preregistration` checks `^\*\*Status:\*\*` and `^\*\*Stage-1 seeds:\*\*` on any
+  path handed to it and binds no identity. **This fix lands before Gate 3's pre-registration ADR is
+  accepted**, because that document will carry its own `Stage-1 seeds:` line and would otherwise open
+  the **Gate-1** test window at Gate 3's count. **Nothing enforces that ordering today** — it is a
+  procedural commitment, and clause 6 test 4 pins only the half that is already true.
 - **A dirty tree is refused**, as for every batch.
 
-### Clause 7 — Tests, written in the implementation session
+### Clause 6 — Tests and audit, written in the implementation session
 
-1. **The loss never sees a held-out label.** With a synthetic fixture, every node contributing to the
-   objective is in `official_train_mask`. **Mutation:** seeding on all labelled nodes must fail this
-   test. This is clause 2's invariant and the first draft's omission.
-2. **The transform is fitted on `official_train_mask` nodes only.** Mutation: fitting on all labelled
-   nodes must fail — the shape of check that caught the frozen-transform hole in lab Session 25.
-3. **The two paths cannot be confused**, concretely: the official trainer's edge set equals the full
-   edge set (no cutoff applied), and the temporal entry points raise if handed an official mask.
-4. **Official rows are unmistakable in the registry, by a mechanism that already exists.** They carry
-   `arm ∈ {dgf1-official-parity, xgboost-official-parity, xgboost-official-raw17}` and
-   `window = "official-test"`. Both keys already reach `metrics_json` through `PROVENANCE_KEYS`, so
-   **no new channel, no change to `dgf1_base_config()`, and no change to `PROVENANCE_KEYS`** — and
-   therefore no change to any config hash and no effect on ADR-013 clause 3's re-certification. The
-   first draft proposed a `split` field, which collides with an existing hashed config key and would
-   not have reached a row at all.
-5. **Gate assemblers are unaffected, and a test pins that.** `assemble_gate_dgf1_1.py` already refuses
-   any test-window row not tagged `gate` and requires exact arm names and seeds 0–7; the distinct arm
-   names above cannot match. The test records the property rather than fixing a hole — the first
-   draft claimed a vulnerability that does not exist.
-6. **Scored ids align to `official_test_mask`**, the id-alignment property the gated path tests.
+1. **No held-out label enters any fitted quantity**, for **both** arms — the GNN's loss and class
+   weights, and the floor's `scale_pos_weight`. Mutation: computing either over all labelled nodes
+   must fail it.
+2. **The transform is fitted on `official_train_mask` nodes only**, both arms. Mutation: fitting on
+   all labelled nodes must fail it.
+3. **The two paths cannot be confused:** the official trainer applies no cutoff (its edge set equals
+   the full edge set), and the temporal entry points raise if handed an official mask.
+4. **The guard refuses this ADR** even with the status set to accepted.
+5. **Row identity** is as clause 4 fixes it, with no gate arm name.
+6. **Scored ids align to `official_test_mask`.**
+7. **A snapshot audit in a script, not pytest** — ADR-011 clause 5's pattern
+   (`decisions/ADR-011-...:347`, "**Snapshot audit, in a script, not pytest**"). On the real snapshot:
+   the three official masks are boolean, disjoint, and together exactly the labelled set. Tests 1–6
+   run on fixtures whose masks the author constructs and cannot catch a real-snapshot overlap.
+8. **The gated path is byte-identical after this work.** `scripts/run_dgf1_gnn.py --mode repro-check`
+   is re-run after implementation and must still reproduce
+   `dgf1-20260913T232506Z-1acd5067`. ADR-013 clause 3 blocks later runs until the check passes, and
+   clause 4's shared config builders sit close enough to the gated path that "additive" must be
+   demonstrated rather than asserted.
 
-### Clause 8 — What this batch may never be used for
+## Docs affected — to apply on acceptance
 
-- To support or undermine **"structure beats features at scale"**, or any claim about the temporal
-  gap. A random split cannot evidence a temporal claim (ADR-010).
-- As a **comparator for Gate 3's ablations**, which run on the temporal split.
-- To **revisit Gate 1**, which is signed and dated.
-- As a **fallback** if a temporal number disappoints, and equally **not as a promotion** if the
-  official number is the better one. If official beats temporal, that is a property of random versus
-  temporal evaluation and is reported as such — it is not evidence that DGF-1 is better than the gate
-  found, and doc-02 §2.3's warning about mixing the two applies in both directions.
-- In any **cross-split AUPRC comparison**. The masks differ in prevalence, and ADR-007 forbids
-  comparing AUPRC across windows of differing prevalence.
+- **doc-02 §5 line 220**, the story sentence, currently:
+
+  > …is competitive with strong fraud GNNs on the official random split (reported, not gated)…
+
+  This batch has no fraud-GNN arm, so it cannot discharge that claim — but the claim is doc-02's
+  target for §5 as a whole, and its evidence is the GCN/GAT/GTAN rows §5's template still marks
+  "_your run_". **It is therefore not deleted**; it gains a marker that it remains **owed** and is
+  not supported by this batch. Replacement wording is the researcher's.
+- **doc-02 §5's reporting template** (lines 203-213): one row per model, four columns
+  (`Test ROC-AUC | Test AUPRC | Val ROC-AUC | Val AUPRC`), **no split dimension** — so as it stands
+  it cannot satisfy ADR-012's no-shared-row rule or ADR-010 clause 1's "Every reported number states
+  **which split produced it**". It gains a split column or a second table.
+- **CLAUDE.md**'s *Leakage discipline* first bullet ("**Temporal splits only**") is **amended**, not
+  supplemented, to record this non-temporal exception under ADR-010 clause 1; its *Integrity of
+  results* held-out rule gains clause 5's once-only scoring. **`CLAUDE.md` and `docs/` are
+  gitignored**, so this ADR and `notebooks/lab/` are the versioned account.
+- `gates/GATE-DGF1-0.md` is **not edited** — signed and dated.
 
 ## Alternatives rejected
 
-- **Retune on the official validation masks** (the first draft's clause 4). Rejected: it adds a second
-  difference between the tracks and destroys ADR-011 clause 2's one-variable control, for ~4.1 h of
-  compute on a number that carries no claim. The transfer is instead disclosed.
-- **3 seeds** (the first draft's clause 5). Rejected: below ADR-007's hard floor of 5, and the
-  variance it would report is the one ELL-1 measured to be understated.
-- **Reuse ADR-012's `Stage-1 seeds:` line and the shared guard.** Rejected: it opens the temporal test
-  window at this document's seed count.
-- **Gate on the official split for comparability.** Rejected by ADR-010 clause 1, not reopened.
-- **Skip the official split.** Rejected: doc-02 Phase 0 and §8 step 3 require it, ADR-010 rejected
-  dropping it, and `gates/GATE-DGF1-0.md` §4 records it as owed.
-- **Put the mask path in `gbe/`.** Rejected: official masks are a DGraph artifact; `gbe/` takes only
-  what all four GBE models implement identically.
-- **Reuse `TemporalSplit` with sentinel values** to force the existing trainer through the masks.
-  Rejected: it would make a temporal-looking object that is not temporal.
-- **A `split` column on every row.** Rejected: `split` is already a hashed config key, and `base_cfg`
-  keys reach `metrics_json` only via `PROVENANCE_KEYS`. Arm naming achieves the same end with no hash
-  change.
+- **Retune on the official masks** (draft 1): ≥4.1 h for a number that can never acquire a claim.
+- **3 seeds** (draft 1): the ELL-1 measurement above.
+- **Reuse ADR-012's `Stage-1 seeds:` line** (draft 1): it opens the temporal test window.
+- **A `split` row field** (draft 1): `split` is already a hashed config key holding the temporal block.
+- **An inductive official protocol.** Rejected: no principled edge-exclusion rule follows from a
+  random node mask, and inventing one would make the number comparable to nothing.
+- **Gate on the official split.** Rejected by ADR-010 clause 1, not reopened.
+- **Skip it.** Rejected: doc-02:190 and `gates/GATE-DGF1-0.md:151` above.
+- **Put the mask path in `gbe/`.** Rejected: a DGraph artifact; `gbe/` takes only what all four
+  models implement identically.
 
 ## Consequences
 
-- **A second training path in `adapters/dgf1/`,** additive, with its own tests in the same session
-  (CLAUDE.md). The gated path is untouched, so ADR-013 clause 3's re-certification stands — and
-  clause 7 item 4 is what keeps that true.
-- **Cost, honestly:** no retune grid. 5 seeds × 3 arms, the GNN arm dominating. Training on the full
-  graph with reverse edges is more expensive per run than the temporal ≤369 subgraph, so the per-run
-  figure will exceed the temporal winner's 9.6 min; the batch runs in the researcher's own terminal.
-- **The transductive departure is on the record** in a versioned document, rather than being an
-  unexamined consequence of running a random-split benchmark.
-- **The positioning claim is weaker than the leaderboard's framing invites**, and now doubly so: the
-  configuration is transferred rather than tuned for this split, and no fraud GNN is in the batch.
-- **`gates/GATE-DGF1-0.md` §4's "not run" becomes historically true rather than currently true.** The
-  gate file is not edited.
+- **A second config builder and training path for both arms** in `adapters/dgf1/`, with its own
+  tests. Clause 6 test 8 is what keeps "the gated path is untouched" a demonstrated claim.
+- **Cost:** no retune grid; 5 seeds × 3 arms. Training on the full graph with reverse edges is more
+  expensive per run than the temporal ≤369 subgraph, so the per-run figure will exceed the temporal
+  winner's 9.7 min. The batch runs in the researcher's own terminal.
+- **The non-temporal departure is recorded in the constitution**, not left implicit in a script.
+- **The positioning claim is weak by construction** — transferred configuration, unused validation
+  labels, no fraud-GNN comparator, transductive by choice — and every citation of it says so.
 
 ## Revisit when
 
-- **The shared guard binds document identity.** Clause 6's naming defence is then belt-and-braces
-  rather than the whole mechanism.
-- **A split-specific tune is wanted.** Its own ADR, with the 4.1 h cost stated in advance.
-- **The official leaderboard adopts a temporal split.** ADR-010's *Revisit when* anticipates this; the
-  two tracks would converge and this ADR's separation would need rethinking.
-- **Never, to attach a pass condition** to any number this batch produces, or to move an official-split
-  figure into a gate table.
+- **The shared guard binds document identity** — required before Gate 3's ADR is accepted.
+- **A split-specific tune is wanted.** Its own ADR, with the ≥4.1 h cost stated in advance.
+- **The official leaderboard adopts a temporal split** (ADR-010's *Revisit when* anticipates this).
+- **Never, to attach a pass condition** to any number this batch produces, or to move an
+  official-split figure into a gate table.

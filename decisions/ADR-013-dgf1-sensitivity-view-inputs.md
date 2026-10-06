@@ -296,7 +296,9 @@ exist get read.
 > bit-for-bit bar and says nothing about the stack it is measured on — and is being decided in its own
 > document (`decisions/ADR-014-dgf1-repro-check-environment.md`). **Clause 3 above is unchanged, and
 > until ADR-014 is accepted the environment is not part of this clause's bar.** No run was performed
-> under the withdrawn text: the registry holds no `repro_check` row.
+> under the withdrawn text. *(Corrected 2026-09-15: this note first said the registry holds no
+> `repro_check` row. The re-certification has since run — `dgf1-20260915T151348Z-0d390b65`, PASSED
+> — so one now exists. It was produced under clause 3 as accepted, not under the withdrawn text.)*
 
 ### Clause 4 — The deviation from pre-registration is recorded
 
