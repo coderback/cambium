@@ -44,6 +44,24 @@ def test_cublas_workspace_config_is_set_at_import():
     )
 
 
+def test_importing_seeding_alone_sets_cublas_workspace_config():
+    """The test above runs in this process, where an earlier `seed_everything` call (another test,
+    or conftest) may already have set the variable, so it passes even if the line moves into
+    `seed_everything`. The audit of 2026-10-07 found exactly that (A2 M3). A fresh interpreter,
+    started with the variable unset, imports the module and calls nothing."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    env = {k: v for k, v in os.environ.items() if k != "CUBLAS_WORKSPACE_CONFIG"}
+    code = "import os, gbe.run.seeding; print(os.environ.get('CUBLAS_WORKSPACE_CONFIG', ''))"
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True,
+                         cwd=Path(__file__).resolve().parents[1], check=True)
+    assert out.stdout.strip() == ":4096:8", (
+        f"importing gbe.run.seeding did not set CUBLAS_WORKSPACE_CONFIG (got {out.stdout.strip()!r})"
+    )
+
+
 def test_determinism_can_be_opted_out_explicitly():
     """Exploration may trade reproducibility for throughput — but only on purpose."""
     seed_everything(0, deterministic=False)
