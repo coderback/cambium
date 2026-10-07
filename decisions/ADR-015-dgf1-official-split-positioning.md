@@ -1,9 +1,9 @@
 # ADR-015 — DGF-1's official-split positioning batch
 
 **Status:** proposed
-**Date:** first proposed 2026-09-15 · **thirteenth draft 2026-10-07**, replacing `5f7f388`,
+**Date:** first proposed 2026-09-15 · **fourteenth draft 2026-10-07**, replacing `5f7f388`,
 `30fbf92`, an uncommitted third, `8296f4b`, `f769880`, `a029413`, `3b58edc`, `a01d865`, `e9c3ea7`,
-`b98fac3`, `d86b55e` and `6f7ccef`. See *Draft history*.
+`b98fac3`, `d86b55e`, `6f7ccef` and `55e537d`. See *Draft history*.
 **Deciders:** coderback
 **Positioning seeds:** 5
 **Opens no gated window.** This document carries no `Stage-1 seeds:` line, so the shared guard's seed
@@ -57,7 +57,7 @@ fallback to 20 epochs (`ADR-012:200-206`); see clause 2.
 
 ## Draft history
 
-Twelve drafts were rejected.
+Thirteen drafts were rejected.
 
 - **Drafts 1–3** (`5f7f388`, `30fbf92`, uncommitted) cited sources for propositions they do not
   contain.
@@ -135,8 +135,33 @@ Twelve drafts were rejected.
   - the session-exit re-read came after the result was saved and pinned;
   - the new print rule had no test.
 
-  Draft 13 stops the batch in that case, scopes the "stands" sentence to resolutions, moves the
-  re-read before the comparison, and adds the missing mutations.
+  Draft 13 stopped the batch in that case, scoped the "stands" sentence to resolutions, moved the
+  re-read before the comparison, and added mutations to tests 5 and 12. It added none to test 6,
+  which is supplied in draft 14.
+- **Draft 13** (`55e537d`) was reviewed on its diff. **Its blocking finding was a principle, not a
+  mechanism.** Its new stop rules could withhold results already seen:
+  - each positioning seed's metrics are visible as it runs, and a stopped batch produced no report;
+  - the author controls two of the triggers, by resuming updates or by setting a variable outside
+    the hashed families.
+
+  That offers no second draw, but it does let a choice follow from seeing a result, which is what
+  clause 5 exists to prevent. The review also found:
+  - a stop that was adjudicated ("found") rather than mechanical;
+  - a lapse that ended the batch even before anything was scored;
+  - session reads compared only with themselves, never with the pinned identity;
+  - a post-scoring re-read that certify cannot perform;
+  - a test fixture that could not catch the ordering error.
+
+  Draft 14 fixes these. A stop withholds nothing, the stop condition is mechanical, and a lapse
+  before the first official score pins nothing.
+
+**How this review ends.** The researcher set this rule on 2026-10-07:
+- **When a diff pass finds nothing blocking,** its should-fix items and nits are folded in without
+  another round, and the ADR goes to the researcher's accept-or-reject decision.
+- **When it finds something blocking,** that finding is fixed and the diff pass is repeated.
+- **What is left after that is implementation detail:** read points, fixtures, certify's
+  mechanics. Clause 7's mutation tests and the implementation's code review check those
+  mechanically, which prose review cannot.
 
 `becb85c`, committed after draft 2, re-added draft 1's text as a stray root file `xaa`. It was removed
 at `54b8367`.
@@ -277,7 +302,9 @@ at `54b8367`.
 
     The official grids train over the whole graph; their cost has not been measured and is not
     predicted. **There is no runtime escape valve and no epoch fallback.** If a run proves
-    infeasible on the pinned machine, the batch is postponed with no end date, never shortened.
+    infeasible on the pinned machine before the batch's first official score, the batch is
+    postponed with no end date, never shortened. After the first official score, clause 5's stop
+    rules apply, and a stop withholds nothing.
 - **Positioning seeds: 5 per arm, seeds 1 to 5 (`range(1, 6)`).** Seed 0 is excluded because, at the
   winning configuration, it would retrain exactly the model the retune selected and carry that
   selection into the band.
@@ -553,17 +580,25 @@ result per arm and seed, which every re-computation must reproduce**.
     Families are still a list. A variable outside them that changes a result is not caught by the
     identity. It is caught by Invariant 2, as a disagreement.
 
-    **Read at each session's entry, after the runner's module-level imports**, and re-read right
-    after scoring, before the in-memory comparison (clause 4). An invocation opens one session per
-    configuration or seed (`scripts/run_dgf1_gnn.py:320-322`), so every session reads.
-    - **The two reads must be equal.** A mismatch is an identity refusal: nothing is saved, nothing
-      is pinned, and no metric is computed. That catches any lazy import that sets a variable.
-      xgboost, for one, is imported inside the fit (`adapters/dgf1/baselines_tabular.py:176`).
+    **Read at each session's entry, after the runner's module-level imports.** The official runner
+    will open one session per configuration or seed, as the temporal runner does
+    (`scripts/run_dgf1_gnn.py:320-322`), so every session reads.
+    - **Every session's entry read must yield the pinned `env_identity`.** A session is compared with
+      the pinned identity, not only with itself, so a variable set during an earlier session's save
+      or metrics is caught at the next entry.
+    - **`retune` and `positioning` re-read right after scoring**, before the in-memory comparison
+      (clause 4). The two reads must be equal. A mismatch is an identity refusal: nothing is saved,
+      nothing is pinned, and no metric is computed. That catches any lazy import that sets a
+      variable. xgboost, for one, is imported inside the fit
+      (`adapters/dgf1/baselines_tabular.py:176`).
+    - **`certify` re-reads when the gated trainer returns.** That trainer computes metrics before it
+      saves (`adapters/dgf1/train_gnn.py:197` before `:201`), and certify keeps no comparison in
+      memory. A mismatch fails certification.
     - **Imports set variables inside the hashed families:**
-    - `gbe.run.seeding` sets `CUBLAS_WORKSPACE_CONFIG` with `setdefault`, keeping any value set
-      outside the process (`gbe/run/seeding.py:32`);
-    - importing `gbe.eval` loads scikit-learn, which sets `KMP_DUPLICATE_LIB_OK` and
-      `KMP_INIT_AT_FORK` (`sklearn/__init__.py:56,60`).
+      - `gbe.run.seeding` sets `CUBLAS_WORKSPACE_CONFIG` with `setdefault`, keeping any value set
+        outside the process (`gbe/run/seeding.py:32`);
+      - importing `gbe.eval` loads scikit-learn, which sets `KMP_DUPLICATE_LIB_OK` and
+        `KMP_INIT_AT_FORK` (`sklearn/__init__.py:56,60`).
 
     So the read point decides the identity. Reproduced in a fresh process, the families read as
     follows:
@@ -572,7 +607,7 @@ result per arm and seed, which every re-computation must reproduce**.
     - those two variables added, after `gbe.eval`.
 
     After `gbe.eval`, fresh-process probes found nothing further that sets a family variable:
-    - no import on the runner's path: `gbe.run`, `gbe.gnn`, `gbe.features`, the adapters'
+    - no import on the planned runner's path: `gbe.run`, `gbe.gnn`, `gbe.features`, the adapters'
       dependencies, `torch_geometric.datasets` or xgboost;
     - no CUDA initialisation;
     - no GPU matmul or `SAGEConv`;
@@ -610,12 +645,14 @@ result per arm and seed, which every re-computation must reproduce**.
     Installing a driver just before certifying would risk certification against an old driver whose
     version is recorded nowhere: the pin does not hold it (`ADR-014:71-72`).
     - **The pause has a ceiling.** Windows 11 Pro can pause updates for at most five weeks.
-      - **If the pause lapses before positioning is committed, the batch stops**, as for an
-        unrestorable environment, and the lapse is recorded in `notebooks/lab/`.
-      - **It does not resume after updates are installed.** Windows installs pending updates before
-        it allows another pause. A cumulative update may then have changed what the identity cannot
-        see.
-      - Anything further is a new ADR's question.
+      - **A lapse before the batch's first official score pins nothing.** Install the pending
+        updates, pause again, and restart at clause 8's step 5 (`certify`) at the new identity.
+        Nothing had been scored, so nothing can be chosen.
+      - **A lapse after the first official score stops the batch**, as for an unrestorable
+        environment, and the lapse is recorded in `notebooks/lab/`. The batch does not resume
+        after updates are installed: Windows installs pending updates before it allows another
+        pause, and a cumulative update may then have changed what the identity cannot see. **The
+        stop withholds nothing.** Anything further is a new ADR's question.
     - **What the identity detects:** a feature update, which changes `platform.platform()`; a
       driver change; any package change; and any change to a variable in a hashed family.
     - **What it does not detect:** a monthly cumulative update. On this machine `platform.platform()`
@@ -662,14 +699,30 @@ result per arm and seed, which every re-computation must reproduce**.
     - **A resolution never displaces the pinned result, whatever the root cause.** Only the defect
       route, on its own bar, changes the identity. Treating the pinned run itself as the defect
       would be a second draw, because its numbers have been seen.
-  - **The resolving ADR states whether its root cause bears on the pinned result.** The report
-    prints that ADR beside the key (clause 3), and every citation of that number cites it.
-  - **When a key will not reproduce, the batch stops.** If a key still does not reproduce after its
-    root cause is found, the batch stops, as for an unrestorable environment. That covers the case
-    where the pinned result is the one that is wrong, and it applies whether or not the stage is
-    complete.
-    - No per-key count is kept, and no seed is dropped: either would be a selection.
+  - **The resolving ADR states whether its root cause bears on the pinned result.** That statement is
+    procedural: the runner checks only that the ADR exists, is accepted and contains the run id. The
+    report prints that ADR beside the key (clause 3), and every citation of that number cites it.
+  - **When a key will not reproduce, the batch stops.** The condition is mechanical, worked out from
+    existing rows: **a key that has a disagreement row recorded after a resolved one has stopped the
+    batch.**
+    - The runner refuses in every mode, and the assembler refuses.
+    - No records entry clears the second disagreement. An entry that names its run id resolves
+      nothing.
+    - That covers the case where the pinned result is the one that is wrong, and it applies whether
+      or not the stage is complete.
+    - No per-key count is kept beyond what the rows already show, and no seed is dropped: either
+      would be a selection.
     - Anything further is a new ADR's question.
+- **A stop withholds nothing.** This holds for every stop this ADR names: a key that will not
+  reproduce, a lapsed pause after the first official score, an environment that cannot be restored,
+  and an infeasible run after the first official score. Every result already scored at the pinned
+  identity is reported:
+  - the registry is committed at the stop, so every scored row is on record;
+  - the lab entry that records the stop lists those results and the stop's cause;
+  - any later ADR's numbers on these arms are printed beside them.
+
+  The assembler is not changed for this. The record is the committed rows and the lab entry.
+  Stopping is never a way to leave a seen number unreported, which is this clause's principle.
   - With every factor that determines a result inside the identity, a re-run that reproduces adds
     nothing to choose from.
   - Rows at any other identity are never counted.
@@ -719,7 +772,8 @@ result per arm and seed, which every re-computation must reproduce**.
   - **No entry may cite this ADR.** ADR-015 is accepted, and after clause 8's step 9 it contains run
     ids, so citing it would satisfy every check.
     - An entry whose ADR path resolves to this file **resolves nothing**. It is ignored, not refused,
-      so a bad append-only entry never blocks for ever.
+      so a bad append-only entry never blocks for ever. It is **not ignored silently**: the runner
+      prints every ignored entry, with its reason, alongside any refusal.
     - Paths are compared by resolved path, as in clause 6, because Windows paths are
       case-insensitive.
     - This applies to all three kinds of entry.
@@ -850,9 +904,15 @@ result per arm and seed, which every re-computation must reproduce**.
      - All three modes must yield the same `env_identity`.
      - It must be the same whether `KMP_DUPLICATE_LIB_OK` and `KMP_INIT_AT_FORK` were unset or preset
        to scikit-learn's defaults.
-     - **The post-scoring re-read:** a fixture that sets a family variable mid-run is refused before
-       anything is saved or pinned and before any metric is computed. Its row is ERRORED, with no
-       disagreement keys.
+     - **The post-scoring re-read:**
+       - the fixture runs at a key that already has a pinned result;
+       - it sets a family variable mid-run, and the variable changes the result;
+       - it must be refused before anything is saved or pinned and before any metric is computed;
+       - its row is ERRORED, with no disagreement keys. A re-read placed after the comparison would
+         instead record a disagreement, so this fixture tells the two orders apart.
+     - **Each session's entry read yields the pinned `env_identity`:** a variable set during one
+       session's save is refused at the next session's entry.
+     - **`certify` re-reads when the gated trainer returns:** a mismatch fails certification.
 
    Mutations:
    - dropping `adapters/dgf1/config.yaml`;
@@ -861,7 +921,8 @@ result per arm and seed, which every re-computation must reproduce**.
      `TORCH_ALLOW_TF32_CUBLAS_OVERRIDE` must catch;
    - hashing data files rather than tensors;
    - reading the variables before `gbe.eval` is imported, which the preset-`KMP_` check must catch;
-   - deleting the post-scoring re-read, or moving it after the save;
+   - deleting the post-scoring re-read, or moving it after the comparison or the save;
+   - comparing a session's entry read only with its own re-read, not with the pinned identity;
    - logging or hashing a `*_KEY` variable's value.
 6. **The two invariants.**
    - **Pinning:**
@@ -882,7 +943,11 @@ result per arm and seed, which every re-computation must reproduce**.
        other: it can add a new disagreement row, never displace the pinned result;
      - an entry of any of the three kinds whose ADR path resolves to ADR-015, in any letter case,
        resolves nothing;
-     - a key that still disagrees after its root cause is recorded stops the batch;
+     - a key with a disagreement row recorded after a resolved one stops the batch. Every mode and
+       the assembler refuse, and a records entry naming the second row resolves nothing;
+     - ignored records entries are printed with their reason;
+     - a lapse before the first official score pins nothing, and a restart at a new identity is
+       allowed; after the first official score, a lapse stops the batch;
      - one that agrees is accepted.
    - **Atomic writes:** a crash mid-write leaves no readable file and pins nothing.
    - **Rows outside this batch** do not count. A later model's rows and directories change nothing.
@@ -895,7 +960,10 @@ result per arm and seed, which every re-computation must reproduce**.
    - recording the disagreeing hash as `scores_sha256`;
    - letting an agreeing re-run clear a disagreement;
    - accepting any accepted ADR, or a lab entry, as a disagreement's resolution;
-   - a temporary score file pinning.
+   - a temporary score file pinning;
+   - accepting a resolution of a key's second disagreement;
+   - honouring an entry whose ADR path resolves to ADR-015;
+   - ignoring an entry silently.
 7. **Certification.**
    - **The certify row:**
      - its config hash equals the reference's rebuilt with `experiment=repro_check`, so the identity
@@ -1042,6 +1110,11 @@ ADR-011 was (`ADR-011:28-29`).
   a case the full re-run already covers.
 - **Name the environment variables individually** (draft 9). Three unnamed ones were measured to
   change results. Families cover more of them, and Invariant 2 catches any that fall outside.
+- **A "stopped" mode for the assembler** (draft 13's gap). It would be machinery. A stop's record is
+  the committed rows and the lab entry, and nothing seen goes unreported.
+- **Restart after the first official score** (draft 13's lapse rule, inverted). A restart at a new
+  identity after results exist is a second draw. Before the first score, a restart costs nothing,
+  and it is allowed.
 - **Re-read the variables at session exit** (draft 12). By then the result is saved and pinned, so a
   mismatch would either change nothing or invalidate a result already seen. The re-read now comes
   before the comparison.
