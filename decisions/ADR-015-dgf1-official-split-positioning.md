@@ -1,7 +1,7 @@
 # ADR-015 — DGF-1's official-split positioning batch
 
-**Status:** proposed
-**Date:** first proposed 2026-09-15 · **fifteenth draft 2026-10-07, for the researcher's decision**.
+**Status:** accepted
+**Date:** first proposed 2026-09-15 · **accepted 2026-10-07 by coderback**, as the fifteenth draft.
 It folds the fourteenth (`7118b1a`) review's non-blocking items in, under the review's stopping
 rule. It replaces `5f7f388`, `30fbf92`, an uncommitted third, `8296f4b`, `f769880`, `a029413`,
 `3b58edc`, `a01d865`, `e9c3ea7`, `b98fac3`, `d86b55e`, `6f7ccef`, `55e537d` and `7118b1a`. See
