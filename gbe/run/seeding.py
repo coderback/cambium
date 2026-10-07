@@ -54,9 +54,15 @@ def determinism_state() -> dict[str, object]:
     ``deterministic=False`` escape hatch would be a hole in exactly the provenance this module
     exists to establish — an exploration run would be indistinguishable, after the fact, from a
     gate-grade one.
+
+    ``deterministic`` is True only for **strict** mode (ADR-005 clause 2). PyTorch reports
+    deterministic algorithms as enabled under ``warn_only=True`` too, yet that mode lets an op with
+    no deterministic kernel run anyway, with a warning, so such a run is not reproducible and is
+    recorded False.
     """
     return {
-        "deterministic": bool(torch.are_deterministic_algorithms_enabled()),
+        "deterministic": bool(torch.are_deterministic_algorithms_enabled()
+                              and not torch.is_deterministic_algorithms_warn_only_enabled()),
         "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG", ""),
     }
 

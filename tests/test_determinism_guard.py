@@ -21,10 +21,11 @@ from gbe.run.seeding import seed_everything
 
 @pytest.fixture(autouse=True)
 def _restore_determinism_flag():
-    """Leave the process as we found it — this flag is global torch state."""
+    """Leave the process as we found it — these flags are global torch state."""
     before = torch.are_deterministic_algorithms_enabled()
+    before_warn_only = torch.is_deterministic_algorithms_warn_only_enabled()
     yield
-    torch.use_deterministic_algorithms(before)
+    torch.use_deterministic_algorithms(before, warn_only=before_warn_only)
 
 
 def test_seed_everything_enables_deterministic_algorithms():
@@ -33,6 +34,14 @@ def test_seed_everything_enables_deterministic_algorithms():
         "seed_everything left deterministic algorithms off; CUDA scatter would be "
         "nondeterministic and gate numbers irreproducible (ADR-005)"
     )
+
+
+def test_seed_everything_is_strict_not_warn_only():
+    """ADR-005 clause 2. Under warn_only, PyTorch still reports deterministic algorithms as
+    enabled, so the test above passed when seed_everything switched to warn_only (audit of
+    2026-10-07, A2 M2). Warn-only lets an op with no deterministic kernel run anyway."""
+    seed_everything(0)
+    assert not torch.is_deterministic_algorithms_warn_only_enabled()
 
 
 def test_cublas_workspace_config_is_set_at_import():
@@ -98,6 +107,38 @@ def test_run_row_records_whether_it_was_deterministic(tmp_path):
     assert metrics["deterministic"] is True
     assert metrics["cublas_workspace_config"] in (":4096:8", ":16:8")
     assert metrics["f1"] == 0.5, "provenance clobbered the logged metrics"
+
+
+def _row_determinism(tmp_path, during_run) -> bool:
+    """Run one session, call ``during_run`` inside it, and return the row's ``deterministic``."""
+    import csv
+    import json
+
+    from gbe.run.config import resolve_config
+    from gbe.run.session import RunSession
+
+    path = tmp_path / "registry.csv"
+    with RunSession(resolve_config({"model": "toy", "seed": 0}), registry_path=path):
+        during_run()
+    with path.open(newline="", encoding="utf-8") as fh:
+        return json.loads(next(iter(csv.DictReader(fh)))["metrics_json"])["deterministic"]
+
+
+def test_a_run_that_switches_determinism_off_is_recorded_false(tmp_path):
+    """ADR-005 clause 3. The row used to read the state just after RunSession forced it on, so it
+    said True for every run, including one that switched determinism off at once (audit of
+    2026-10-07, A2 E-B1)."""
+    assert _row_determinism(tmp_path, lambda: torch.use_deterministic_algorithms(False)) is False
+
+
+def test_a_run_that_switches_to_warn_only_is_recorded_false(tmp_path):
+    assert _row_determinism(
+        tmp_path, lambda: torch.use_deterministic_algorithms(True, warn_only=True)
+    ) is False
+
+
+def test_an_untouched_run_is_recorded_true(tmp_path):
+    assert _row_determinism(tmp_path, lambda: None) is True
 
 
 def test_same_seed_reproduces_the_same_draws():

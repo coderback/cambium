@@ -47,6 +47,7 @@ class RunSession:
         self.run_id: str = _new_run_id(config.model)
         self.seed: int = config.seed
         self._metrics: dict[str, Any] = {}
+        self._entry_state: dict[str, object] = {}
         self._start_perf: float | None = None
         self._start_iso: str | None = None
         self.wall_clock_s: float | None = None
@@ -58,13 +59,20 @@ class RunSession:
         # Provenance, not a metric: recorded so a row states for itself whether it was
         # reproducible (ADR-005 clause 3). Logged first so an explicit log_metrics call can
         # never silently drop it.
-        self._metrics.update(determinism_state())
+        self._entry_state = determinism_state()
+        self._metrics.update(self._entry_state)
         self._start_perf = time.perf_counter()
         self._start_iso = datetime.now(timezone.utc).isoformat()
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
         self.wall_clock_s = round(time.perf_counter() - (self._start_perf or 0.0), 6)
+        # Read again at exit. Entry alone only records what seed_everything has just forced on,
+        # which is True for every run (audit of 2026-10-07, A2 E-B1). A run that switched
+        # determinism off, or to warn-only, before finishing is recorded False.
+        self._metrics["deterministic"] = bool(
+            self._entry_state.get("deterministic") and determinism_state()["deterministic"]
+        )
         if exc_type is not None and not self.write_on_error:
             return False  # propagate without recording a row
         self._write_row(errored=exc_type is not None)
