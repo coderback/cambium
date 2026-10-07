@@ -1,9 +1,12 @@
 # ADR-018 — Gate statistics v2: α, power, split-α looks and a Welch criterion
 
-**Status:** proposed
-**Date:** proposed 2026-10-07 · draft 2 2026-10-08
+**Status:** accepted
+**Date:** proposed 2026-10-07 · **accepted 2026-10-08 (00:43) by coderback**, at draft 3, after two
+review rounds (*Draft history*). Tier A, so it is implemented no earlier than 12 hours after
+acceptance and not on 2026-10-08: plan row 2a starts 2026-10-09 at the earliest.
 **Tier:** A (sets gate criteria; CLAUDE.md *Process*, ADR-017)
-**Review rounds:** 1/4
+**Review rounds:** 2/4. Round 2, a diff-only pass, found nothing blocking; its items are folded in
+(*Draft history*).
 **Deciders:** coderback
 **Replaces, for every gate pre-registered after acceptance:**
 - ADR-006's resolvability test (`ADR-006:60-64`), its fixed multiplier (`:77-81`), its unadjusted
@@ -18,7 +21,7 @@ None of those files is edited. **No signed gate is re-evaluated under this ADR**
 **Docs affected:**
 - `CLAUDE.md`: the seeds bullet in *Integrity of results*, and *Next* item 2;
 - `docs/research-plan-UNIFIED-GBE-GDE.md:53`, `:107`, `:151`;
-- `docs/00-shared-core-graph-embedding-GUIDE.md:164`;
+- `docs/00-shared-core-graph-embedding-GUIDE.md:164-165`;
 - `docs/02-dgraph-fin-embedding-model-BUILD.md:174`, `:178`, `:264-265`, `:267`, `:269-276`;
 - `docs/timeline.md:8`, `:347`.
 
@@ -72,17 +75,23 @@ These are properties of the rule, not of any verdict.
 ADR-006:77 calls the factor an approximation to a two-sided 95% test, which is one-sided 0.025;
 0.02275 sits just inside that.
 - **A gate that requires every clause** is an intersection-union test. No adjustment is needed, and
-  the gate's false-pass rate is at most α.
+  the gate's false-pass rate is at most α, by clause 3's bound (Welch is approximate where both arms
+  vary).
 - **A claim that at least one of k clauses holds** uses α/k in place of α everywhere: the per-look
   levels of clause 3, the power planning of clause 4 and the table of clause 6. It is fixed in the
-  pre-registration. A partial pass is still recorded clause by clause.
+  pre-registration. That claim's planned power is at least the largest clause's, not clause 4's
+  joint bound. A partial pass is still recorded clause by clause.
 - **Clauses that share an arm are correlated.** They are never described as independent
   confirmations (as ADR-012 clause 6).
 - **Some clauses fall outside clause 2:** those with no pre-registered direction, and those that
   claim absence or equivalence, for example "GNN-removed matches the floor".
   - A non-resolution under clause 2 never establishes absence.
-  - Such a clause needs its own margin-based test, for example two one-sided tests, each at α
-    against a pre-registered margin. The test is defined in that gate's Tier-A pre-registration.
+  - **A difference claim with no direction** is tested two-sided, at `ℓ/2` per tail at each look.
+  - **An absence or equivalence claim** needs two one-sided tests against a pre-registered margin,
+    each at the look's `ℓ` (clause 3), never at α at both looks.
+  - **Clause 4 does not size these clauses,** and its "powered" label does not apply to them. The
+    gate's pre-registration fixes, at its acceptance, each such clause's margin, its sizing, what
+    "powered" means for it, and whether its non-resolution triggers stage 2.
 
 ### Clause 2 — The criterion: a one-sided Welch test
 
@@ -105,7 +114,7 @@ A clause is **resolvable** iff `diff > t_crit × SE_diff`, where:
 
 A clause refused at assembly counts as unresolvable for the stage-2 trigger. It is reported as
 "refused: <reason>", and it cannot pass. Clause 4 makes these refusals fire at the validation pilot,
-before any test-window run.
+before that gate's first test-window run.
 
 **What the gate file prints for each clause and look:**
 - `diff`, the realised and planned `SE_diff`, `df`, `ℓ` and `t_crit`;
@@ -118,8 +127,12 @@ reported as not resolvable at that look.
 **Arms that share seed ids.** Welch treats arms as independent.
 - **Positive correlation makes it conservative:** under no true gap, at a per-seed correlation of
   0.5 the false-pass rate falls to 0.0025 (§H).
-- **The price is power.** A pre-registration may choose a paired test instead, stated before any
-  test-window run.
+- **The price is power.** A pre-registration may choose a paired test instead. The choice is fixed
+  at its acceptance, before the pilot is seen.
+- **Negative correlation would make Welch liberal,** and
+  `notebooks/measurements/2026-10-07-gate-stats-v2/output.txt` §H measured only r of 0, 0.5 and 0.9.
+  Where arms share seed ids, clause 6's table prints the pilot's per-seed correlation for each
+  clause, so a negative one is disclosed before that gate's first test-window run.
 
 ### Clause 3 — Two looks split α
 
@@ -134,7 +147,7 @@ reported as not resolvable at that look.
   it is not (`n1 = n2`). On the z-scale that is 2.2776 against 2.
 - **Stage 2 is cumulative.** It judges all `n2` seeds, stage 1's included.
 - **Every arm in a comparison runs the same seed count.** ADR-012:235 allowed a seed-deterministic
-  floor 3 seeds; under clause 9 it runs `n` like every arm.
+  floor 3 seeds; under this clause it runs `n` like every arm.
 
 **Why it holds.** A clause passes only by resolving at a look that runs, so its false-pass rate is
 at most `α/2 + α/2 = α`. That holds whatever triggers stage 2, whatever the correlation between the
@@ -151,14 +164,14 @@ of 0.00024. One look of Welch alone measured 0.0201–0.0230
 1. **The pilot** runs on the validation window only. It uses at least 5 seeds per arm, the same count
    in every arm, and is deterministic, on committed code, through `gbe.run` (as `ADR-012:222-226`).
    - Clause 2's refusals apply to the pilot, so a comparison no seed test can judge is found before
-     any test-window run.
+     that gate's first test-window run.
    - The pilot never touches a test window.
 2. **The planning effect** for each clause is `δ = ½·Δ_val`, the validation gap in the clause's
    direction.
    - The ½ was derived for DGF-1: younger validation users, and arms selected on validation
-     (`ADR-012:244-246`).
-   - A pre-registration on another split states whether those reasons hold. It keeps ½ unless it
-     argues another factor before any test-window run.
+     (ADR-012 clause 5, from `ADR-012:244`).
+   - A pre-registration on another split states, at its acceptance, whether those reasons hold. It
+     keeps ½ unless it argues another factor there, before the pilot is seen.
 3. **Planned stage-1 power** is `P(T > t_crit)`.
    - `T` is noncentral t, with `df` from clause 2 at `n` seeds per arm and noncentrality
      `δ / SE_diff(n)`.
@@ -170,21 +183,30 @@ of 0.00024. One look of Welch alone measured 0.0201–0.0230
    failure-semantics ADR (plan row 3) uses this definition.
    - **An under-powered clause** is printed with its planned power. If it does not resolve, the gate
      file says "not resolvable at planned power p", which supports no claim that the effect is absent.
-   - **At gate level,** the table prints two bounds at the chosen `n`: joint stage-1 power is at
-     least `1 − Σ(1 − pᵢ)`, and the chance that stage 2 is triggered is at most `Σ(1 − pᵢ)`.
-   - **A gate failure counts as a powered failure** only through a powered clause that fails.
+   - **At gate level,** the table prints two bounds at the chosen `n`, both at the planning effects:
+     joint stage-1 power is at least `1 − Σ(1 − pᵢ)`, and the chance that stage 2 is triggered is at
+     most `Σ(1 − pᵢ)`. They are the same sum.
+   - **A clause's failure is a *powered failure*** only if two powers at the pre-registered `δ` both
+     reach 0.80: the planned power, and the power recomputed with the realised standard deviations
+     at the `n` and `ℓ` of the look that decided the clause. The realised gap is never used. This guards against pilot standard deviations that were too
+     small, and it costs no seeds.
+   - **A refused clause is never a powered failure.** A gate failure counts as a powered failure only
+     through a powered failure of one of its clauses.
 
 **Measured accuracy** (`notebooks/measurements/2026-10-07-gate-stats-v2/output.txt` §G and §D):
 - Under the split, planned power 0.7793, 0.7695 and 0.7534 against simulated 0.7795, 0.7696 and
   0.7534. That is for a fixed comparator at 8, 12 and 16 seeds.
-- Planned and simulated power also agree within 0.01 when both arms vary (§D, 0.790–0.801).
-- Single-clause power across both stages is 0.88–0.9995 (§G).
+- Under the common boundary, planned and simulated power agree within 0.01 when both arms vary
+  (§D, 0.7901–0.7973).
+- Single-clause power across both stages is 0.88–0.9995 (§G). That is at effects where the split's
+  stage-1 power is 0.75–0.78.
 
 **The cost is more seeds than ADR-012's rule.** For example, s = 0.010 at a gap of 0.020 needs 8 seeds
 under the old rule (§E) and 16 under this one (§G).
 
 **Not covered:** the pilot's standard deviations come from 5 seeds. Where they are underestimated, the
-clause gets less than its planned power. The realised `SE_diff` is printed beside the planned one.
+clause gets less than its planned power. The realised `SE_diff` is printed beside the planned one,
+and the powered-failure test above uses it.
 
 **Compute does not weaken this** (as ADR-012 clause 5). If 20 seeds are infeasible, the gate is
 postponed and the batch rented (research plan :137).
@@ -206,6 +228,7 @@ More than two looks are outside this ADR.
 - the direction, and α (or α/k);
 - the design `n1 → n2`, and each look's `ℓ`;
 - each arm's pilot `s`, whether it varied, and `Δ_val` (validation);
+- where arms share seed ids, the pilot's per-seed correlation;
 - `δ`;
 - planned stage-1 power at each candidate `n`;
 - the chosen `n`;
@@ -213,13 +236,17 @@ More than two looks are outside this ADR.
 
 **For the gate,** at the chosen `n`:
 - the joint-power bound and the stage-2-trigger bound (clause 4);
-- the line "measured false-pass ≤ 0.0215 on the designs in ADR-018 §G; Welch is approximate where
-  both arms vary".
+- the design's own basis for α: "per-look levels sum to α (ADR-018 clause 3); measured 0.0165–0.0215
+  on §G's two-look designs and 0.0201–0.0230 on §C's single looks; Welch is approximate where both
+  arms vary", with "not simulated" added for a design outside both.
 
 **How it is produced:**
-- the shared function produces it, never a hand calculation;
-- it is recorded before any test-window run;
-- the chosen `n` goes in the ADR's header line, as ADR-012 clause 8 did for `**Stage-1 seeds:**`.
+- the shared function produces it mechanically from the pilot's registry rows, never by hand;
+- the pilot runs after the pre-registration's acceptance (as `ADR-012:220`), so the table cannot be
+  in the accepted text. It is committed beside the ADR, and the chosen `n` goes in the ADR's header
+  line, as ADR-012 clause 8 did for `**Stage-1 seeds:**`;
+- both happen before that gate's first test-window run. Recording this mechanical output is not an
+  amendment, because every choice that shapes it was fixed at acceptance.
 
 ### Clause 7 — The shared function (implementation: plan row 2a)
 
@@ -240,6 +267,10 @@ Gate-1 `criterion` (`scripts/assemble_gate_dgf1_1.py:108`) stays as it is, still
 `notebooks/measurements/2026-10-07-gate-stats-v2/prototype/` (`gate_stats_proto.py`, 19 tests in
 `test_gate_stats_proto.py`, `mutate.py`, `mutation-output.txt`), written 2026-10-07/08 before
 acceptance.
+- **Where it is kept.** `CLAUDE.md:222-223` says a prototype is scratch code "outside the repo". This
+  one is kept in the repo as evidence, by the researcher's decision of 2026-10-08, so the mutation
+  results stay checkable. It is not implementation, and pytest never collects it
+  (`pyproject.toml:25`). This is an exception for ADR-018 only; it does not amend the rule.
 - **Unmutated, it passes. Each of 20 mutations makes it fail:**
   - population variance;
   - a z critical value;
@@ -276,10 +307,11 @@ acceptance.
 - **Why it is needed:** today Gate 2 has no metric: "entity embeddings cluster fraud above the
   feature-only baseline" (doc-02:174; audit D9).
 - **Where the rule already appears:** this restates `CLAUDE.md:97` and writes it into doc-02.
-- **Other models' Gate 2** goes to the consistency ADR. Their Gate-2 lines include human-judged
-  samples and "neutral" outcomes (`docs/03-edgar-risk-embedding-model-BUILD.md:128`,
-  `docs/04-edgar-hiddenlink-embedding-model-BUILD.md:97`, `docs/research-discovery-model-BUILD.md:115`,
-  `docs/structural-code-security-model-BUILD.md:121`).
+- **Other models' Gate 2** goes to the consistency ADR. They sit outside the current phase, and some
+  of their Gate-2 lines have human-judged samples or "neutral" outcomes
+  (`docs/03-edgar-risk-embedding-model-BUILD.md:128`,
+  `docs/04-edgar-hiddenlink-embedding-model-BUILD.md:97`,
+  `docs/research-discovery-model-BUILD.md:115`).
 
 ### Clause 9 — One seed floor: 5
 
@@ -288,7 +320,7 @@ acceptance.
 
 **Exempt:**
 - counts;
-- measurement figures (the exception at `CLAUDE.md:134-135`);
+- measurement figures (the exception at `CLAUDE.md:135-137`);
 - bit-for-bit reproduction checks;
 - runs labelled as selection runs (for example `ADR-015:456`).
 
@@ -308,8 +340,9 @@ acceptance.
 
 - **Applies to:**
   - every gate pre-registered after acceptance, starting with DGF-1 Gate 3;
-  - any directional inferential comparison in matched-time stage 2. Matched-time's go/no-go on
-    informativeness is not a gate clause, and this ADR does not govern it.
+  - any directional inferential comparison in matched-time's test batch (the audit's "stage 2",
+    not clause 3's). Matched-time's go/no-go on informativeness is not a gate clause, and this ADR
+    does not govern it.
 - **Signed gates:** ELL-1 Gates 0, 1 and 3 and DGF-1 Gates 0 and 1 keep the rules they were decided
   under. No document recomputes them under this ADR.
 - **Left to EDR-1's Phase-0 ADRs:**
@@ -360,12 +393,16 @@ acceptance.
 - **Gates cost more seeds** than under ADR-012's rule (§E, §G).
 - **Implementation (row 2a)** comes at least 12 hours after acceptance and never the same day. It
   touches nothing in `gbe/`, so no ADR-008 re-run is needed.
-- **On acceptance, the listed documents are amended:**
-  - each "≥3 seeds" site becomes "≥5 seeds per arm with variance (ADR-018)";
+- **On acceptance, the listed documents are amended.** Every replacement carries the scope "for
+  gates pre-registered after ADR-018", so no signed gate's rule is rewritten:
+  - each "≥3 seeds" site becomes "≥5 seeds per arm with variance (ADR-018, for gates pre-registered
+    after it)";
   - doc-00:164 and doc-02:178, :265 and :267 add "judged by ADR-018's Welch criterion, split-α looks
     and power rule";
-  - doc-02:174 and :264 read "Gate 2: its metric, comparator and clauses are fixed by its own
-    pre-registration ADR before any Phase-2 run (ADR-018 clause 8)";
+  - doc-00:165 gains "*Amended (ADR-018).* For gates pre-registered after ADR-018 the floor is 5, and
+    a count may rise only to the pre-registered stage 2";
+  - doc-02:174 and :264 keep Gate 2's question and append "— its metric, comparator and clauses are
+    fixed by its own pre-registration ADR before any Phase-2 run (ADR-018 clause 8)";
   - doc-02:269-276 gains "*Amended (ADR-018).* For gates pre-registered after ADR-018, its clauses
     1–6 replace the 2 × SE test, the sizing inequality and the floor above";
   - `docs/` is grepped for "3 seeds" before and after (ADR-012's practice);
@@ -373,16 +410,18 @@ acceptance.
     models;
   - every change is committed to the governance repository.
 - **CLAUDE.md's seeds bullet becomes, on the researcher's instruction:**
-  > **≥5 seeds per arm, with variance, on every model metric in a gate file** (ADR-018). A gate does
-  > not pass on a single seed. Never mark a gate passed; gates are decided by me from
-  > `gates/GATE-*.md` files that you may help assemble from the registry. A gated comparison is a
-  > one-sided Welch test at α = 0.0228 per clause, split α/2 across the two looks when stage 2 is
-  > possible; its stage-1 seed count is the smallest giving 80% planned power on a deterministic
-  > validation pilot run through `gbe.run`; every pre-registration prints its α and power table.
-  > Seeds measure *seed* sensitivity only on a deterministic backend (ADR-005). Each gate's ADR fixes
-  > its count in advance from the measured variance of a deterministic batch — never assumed, never
-  > raised after seeing that a clause missed (that is optional stopping; see ADR-006 clause 4). Gates
-  > decided before ADR-018 keep the rules they were decided under.
+  > **≥5 seeds per arm, with variance, on every model metric in a gate file** (ADR-018 clause 9;
+  > counts, measurement figures, bit-for-bit reproduction checks and labelled selection runs are
+  > exempt). A gate does not pass on a single seed. Never mark a gate passed; gates are decided by me
+  > from `gates/GATE-*.md` files that you may help assemble from the registry. A gated comparison is
+  > a one-sided Welch test at α = 0.02275 (1 − Φ(2)) per clause, split α/2 across the two looks when
+  > stage 2 is possible; its stage-1 seed count is the smallest giving 80% planned power on a
+  > validation pilot that is deterministic, on committed code and run through `gbe.run`; the shared
+  > function prints its α and power table before the gate's first test-window run. Seeds measure
+  > *seed* sensitivity only on a deterministic backend (ADR-005). Each gate's ADR fixes its count
+  > rule in advance — never assumed, and never raised beyond the pre-registered stage 2 (anything more
+  > is optional stopping; see ADR-006 clause 4). Gates pre-registered before ADR-018's acceptance
+  > keep the rules they were pre-registered under.
 
   *Next* item 2 becomes "accepted (ADR-018); its shared function, plan row 2a, is owed".
 
@@ -436,3 +475,43 @@ acceptance.
     - the docs list.
   - **Preamble:** test-window locations from ADR-012 and the timeline were added. ADR-007:156 was
     checked, and is the public whole-dataset ratio.
+- **Round 2** (2026-10-08): a diff-only pass by a fresh subagent, whose prompt opened with the
+  standing preamble. Draft 1 was never committed, so the reviewer checked each round-1 finding
+  against draft 2 (`43b566f`) and attacked only new text.
+  - **Tier A confirmed.** The blocking finding, SF1, SF2, SF3 and SF8 were judged fixed. SF4, SF5, SF6
+    and SF7 were partly fixed.
+  - **Nothing blocking.** Six should-fix items and four groups of nits.
+  - **Main-session checks:** every citation was range-checked and found in range. Both CLAUDE.md
+    test-window figures the reviewer reported are already printed in the signed Gate-1 files.
+- **Draft 3** (2026-10-08), folded in under the stopping rule, with no further round:
+  - **Should-fix:**
+    - a "powered failure" also needs 0.80 power at the pre-registered δ with the realised standard
+      deviations, and a refused clause is never one (clause 4);
+    - clause 6 prints each design's own α basis, single looks included, and clause 1's "at most α"
+      points to clause 3;
+    - the absence and equivalence carve-out now sets per-look levels, two-sided tails for undirected
+      differences, and leaves sizing, "powered" and the stage-2 trigger to the pre-registration at
+      acceptance (clause 1);
+    - the table is mechanical post-acceptance output and not an amendment; the planning factor and
+      a paired test are fixed at acceptance; "before that gate's first test-window run" throughout
+      (clauses 2, 4 and 6; closes SF5);
+    - the CLAUDE.md wording now carries clause 9's exemptions, "on committed code", α = 0.02275,
+      "never beyond the pre-registered stage 2" and the scope of clause 10 (closes SF4 and SF7);
+    - the prototype's location is recorded as an exception to `CLAUDE.md:222-223` (clause 7).
+  - **Nits:**
+    - doc-00:165 is added to the amendments;
+    - every replacement string carries its scope;
+    - doc-02:174 keeps Gate 2's question;
+    - the accuracy wording now separates the common boundary (§D) from the split (§G);
+    - the pilot's per-seed correlation is printed where seeds are shared;
+    - the citations of `CLAUDE.md:135-137` and `ADR-012:244` are corrected;
+    - the SCM doc is dropped from clause 8's examples;
+    - the prototype test comment now gives 3.600 (output unchanged, 20 of 20 killed);
+    - "matched-time's test batch";
+    - the trigger bound holds at the planning effects;
+    - an "at least one" claim is powered by its largest clause.
+  - **Preamble:** `CLAUDE.md:36-37` and `:100` were added, as repeats of the signed Gate-1 files.
+- **Accepted 2026-10-08** by coderback at draft 3. The amendments under *Consequences* were applied
+  the same day and committed to the governance repository. `docs/` was grepped for "3 seeds" before
+  and after: the remaining hits are doc-02's v0.2 changelog and ELL-1 precedent note, the timeline's
+  history lines, and the GDE Gate 0.5 line left to the consistency ADR.
