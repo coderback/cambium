@@ -4,7 +4,7 @@
 
 **Why it ran:** you asked for it after ADR-015 was accepted (`15ae058`) and before any ADR-015 implementation. It was widened twice at your request: to the whole route back to ELL-1, then to the governing docs and the lightly-reviewed early ADRs.
 
-**Method:** six parts, each run by a fresh read-only agent under the held-out prohibitions (see §6), then checked by the main session.
+**Method:** five parts, each run by a fresh read-only agent under the held-out prohibitions (see §6), then checked by the main session.
 
 | part | object | report |
 |---|---|---|
