@@ -7,6 +7,8 @@ breaking the corresponding behaviour makes it fail.
 
 from __future__ import annotations
 
+import csv
+import json
 import math
 import sys
 from pathlib import Path
@@ -130,48 +132,143 @@ def test_every_critical_package_is_present_in_the_pin():
 
 # --------------------------------------------------------------------------- registry selection
 
+HEAD = "c" * 40
+OLD = "0" * 40
+
+
+def _row(arm="gcn", seed=0, f1=0.5, experiment="extract_check", commit=HEAD, dirty="false",
+         notes="", deterministic=True, run_id=None):
+    metrics = {"illicit_f1": f1, "arm": arm, "deterministic": deterministic}
+    if experiment is not None:
+        metrics["experiment"] = experiment
+    return {"run_id": run_id or f"r-{arm}-{seed}-{commit[:2]}-{f1}", "seed": str(seed),
+            "git_commit": commit, "git_dirty": dirty, "notes": notes,
+            "metrics_json": json.dumps(metrics)}
+
+
+def _registry(path, rows):
+    from gbe.run.registry import REGISTRY_COLUMNS
+
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=REGISTRY_COLUMNS)
+        w.writeheader()
+        for r in rows:
+            w.writerow({c: "" for c in REGISTRY_COLUMNS} | r)
+    return path
+
 
 def test_observed_rows_ignores_everything_but_the_check_tag(tmp_path):
     """The reference rows share (arm, seed) with the check rows, so selecting on the tag is what
     keeps the checker from comparing the reference against itself and always 'passing'."""
-    import csv
-    import json
-
-    from gbe.run.registry import REGISTRY_COLUMNS
-
-    path = tmp_path / "registry.csv"
-    with path.open("w", newline="", encoding="utf-8") as fh:
-        w = csv.DictWriter(fh, fieldnames=REGISTRY_COLUMNS)
-        w.writeheader()
-        for experiment, f1 in (("extract_reference", 0.111), ("extract_check", 0.222), (None, 0.333)):
-            metrics = {"illicit_f1": f1, "arm": "gcn"}
-            if experiment is not None:
-                metrics["experiment"] = experiment
-            w.writerow({c: "" for c in REGISTRY_COLUMNS} | {
-                "run_id": f"r-{experiment}", "seed": "0",
-                "metrics_json": json.dumps(metrics),
-            })
-
-    got = observed_rows(path)
-    assert got == {("gcn", 0): {"illicit_f1": 0.222}}
+    path = _registry(tmp_path / "registry.csv", [
+        _row(experiment="extract_reference", f1=0.111),
+        _row(experiment="extract_check", f1=0.222),
+        _row(experiment=None, f1=0.333),
+    ])
+    assert observed_rows(path, HEAD).observed == {("gcn", 0): {"illicit_f1": 0.222}}
 
 
 def test_observed_rows_skips_rows_without_an_arm(tmp_path):
     """Untagged historical rows must not be mistaken for check rows."""
-    import csv
-    import json
+    row = _row() | {"metrics_json": json.dumps({"experiment": "extract_check", "illicit_f1": 0.9,
+                                                 "deterministic": True})}
+    assert observed_rows(_registry(tmp_path / "registry.csv", [row]), HEAD).observed == {}
 
-    from gbe.run.registry import REGISTRY_COLUMNS
 
-    path = tmp_path / "registry.csv"
-    with path.open("w", newline="", encoding="utf-8") as fh:
-        w = csv.DictWriter(fh, fieldnames=REGISTRY_COLUMNS)
-        w.writeheader()
-        w.writerow({c: "" for c in REGISTRY_COLUMNS} | {
-            "run_id": "no-arm", "seed": "0",
-            "metrics_json": json.dumps({"experiment": "extract_check", "illicit_f1": 0.9}),
-        })
-    assert observed_rows(path) == {}
+def test_observed_rows_counts_only_rows_at_the_commit_being_certified(tmp_path):
+    """The defect the audit of 2026-10-07 found (A2 E-B3): the latest row per identity was taken
+    from any commit, so an older batch could stand in for one never run at HEAD."""
+    path = _registry(tmp_path / "registry.csv", [_row(commit=OLD, f1=0.1), _row(commit=HEAD, f1=0.2)])
+    assert observed_rows(path, HEAD).observed == {("gcn", 0): {"illicit_f1": 0.2}}
+    assert observed_rows(path, OLD).observed == {("gcn", 0): {"illicit_f1": 0.1}}
+    assert observed_rows(path, "f" * 40).observed == {}
+
+
+@pytest.mark.parametrize("flaw", [{"dirty": "true"}, {"notes": "extract | ERRORED"},
+                                  {"deterministic": False}])
+def test_rows_that_cannot_certify_are_set_aside(tmp_path, flaw):
+    path = _registry(tmp_path / "registry.csv", [_row(**flaw)])
+    selection = observed_rows(path, HEAD)
+    assert selection.observed == {} and selection.excluded == 1
+
+
+def test_an_identity_run_twice_at_one_commit_is_reported_not_collapsed(tmp_path):
+    path = _registry(tmp_path / "registry.csv", [_row(f1=0.1, run_id="first"),
+                                                 _row(f1=0.2, run_id="second")])
+    assert observed_rows(path, HEAD).retried == {("gcn", 0): ["first", "second"]}
+
+
+# --------------------------------------------------------------------------- the verdict (main)
+
+
+@pytest.fixture
+def checker(tmp_path, monkeypatch):
+    """Drive `main()` against a temporary manifest and registry, with the environment matching and
+    HEAD pinned, so the verdict logic is tested end to end without a run."""
+    import check_extract_regression as cer
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "git_commit": OLD, "env_pin": "unused.txt",
+        "rows": [_ref("gcn", 0, illicit_f1=0.5), _ref("rf", 1, illicit_f1=0.7)],
+    }), encoding="utf-8")
+    registry = tmp_path / "registry.csv"
+    monkeypatch.setattr(cer, "environment_drift", lambda pin: [])
+    monkeypatch.setattr(cer, "default_registry_path", lambda root: registry)
+    monkeypatch.setattr(cer, "resolve_commit", lambda ref: HEAD if ref == "HEAD" else OLD)
+
+    def run(rows, *argv):
+        _registry(registry, rows)
+        monkeypatch.setattr(sys, "argv", ["check", "--compare-only", "--manifest", str(manifest),
+                                          *argv])
+        return cer.main()
+
+    return run
+
+
+def test_matching_rows_at_head_pass(checker):
+    assert checker([_row("gcn", 0, 0.5), _row("rf", 1, 0.7)]) == 0
+
+
+def test_a_missing_reference_row_fails(checker):
+    """Mutation M4 (`ok` ignoring `missing`) left the suite green before this test."""
+    assert checker([_row("gcn", 0, 0.5)]) == 1
+
+
+def test_a_mismatch_fails(checker):
+    assert checker([_row("gcn", 0, 0.5), _row("rf", 1, 0.7000000001)]) == 1
+
+
+def test_rows_from_another_commit_cannot_pass_head(checker):
+    assert checker([_row("gcn", 0, 0.5, commit=OLD), _row("rf", 1, 0.7, commit=OLD)]) == 1
+
+
+def test_an_earlier_commit_can_be_certified_explicitly(checker):
+    assert checker([_row("gcn", 0, 0.5, commit=OLD), _row("rf", 1, 0.7, commit=OLD)],
+                   "--commit", "d614671") == 0
+
+
+def test_nothing_to_compare_is_not_a_pass(checker):
+    assert checker([]) == 1
+
+
+def test_dirty_rows_cannot_certify(checker):
+    assert checker([_row("gcn", 0, 0.5, dirty="true"), _row("rf", 1, 0.7, dirty="true")]) == 1
+
+
+def test_a_retried_identity_fails_even_when_both_rows_match(checker):
+    """ADR-008 clause 2: a mismatch is never retried. A second row at the same commit is a retry
+    whatever it says, so the check refuses to choose between them."""
+    rows = [_row("gcn", 0, 0.5, run_id="a"), _row("gcn", 0, 0.5, run_id="b"), _row("rf", 1, 0.7)]
+    assert checker(rows) == 1
+
+
+def test_run_with_commit_is_refused(monkeypatch):
+    import check_extract_regression as cer
+
+    monkeypatch.setattr(sys, "argv", ["check", "--run", "--commit", "abc"])
+    with pytest.raises(SystemExit, match="refusing --run with --commit"):
+        cer.main()
 
 
 def test_real_manifest_identities_are_unique():

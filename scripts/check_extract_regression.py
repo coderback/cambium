@@ -1,7 +1,12 @@
 """EXTRACT's acceptance test: does the refactored core reproduce ELL-1 bit-for-bit? (ADR-008)
 
     python scripts/check_extract_regression.py --run            # run the 49-row batch, then compare
-    python scripts/check_extract_regression.py --compare-only   # compare rows already in the registry
+    python scripts/check_extract_regression.py --compare-only   # compare HEAD's rows in the registry
+    python scripts/check_extract_regression.py --compare-only --commit d614671   # an earlier batch
+
+**A comparison certifies one commit.** Only rows that ran at that commit, on a clean tree, under
+deterministic kernels and without error count; an identity that ran twice there is a retry and
+fails the check; and a check that compares nothing is not a pass.
 
 ADR-008 replaced doc-02's "ELL-1 still passes its gates on the refactored core" — unsatisfiable,
 since Gate 1 **failed** — with: *the refactored core reproduces ELL-1's recorded numbers bit-for-bit
@@ -39,6 +44,7 @@ import argparse
 import csv
 import json
 import re
+import subprocess
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -228,22 +234,55 @@ def run_batch(registry_path: Path, device_arg: str | None) -> None:
             torch.cuda.empty_cache()
 
 
-def observed_rows(registry_path: Path) -> dict[tuple[str, int], dict]:
-    """``{(arm, seed): metrics}`` for every ``experiment=extract_check`` row in the registry."""
-    out: dict[tuple[str, int], dict] = {}
+@dataclass(frozen=True)
+class Selection:
+    """The ``extract_check`` rows that can certify one commit, and what was set aside."""
+    observed: dict[tuple[str, int], dict]
+    retried: dict[tuple[str, int], list[str]]   # identity -> run ids, when it ran more than once
+    excluded: int                               # rows at the commit that cannot certify anything
+
+
+def observed_rows(registry_path: Path, commit: str) -> Selection:
+    """``{(arm, seed): metrics}`` for the ``experiment=extract_check`` rows that certify ``commit``.
+
+    A row counts only if it ran **at that commit**, on a clean tree, under deterministic kernels,
+    and did not error. The registry is append-only and holds a batch per certified commit, so
+    without the commit filter a row from an older commit would stand in for one never produced at
+    this one, and a PASS would certify code that was not run.
+
+    Two counted rows for one identity mean the identity was re-run. ADR-008 clause 2 forbids
+    retrying a mismatch, so the duplicates are reported for the caller to refuse, never collapsed
+    by letting the later row win.
+    """
+    observed: dict[tuple[str, int], dict] = {}
+    run_ids: dict[tuple[str, int], list[str]] = {}
+    excluded = 0
     with registry_path.open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
             m = json.loads(row["metrics_json"])
             if m.get("experiment") != CHECK_TAG:
                 continue
             arm = m.get("arm")
-            if arm is None:
+            if arm is None or row["git_commit"] != commit:
+                continue
+            if (row["git_dirty"] != "false" or "ERRORED" in row["notes"]
+                    or m.get("deterministic") is not True):
+                excluded += 1
                 continue
             key = (arm, int(row["seed"]))
-            # Later rows win: a re-run supersedes an earlier attempt at the same identity. The
-            # registry stays append-only; only this in-memory view collapses duplicates.
-            out[key] = {k: v for k, v in m.items() if k.startswith("illicit_")}
-    return out
+            run_ids.setdefault(key, []).append(row["run_id"])
+            observed[key] = {k: v for k, v in m.items() if k.startswith("illicit_")}
+    retried = {key: ids for key, ids in run_ids.items() if len(ids) > 1}
+    return Selection(observed, retried, excluded)
+
+
+def resolve_commit(ref: str) -> str:
+    """The full hash ``ref`` names, so a short hash on the command line matches the rows' field."""
+    try:
+        return subprocess.run(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"], cwd=REPO_ROOT,
+                              capture_output=True, text=True, check=True).stdout.strip()
+    except subprocess.CalledProcessError:
+        raise SystemExit(f"--commit {ref!r} does not name a commit in this repository.")
 
 
 # --------------------------------------------------------------------------- entry point
@@ -257,8 +296,14 @@ def main() -> int:
     ap.add_argument("--device", default=None, help="cuda | cpu (default: config)")
     ap.add_argument("--manifest", default=str(MANIFEST))
     ap.add_argument("--allow-dirty", action="store_true",
-                    help="run despite uncommitted code (rows will be git_dirty=true)")
+                    help="run despite uncommitted code (rows will be git_dirty=true, so they "
+                         "cannot certify anything)")
+    ap.add_argument("--commit", default=None,
+                    help="with --compare-only: the commit to certify (default HEAD)")
     args = ap.parse_args()
+    if args.run and args.commit:
+        raise SystemExit("refusing --run with --commit: a batch certifies the commit it ran at, "
+                         "which is HEAD.")
 
     manifest_path = Path(args.manifest)
     if not manifest_path.exists():
@@ -302,12 +347,24 @@ def main() -> int:
             )
         run_batch(registry_path, args.device)
 
-    observed = observed_rows(registry_path)
+    commit = resolve_commit(args.commit or "HEAD")
+    selection = observed_rows(registry_path, commit)
+    observed = selection.observed
+    print(f"[check] certifying commit {commit[:8]}: {len(observed)} clean, deterministic "
+          f"{CHECK_TAG} rows at it")
+    if selection.excluded:
+        print(f"[check] set aside {selection.excluded} row(s) at this commit that were dirty, "
+              "errored or nondeterministic; they cannot certify it")
     if not observed:
-        print(f"\n[check] no rows tagged experiment={CHECK_TAG} found in the registry yet.")
-        print("[check] Nothing to compare — this is the expected state before the refactor.")
-        print("[check] After refactoring, re-run with --run to produce the batch.")
-        return 0
+        print(f"\n[check] NOT A PASS — no {CHECK_TAG} rows at {commit[:8]}, so nothing was "
+              "compared. Run the batch at this commit with --run.")
+        return 1
+    if selection.retried:
+        print(f"\n[check] FAIL — {len(selection.retried)} identit(y/ies) ran more than once at this "
+              "commit. ADR-008 clause 2 forbids retrying, so no row is chosen between them:")
+        for (arm, seed), ids in sorted(selection.retried.items()):
+            print(f"  {arm}/seed{seed}: {', '.join(ids)}")
+        return 1
 
     mismatches, missing = compare(reference, observed)
 
