@@ -20,7 +20,7 @@ from gbe.features.scaling import Standardizer
 from gbe.gnn import GNNHParams, build_model
 from gbe.run import resolve_device
 from gbe.run.seeding import seed_everything
-from adapters.dgf1.datasource_dgraph import graph_view, window_target_mask
+from adapters.dgf1.datasource_dgraph import graph_view, train_seed_mask, window_target_mask
 from adapters.dgf1.eval import dgf1_base_config
 from adapters.dgf1.features import fit_input_transform, node_inputs
 from adapters.dgf1.train_gnn import (
@@ -49,6 +49,81 @@ def test_training_uses_the_training_view_and_its_own_transform():
     expected = fit_input_transform(data, SPLIT_VAL)
     assert torch.equal(transform.mean, expected.mean) and torch.equal(transform.std, expected.std)
     assert int(train_view.edge_time.max()) <= SPLIT_VAL.train_max, "training view reached later edges"
+
+
+@pytest.mark.parametrize("split", [SPLIT_VAL, SPLIT_TEST])
+def test_train_dgf1_hands_the_trainer_only_training_view_inputs_and_seeds(split, monkeypatch):
+    """ADR-011 clauses 2-3 and clause-5 test 2, pinned at the call site rather than on helpers.
+
+    The helper tests above hold even if `train_dgf1` passes the wrong things on: the audit of
+    2026-10-07 (A-B1) left the suite green with the seeds set to every labelled user, and with the
+    inputs built from the window-end graph. So the arguments `train_model` receives are captured
+    and compared against what the protocol says they must be.
+    """
+    data = _synthetic()
+    train_view = graph_view(data, split.train_max)
+    end_view = graph_view(data, split.test_max)
+    seeds_expected = train_seed_mask(data, split)
+    # the fixture has to be able to tell the right inputs from the leaky ones
+    assert not torch.equal(data.labelled_mask, seeds_expected), "fixture has no post-cutoff labels"
+    assert train_view.edge_index.size(1) < end_view.edge_index.size(1), "fixture has no later edges"
+    assert not torch.equal(node_inputs(data, train_view), node_inputs(data, end_view))
+
+    captured = {}
+
+    def spy(model, x, edge_index, y, seeds, hp, device, **kwargs):
+        captured.update(x=x, edge_index=edge_index, seeds=seeds)
+
+    monkeypatch.setattr("adapters.dgf1.train_gnn.train_model", spy)
+    _, transform, _ = _trained(data, split)
+
+    assert torch.equal(captured["seeds"], seeds_expected), "trained on users outside the seed set"
+    assert bool((data.node_time[captured["seeds"]] <= split.train_max).all())
+    assert torch.equal(captured["edge_index"], train_view.edge_index), "trained on later edges"
+    assert torch.equal(captured["x"], transform.transform(node_inputs(data, train_view))), (
+        "training inputs were not built from the training view"
+    )
+
+
+def _direct_scores(model, data, view, transform, targets):
+    """Exact-neighbourhood scores for ``targets`` over ``view``, computed without `score_view`."""
+    from torch_geometric.data import Data as PygData
+    from torch_geometric.loader import NeighborLoader
+
+    x = transform.transform(node_inputs(data, view))
+    loader = NeighborLoader(
+        PygData(x=x, edge_index=view.edge_index, num_nodes=data.num_nodes),
+        num_neighbors=[-1] * HP.num_layers, input_nodes=targets, batch_size=len(targets),
+        shuffle=False, num_workers=0,
+    )
+    model.eval()
+    with torch.no_grad():
+        batch = next(iter(loader))
+        _, logits = model(batch.x, batch.edge_index)
+    return torch.softmax(logits[: batch.batch_size], dim=-1)[:, 1].numpy()
+
+
+def test_validation_scoring_sees_only_edges_dated_by_the_window_end():
+    """ADR-011 clause 2 on the *validation* window, which the retune and the seed pilot score.
+
+    The test-window tests cannot catch a scoring view that reaches past the window: the fixture's
+    last edge date is SPLIT_TEST.test_max, so "every edge" and "edges as of the window end" are
+    the same graph there. On SPLIT_VAL they are not, and the scores must be the window-end ones.
+    """
+    data = _synthetic()
+    assert int(data.edge_time.max()) > SPLIT_VAL.test_max, "fixture has no post-window edges"
+    model, transform, _ = _trained(data, SPLIT_VAL)
+    targets = window_target_mask(data, SPLIT_VAL).nonzero().view(-1)
+
+    expected = _direct_scores(model, data, graph_view(data, SPLIT_VAL.test_max), transform, targets)
+    leaky = _direct_scores(model, data, graph_view(data, int(data.edge_time.max())), transform,
+                           targets)
+    assert not np.allclose(expected, leaky), "fixture cannot tell the scoring views apart"
+
+    scored = score_view(model, data, SPLIT_VAL, transform, HP, DEV, "gated", batch_size=16)
+    assert np.allclose(scored["proba"], expected, atol=1e-6), (
+        "validation scores were not computed on the graph as of the window's last step"
+    )
 
 
 def test_later_edges_and_later_users_cannot_change_training_inputs():
