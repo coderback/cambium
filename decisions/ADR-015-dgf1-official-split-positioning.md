@@ -1,9 +1,11 @@
 # ADR-015 — DGF-1's official-split positioning batch
 
 **Status:** proposed
-**Date:** first proposed 2026-09-15 · **fourteenth draft 2026-10-07**, replacing `5f7f388`,
-`30fbf92`, an uncommitted third, `8296f4b`, `f769880`, `a029413`, `3b58edc`, `a01d865`, `e9c3ea7`,
-`b98fac3`, `d86b55e`, `6f7ccef` and `55e537d`. See *Draft history*.
+**Date:** first proposed 2026-09-15 · **fifteenth draft 2026-10-07, for the researcher's decision**.
+It folds the fourteenth (`7118b1a`) review's non-blocking items in, under the review's stopping
+rule. It replaces `5f7f388`, `30fbf92`, an uncommitted third, `8296f4b`, `f769880`, `a029413`,
+`3b58edc`, `a01d865`, `e9c3ea7`, `b98fac3`, `d86b55e`, `6f7ccef`, `55e537d` and `7118b1a`. See
+*Draft history*.
 **Deciders:** coderback
 **Positioning seeds:** 5
 **Opens no gated window.** This document carries no `Stage-1 seeds:` line, so the shared guard's seed
@@ -155,6 +157,25 @@ Thirteen drafts were rejected.
   Draft 14 fixes these. A stop withholds nothing, the stop condition is mechanical, and a lapse
   before the first official score pins nothing.
 
+- **Draft 14** (`7118b1a`) was reviewed on its diff and **nothing blocking was found**. Its review
+  judged the mechanical stop, the entry read compared with the pinned identity, the re-read before
+  comparison, and the test-6 mutations to hold. Under the stopping rule below, its should-fix items
+  and nits are folded into this fifteenth draft without another round:
+  - **A stop is recorded as a dated amendment here, and write-ups cite it.** Without that, a stopped
+    batch's numbers sat on record but could not be cited, and listing them in a lab entry would
+    break CLAUDE.md's ten-line cap.
+  - **The ways a batch stops are listed exactly.** A batch has stopped, from row timestamps alone,
+    five weeks after its first official score with no dated report. That closes the halts that
+    were not stops.
+  - **The registry is committed after every scoring invocation**, and no metric is printed before
+    its row is written.
+  - **Certify's post-scoring re-read is dropped.** Its bit-for-bit verdict already catches any
+    variable that changes its result, and the re-read's result could not have been stored.
+  - **Test 6** checks Invariant 1's boundary rather than an untestable lapse.
+  - **"The batch's first official score" is defined.**
+  - **Smaller items:** the restart after a lapse is marked procedural, and ignored entries are
+    printed by the assembler too.
+
 **How this review ends.** The researcher set this rule on 2026-10-07:
 - **When a diff pass finds nothing blocking,** its should-fix items and nits are folded in without
   another round, and the ADR goes to the researcher's accept-or-reject decision.
@@ -303,8 +324,9 @@ at `54b8367`.
     The official grids train over the whole graph; their cost has not been measured and is not
     predicted. **There is no runtime escape valve and no epoch fallback.** If a run proves
     infeasible on the pinned machine before the batch's first official score, the batch is
-    postponed with no end date, never shortened. After the first official score, clause 5's stop
-    rules apply, and a stop withholds nothing.
+    postponed with no end date, never shortened. After the first official score, infeasibility is
+    covered by clause 5's five-week stop, or by an earlier dated declaration, and a stop withholds
+    nothing.
 - **Positioning seeds: 5 per arm, seeds 1 to 5 (`range(1, 6)`).** Seed 0 is excluded because, at the
   winning configuration, it would retrain exactly the model the retune selected and carry that
   selection into the band.
@@ -591,9 +613,11 @@ result per arm and seed, which every re-computation must reproduce**.
       nothing is pinned, and no metric is computed. That catches any lazy import that sets a
       variable. xgboost, for one, is imported inside the fit
       (`adapters/dgf1/baselines_tabular.py:176`).
-    - **`certify` re-reads when the gated trainer returns.** That trainer computes metrics before it
-      saves (`adapters/dgf1/train_gnn.py:197` before `:201`), and certify keeps no comparison in
-      memory. A mismatch fails certification.
+    - **`certify` needs no post-scoring re-read.** Its verdict is a bit-for-bit comparison with a
+      stored reference. A variable that changed its result fails certification by itself, and one
+      that changed nothing does not matter. A re-read after the gated trainer returns would also come
+      after that trainer's row is written (`gbe/run/session.py:66-71`), so its result could not be
+      stored.
     - **Imports set variables inside the hashed families:**
       - `gbe.run.seeding` sets `CUBLAS_WORKSPACE_CONFIG` with `setdefault`, keeping any value set
         outside the process (`gbe/run/seeding.py:32`);
@@ -648,6 +672,10 @@ result per arm and seed, which every re-computation must reproduce**.
       - **A lapse before the batch's first official score pins nothing.** Install the pending
         updates, pause again, and restart at clause 8's step 5 (`certify`) at the new identity.
         Nothing had been scored, so nothing can be chosen.
+        - If an installed driver then makes certification impossible, the batch is postponed, as
+          in clause 2.
+        - The restart at `certify` is procedural. If the identity did not change, the old certify
+          rows still satisfy the precondition.
       - **A lapse after the first official score stops the batch**, as for an unrestorable
         environment, and the lapse is recorded in `notebooks/lab/`. The batch does not resume
         after updates are installed: Windows installs pending updates before it allows another
@@ -667,6 +695,9 @@ result per arm and seed, which every re-computation must reproduce**.
     - this batch's registry rows that carry a `scores_sha256`.
   - **Any second unsuperseded identity, from either place, refuses everything**, in the runner and in
     the assembler.
+  - **"The batch's first official score"**, as used throughout, is the first result that pins: the
+    retune's first validation score. A restart at a new identity after it is refused here. It would
+    be a second validation draw.
   - **A score directory alone cannot be lost silently.** The score files are gitignored as
     "Regenerable" (`.gitignore:15-17`), so deleting them breaks no rule. The committed rows still
     carry the pin.
@@ -713,19 +744,43 @@ result per arm and seed, which every re-computation must reproduce**.
     - No per-key count is kept beyond what the rows already show, and no seed is dropped: either
       would be a selection.
     - Anything further is a new ADR's question.
-- **A stop withholds nothing.** This holds for every stop this ADR names: a key that will not
-  reproduce, a lapsed pause after the first official score, an environment that cannot be restored,
-  and an infeasible run after the first official score. Every result already scored at the pinned
-  identity is reported:
-  - the registry is committed at the stop, so every scored row is on record;
-  - the lab entry that records the stop lists those results and the stop's cause;
-  - any later ADR's numbers on these arms are printed beside them.
-
-  The assembler is not changed for this. The record is the committed rows and the lab entry.
-  Stopping is never a way to leave a seen number unreported, which is this clause's principle.
   - With every factor that determines a result inside the identity, a re-run that reproduces adds
     nothing to choose from.
   - Rows at any other identity are never counted.
+- **A batch stops in exactly four ways, and every stop is final:**
+  - a key that will not reproduce (above);
+  - a lapsed update pause after the first official score;
+  - an environment that cannot be restored;
+  - **five weeks after the batch's first official score, if no positioning report has been
+    dated.** This follows from the row timestamps alone. It covers a stage never resumed, a first
+    disagreement never resolved, and a run that proves infeasible. The researcher may declare
+    infeasibility earlier, in a dated amendment recording the wall-clock times observed. Stopping
+    earlier changes nothing below.
+
+  A stop is judged on rows at the pinned identity. Only the defect route, on its own bar, leads past
+  it.
+- **A stop withholds nothing.** Every result scored at the pinned identity is reported, whether it
+  is found in the rows or in the score files, the two places the pin is read.
+  - **The stop is recorded here as a dated amendment**, as clause 8's step 9 records the winners. It
+    lists:
+    - every scored result, with clause 3's five weaknesses and every AUPRC's prevalence and positive
+      count;
+    - every resolved disagreement, with its ADR;
+    - the stop's cause.
+
+    A lab entry, within CLAUDE.md's ten lines, points to the amendment.
+  - **Any write-up on DGF-1's official positioning cites that amendment**, as any write-up drawing on
+    GATE-DGF1-1 reads its erratum (*Docs affected*).
+  - Any later report on these arms or this split prints these results beside its own.
+
+  The assembler is not changed for this. Stopping is never a way to leave a seen number unreported,
+  which is this clause's principle.
+- **Nothing scored waits to be committed.** The registry is committed after every invocation that
+  scored anything, not only after each stage (clause 8). That day's lab entry names the invocation's
+  run ids. A batch that halts without stopping still leaves every seen result on record.
+- **No metric is printed before its row is written.** The runner prints a session's metrics only
+  after the session's row is written. A hard kill therefore cannot leave a seen number whose only
+  trace is a gitignored score file.
 - **Certification first.** `certify` re-runs the two temporal references through the gated trainers:
   - the GNN pilot's seed 0, `dgf1-20260913T232506Z-1acd5067`;
   - the floor pilot's seed 0, `dgf1-20260913T232205Z-c2af9760` (validation, `max_depth=8`,
@@ -772,8 +827,8 @@ result per arm and seed, which every re-computation must reproduce**.
   - **No entry may cite this ADR.** ADR-015 is accepted, and after clause 8's step 9 it contains run
     ids, so citing it would satisfy every check.
     - An entry whose ADR path resolves to this file **resolves nothing**. It is ignored, not refused,
-      so a bad append-only entry never blocks for ever. It is **not ignored silently**: the runner
-      prints every ignored entry, with its reason, alongside any refusal.
+      so a bad append-only entry never blocks for ever. It is **not ignored silently**: the runner and
+      the assembler print every ignored entry, with its reason, on every invocation.
     - Paths are compared by resolved path, as in clause 6, because Windows paths are
       case-insensitive.
     - This applies to all three kinds of entry.
@@ -912,7 +967,8 @@ result per arm and seed, which every re-computation must reproduce**.
          instead record a disagreement, so this fixture tells the two orders apart.
      - **Each session's entry read yields the pinned `env_identity`:** a variable set during one
        session's save is refused at the next session's entry.
-     - **`certify` re-reads when the gated trainer returns:** a mismatch fails certification.
+     - **`certify` does no post-scoring re-read.** A fixture variable that changes a certify result
+       fails the bit-for-bit verdict.
 
    Mutations:
    - dropping `adapters/dgf1/config.yaml`;
@@ -945,9 +1001,18 @@ result per arm and seed, which every re-computation must reproduce**.
        resolves nothing;
      - a key with a disagreement row recorded after a resolved one stops the batch. Every mode and
        the assembler refuse, and a records entry naming the second row resolves nothing;
-     - ignored records entries are printed with their reason;
-     - a lapse before the first official score pins nothing, and a restart at a new identity is
-       allowed; after the first official score, a lapse stops the batch;
+     - ignored records entries are printed with their reason, by the runner and by the assembler;
+     - **Invariant 1's boundary:**
+       - before any pinned result, a new identity is accepted;
+       - after one, a new identity is refused.
+
+       The lapse rule itself is procedural, because a cumulative update can leave the identity
+       unchanged;
+     - the mechanical stop counts rows at the pinned identity. Only a supersession through the
+       defect route leads past it;
+     - five weeks after the first official score with no dated report, the runner refuses as
+       stopped. The test uses fixture timestamps;
+     - no metric is printed before the session's row is written;
      - one that agrees is accepted.
    - **Atomic writes:** a crash mid-write leaves no readable file and pins nothing.
    - **Rows outside this batch** do not count. A later model's rows and directories change nothing.
@@ -1036,8 +1101,10 @@ result per arm and seed, which every re-computation must reproduce**.
 4. Pause Windows Update and NVIDIA driver updates, installing nothing, until step 7 is committed
    (clause 5).
 5. Run `certify` at the identity after steps 3 and 4. Both references must pass.
-6. Run `retune` on `official_val_mask`, then commit the registry.
-7. Run `positioning` on `official_test_mask` (5 seeds × 3 arms), then commit the registry.
+6. Run `retune` on `official_val_mask`. Commit the registry after every invocation that scored
+   anything.
+7. Run `positioning` on `official_test_mask` (5 seeds × 3 arms). Commit the registry after every
+   invocation that scored anything.
 8. Assemble the positioning report. The researcher reviews and dates it.
 9. Record the winners and run ids here as a dated amendment, and in `notebooks/lab/`.
 
@@ -1047,7 +1114,13 @@ reproduction. Step 4 is procedural:
   change of `env_identity`;
 - it does not detect a monthly cumulative update (clause 5).
 
-Steps 8 and 9, the registry commits, and the figures file's completeness are procedural.
+Also procedural:
+- steps 8 and 9;
+- the registry commits;
+- the figures file's completeness;
+- the restart at `certify` after a lapse before the first official score;
+- an early declaration of infeasibility;
+- the dated amendment that records a stop (clause 5).
 
 ## Docs affected — to apply on acceptance
 
@@ -1094,7 +1167,9 @@ ADR-011 was (`ADR-011:28-29`).
 - **`docs/timeline.md:24` and `:184-185`** say "both arms". This batch runs three. The wording is the
   researcher's.
 - **`gates/GATE-TEMPLATE.md:30-31`** gains positioning reports (clause 3) as files a paper may draw
-  on.
+  on. If the batch stopped, a paper draws instead on the dated stop amendment in this ADR (clause 5).
+  Any write-up on DGF-1's official positioning cites whichever exists, as any write-up drawing on
+  GATE-DGF1-1 reads `gates/ERRATUM-DGF1-1.md`.
 - **`gates/GATE-DGF1-0.md` is not edited.** It is signed and dated.
 
 ## Alternatives rejected
