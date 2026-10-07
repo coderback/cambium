@@ -66,7 +66,7 @@ def test_welch_t_not_z_and_sample_not_population_variance():
 
 
 def test_one_sided_level():
-    # diff 0.23, t 3.253: above t_crit 2.869 at ALPHA, below 3.467 at ALPHA / 2.
+    # diff 0.23, t 3.253: above t_crit 2.869 at ALPHA, below 3.600 at ALPHA / 2.
     assert resolvability(ARM, [0.97] * 5, level=ALPHA)["resolvable"] is True
     assert resolvability(ARM, [0.97] * 5, level=ALPHA / 2)["resolvable"] is False
 
