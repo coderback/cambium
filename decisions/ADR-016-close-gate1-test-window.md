@@ -1,7 +1,8 @@
 # ADR-016 — Close Gate 1's test-window access; the pre-registration guard checks which document
 
-**Status:** proposed
-**Date:** 2026-10-07 (fourth draft; drafts 1–3 reviewed the same day, see *Draft history*)
+**Status:** accepted
+**Date:** proposed 2026-10-07 · **accepted 2026-10-07 by coderback**, as the fourth draft (drafts 1–3
+reviewed the same day, see *Draft history*). Implemented in a later session, per CLAUDE.md.
 **Deciders:** coderback
 **Docs affected:** none in `docs/`. This ADR does not edit ADR-012 or ADR-015. It decides the question
 ADR-015 clause 6 left open, and it discloses one consequence for ADR-012 clause 10 (see *Consequences*).
