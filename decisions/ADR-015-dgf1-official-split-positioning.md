@@ -1,9 +1,9 @@
 # ADR-015 — DGF-1's official-split positioning batch
 
 **Status:** proposed
-**Date:** first proposed 2026-09-15 · **tenth draft 2026-10-06**, replacing `5f7f388`, `30fbf92`,
-an uncommitted third, `8296f4b`, `f769880`, `a029413`, `3b58edc`, `a01d865` and `e9c3ea7`. See
-*Draft history*.
+**Date:** first proposed 2026-09-15 · **eleventh draft 2026-10-07**, replacing `5f7f388`,
+`30fbf92`, an uncommitted third, `8296f4b`, `f769880`, `a029413`, `3b58edc`, `a01d865`, `e9c3ea7`
+and `b98fac3`. See *Draft history*.
 **Deciders:** coderback
 **Positioning seeds:** 5
 **Opens no gated window.** This document carries no `Stage-1 seeds:` line, so the shared guard's seed
@@ -95,6 +95,20 @@ Eight drafts were rejected.
 
   One claim in that check did not reproduce. `torch.save` is byte-stable for a fixed filename, and
   the probe had compared two filenames.
+- **Draft 10** (`b98fac3`) was reviewed on its diff alone. It said to read the environment variables
+  "after `gbe.run.seeding` is imported". But importing `gbe.eval` loads scikit-learn, which then sets
+  `KMP_DUPLICATE_LIB_OK` and `KMP_INIT_AT_FORK` (`sklearn/__init__.py:56,60`). That put both inside a
+  hashed family, so the identity depended on when it was read. This was reproduced in a fresh process.
+  The review also found three further problems:
+  - the update step claimed to detect updates it cannot see;
+  - the disagreement block could be cleared by a lab entry, or by any accepted ADR;
+  - logging variable values could commit a credential.
+
+  Draft 11 fixes these:
+  - the variables are read once, at a fixed point after every import;
+  - the stated detection is narrowed;
+  - a resolution must name the row;
+  - secret-like values are hashed.
 
 `becb85c`, committed after draft 2, re-added draft 1's text as a stray root file `xaa`. It was removed
 at `54b8367`.
@@ -353,7 +367,9 @@ at `54b8367`.
     - the seed count from the rows' `positioning_seeds`, refusing if that differs from this file's
       header;
     - one result per (arm, seed), requiring every arm to have every seed;
-    - refusing any key whose results disagree.
+    - refusing any key whose results disagree, and refusing while any unresolved disagreement row
+      exists at the pinned identity. Disagreement rows carry no `scores_sha256`, so the assembler
+      looks for them explicitly.
 
     Rows at a superseded identity are printed beside the counted ones, never counted.
   - It prints, rather than relying on a hand edit:
@@ -387,7 +403,10 @@ at `54b8367`.
   - `code_identity`, `env_identity` and `data_identity` (clause 5), and the **components** each is
     computed from: code paths with their blob ids, every environment field's value, and the hash of
     each data tensor. These are logged at session entry through the unhashed metrics channel
-    (clause 5), so a refusal can name what differs and a drifted environment can be restored;
+    (clause 5), so a refusal can name what differs and a drifted environment can be restored.
+    **A variable whose name contains `KEY`, `TOKEN`, `SECRET` or `PASSWORD` is logged as a SHA-256 of
+    its value, never the value**, so no credential reaches the committed registry. Certify rows log
+    the same components;
   - the figures file's git blob id;
   - the resolved device (`cpu` for the floors);
   - `positioning_seeds`, the header's count at run time.
@@ -410,8 +429,11 @@ at `54b8367`.
      The temporal trainers compute metrics before saving (`adapters/dgf1/train_gnn.py:197` before
      `:201`; `adapters/dgf1/baselines_tabular.py:232` before `:244`), so the official stages do not
      reuse `run_dgf1` or `run_floor` as they stand.
-  3. Only after that comparison is the score file saved, atomically: written to a temporary name and
-     then renamed. Its `scores_sha256` is logged next, and the metrics last.
+  3. Only after that comparison is the score file saved, atomically.
+     - It is written through an open file handle to a temporary name and then renamed. Writing
+       through a handle avoids `np.savez` appending `.npz` to a path.
+     - Pin reading ignores temporary names.
+     - Its `scores_sha256` is logged next, and the metrics last.
 - **Score files** go to `experiments/scores/official/adr-015/<batch_identity>/`, one file per result,
   named `<stage>-<arm>-<configuration or seed>-<run_id>.npz`.
 - **The official path has its own config builders, for all three arms.** Both temporal entry points
@@ -491,22 +513,39 @@ result per arm and seed, which every re-computation must reproduce**.
     - `ATEN_CPU_CAPABILITY=default` changes CPU arithmetic, which moves initialisation and the
       fitted transform.
 
-    A named list would miss the next such variable.
+    Families are still a list. A variable outside them that changes a result is not caught by the
+    identity. It is caught by Invariant 2, as a disagreement.
 
-    **Read after the defaults are set.** The variables are read after `gbe.run.seeding` is
-    imported. It sets `CUBLAS_WORKSPACE_CONFIG` with `setdefault` and keeps any value set outside the
-    process (`gbe/run/seeding.py:32`), so reading earlier would give one identity for "unset" and
-    another for ":4096:8".
+    **Read once per invocation, at one fixed point after every import the runner makes.** Imports
+    set variables inside the hashed families:
+    - `gbe.run.seeding` sets `CUBLAS_WORKSPACE_CONFIG` with `setdefault`, keeping any value set
+      outside the process (`gbe/run/seeding.py:32`);
+    - importing `gbe.eval` loads scikit-learn, which sets `KMP_DUPLICATE_LIB_OK` and
+      `KMP_INIT_AT_FORK` (`sklearn/__init__.py:56,60`).
 
-    **`PYTHONHASHSEED` is excluded.** `seed_everything` rewrites it to each run's seed
-    (`gbe/run/seeding.py:79`), so it would vary with the seed and not with the environment.
+    So the read point decides the identity. Reproduced in a fresh process, the families read as
+    follows:
+    - empty at start;
+    - `CUBLAS_WORKSPACE_CONFIG` only, after seeding;
+    - those two variables added, after `gbe.eval`.
+
+    Every mode reads at the same point, and clause 7 test 5 checks it in fresh processes.
+
+    `PYTHONHASHSEED` belongs to no family. `seed_everything` rewrites it to each run's seed
+    (`gbe/run/seeding.py:79`).
 
     This replaces a hand comparison with the pin: `environment_drift`
     (`scripts/check_extract_regression.py:155`) compares only what the pin lists, and the pin lists
     neither xgboost nor the driver.
   - **`data_identity`** hashes the **loaded tensors**, not the files: `x`, `edge_index`,
-    `edge_time`, `edge_type`, `y`, `node_time` and the three official masks, each in
-    `content_hash`'s style. The repository already holds this principle for score files:
+    `edge_time`, `edge_type`, `y`, `node_time` and the three official masks. Each tensor is hashed in
+    `content_hash`'s style, together with its dtype and shape.
+    - `node_time` is derived from the edges, so hashing it is redundant but harmless.
+    - `reverse_edges` is not data. `edge_index` stays forward-only as shipped
+      (`adapters/dgf1/datasource_dgraph.py:83-84`), and reverse edges are added per view
+      (`:246-248`) under a config flag that `code_identity` covers.
+
+    The repository already holds this principle for score files:
 
     > **The hash is over the *content*, not the file.** `.npz` is a zip, whose bytes carry
     > timestamps, so a file hash would differ on every rewrite of identical data.
@@ -515,10 +554,15 @@ result per arm and seed, which every re-computation must reproduce**.
     A file hash would also move with stray files in `data/dgraph/`, or with PyG's processed cache
     (`data/dgraph/processed/`) if a different PyG version re-pickled it. The loader itself checks
     only counts (`adapters/dgf1/datasource_dgraph.py:149-159`).
-  - **Updates are paused for the batch** (clause 8). Pending Windows and NVIDIA driver updates are
-    installed before `certify`. Windows Update and driver updates then stay paused until positioning
-    is committed. An automatic update mid-batch would otherwise change `env_identity` for no reason
-    connected to the work.
+  - **Updates are paused for the batch, and nothing is installed for it** (clause 8). Windows Update
+    and driver updates are paused before `certify` and stay paused until positioning is committed.
+    Installing a driver just before certifying would risk certification against an old driver whose
+    version is recorded nowhere: the pin does not hold it (`ADR-014:71-72`).
+    - **What the identity detects:** a feature update, which changes `platform.platform()`; a
+      driver change; and any package or variable change.
+    - **What it does not detect:** a monthly cumulative update. On this machine `platform.platform()`
+      reads `Windows-11-10.0.26100-SP0`, with no build revision, so the pause alone guards against
+      it. The build revision is deliberately not added; it would make every patch a stop.
 
   On a refusal, the runner prints which code paths, environment fields or data tensors differ. It
   compares the current components with the components the pinned rows logged (clause 4).
@@ -547,8 +591,16 @@ result per arm and seed, which every re-computation must reproduce**.
   - **The disagreement row** carries `scores_sha256_expected` and `scores_sha256_observed`, never
     `scores_sha256`, so it neither pins nor counts as a result.
   - **While any unresolved disagreement row exists at the pinned identity, every invocation refuses.**
-    It stays blocking until the records file resolves it with an accepted ADR, the same rule as a repro
-    mismatch. Re-running until a run agrees is not a route (ADR-008:108-109).
+    That includes the runner in every mode and the assembler.
+  - **Only an accepted ADR resolves it.**
+    - The records entry names the row's run id. The runner checks that the named ADR exists, is
+      accepted, and contains that run id, as supersession must name its identity.
+    - **A lab entry never resolves a disagreement.**
+  - **A resolution leaves the pinned result standing.** The disagreeing result was discarded unseen,
+    so continuing with the pinned one offers nothing to choose.
+    - The key is never re-run in order to obtain agreement (ADR-008:108-109).
+    - If the root cause shows that the pinned result itself ran outside its identity, that is a
+      defect, and it takes the defect route.
   - With every factor that determines a result inside the identity, a re-run that reproduces adds
     nothing to choose from.
   - Rows at any other identity are never counted.
@@ -584,8 +636,9 @@ result per arm and seed, which every re-computation must reproduce**.
     - The hash finds an ERRORED row only if it ran at the current reference config. One at an older
       config is not found, and this rule does not claim to catch it.
   - **A failure stays blocking until the records file resolves it.**
-    - A dated lab entry may resolve only a row that errored before its comparison ran. A mismatch
-      needs an accepted ADR.
+    - A dated lab entry may resolve only a `repro_check` row that errored before its comparison ran.
+      It never resolves a mismatch, and never a disagreement row (Invariant 2). A mismatch needs an
+      accepted ADR that names the row's run id.
     - The runner checks only that the named document exists, and for an ADR that it is accepted. The
       quality of the root cause is procedural.
   - **This replaces ADR-013's "No runner checks for it"** (`ADR-013:282-283`) for official runs. A root
@@ -710,27 +763,37 @@ result per arm and seed, which every re-computation must reproduce**.
    - `PYTHONHASHSEED` is not in the identity.
    - The identity is the same whether `CUBLAS_WORKSPACE_CONFIG` was unset or set to the seeding
      default before import.
-   - Every component is logged at session entry.
+   - Every component is logged at session entry, certify rows included.
+   - A family variable whose name contains `KEY`, `TOKEN`, `SECRET` or `PASSWORD` is logged only as a
+     hash.
+   - **The read point is fixed.** `main()` runs in each of the three modes in a **fresh subprocess**,
+     because pytest already has scikit-learn loaded and would hide the problem. All three must yield
+     the same `env_identity`.
 
    Mutations:
    - dropping `adapters/dgf1/config.yaml`;
    - omitting the runner's own file;
    - hashing the four named variables instead of the families, which setting
      `TORCH_ALLOW_TF32_CUBLAS_OVERRIDE` must catch;
-   - hashing data files rather than tensors.
+   - hashing data files rather than tensors;
+   - reading the variables before the runner's imports complete;
+   - logging a `*_KEY` variable's value.
 6. **The two invariants.**
    - **Pinning:**
      - the pin is read from score directories and from rows that carry a hash;
      - deleting the score directory does not re-pin, because the rows still pin;
-     - a crash before hashing pins nothing.
+     - a crash before the score file is written pins nothing.
    - **A second unsuperseded identity** is refused by the runner and by the assembler.
    - **A run at a different identity** is refused, naming what differs.
    - **A re-run at the pinned identity:**
      - one that disagrees is discarded before saving: no file is written, and no function of the
-       probabilities is computed or printed;
-     - its row is ERRORED, carries `scores_sha256_expected` and `scores_sha256_observed` and no
-       `scores_sha256`, and every later invocation refuses until a records entry backed by an
-       accepted ADR resolves it;
+       probabilities other than `content_hash` is computed or printed;
+     - its row is ERRORED, and carries `scores_sha256_expected` and `scores_sha256_observed` but no
+       `scores_sha256`;
+     - every later invocation refuses until a records entry resolves the row. The entry must name
+       the row's run id, and the ADR it cites must be accepted and contain that run id. A lab entry
+       or an ADR that does not name the run id is refused;
+     - after resolution, the pinned result stands, and the key is not re-run;
      - one that agrees is accepted.
    - **Atomic writes:** a crash mid-write leaves no readable file and pins nothing.
    - **Rows outside this batch** do not count. A later model's rows and directories change nothing.
@@ -741,7 +804,9 @@ result per arm and seed, which every re-computation must reproduce**.
    - saving before comparing;
    - reading the pin from score directories only;
    - recording the disagreeing hash as `scores_sha256`;
-   - letting an agreeing re-run clear a disagreement.
+   - letting an agreeing re-run clear a disagreement;
+   - accepting any accepted ADR, or a lab entry, as a disagreement's resolution;
+   - a temporary score file pinning.
 7. **Certification.**
    - **The certify row:**
      - its config hash equals the reference's rebuilt with `experiment=repro_check`, so the identity
@@ -758,10 +823,11 @@ result per arm and seed, which every re-computation must reproduce**.
        not block;
      - a fresh certify row's score file is re-hashed;
      - an ERRORED row at the current config is found by the hash rebuilt with `repro_check`;
-     - a lab entry resolves only an ERRORED row.
+     - a lab entry resolves only a `repro_check` row that errored before its comparison ran. It
+       never resolves a mismatch or a disagreement row.
 
    Mutations: rebuilding the lookup hash with the pilot's tag; re-hashing old rows' score files;
-   logging the identities through `base_cfg`.
+   logging the identities through `base_cfg`; letting a lab entry resolve a mismatch.
 8. **The defect route.**
    - A records entry that supersedes an identity is honoured only if its named ADR exists, is
      accepted, and names that identity.
@@ -789,7 +855,8 @@ result per arm and seed, which every re-computation must reproduce**.
       - the pinned identity only;
       - `n` from the rows, checked against the header;
       - one result per (arm, seed), with every seed present;
-      - refusing a disagreeing key.
+      - refusing a disagreeing key;
+      - refusing while an unresolved disagreement row exists.
     - It ranks only per clause 3's table and four points, three-valued over the closed range.
     - It prints errata and superseded rows beside the counted ones, never ranked or counted.
     - It prints no temporal-track number and no difference between our arms.
@@ -806,7 +873,7 @@ result per arm and seed, which every re-computation must reproduce**.
 2. Implement clauses 1–5 and 7, one component per session, each with its tests. The batch does not
    start until every clause-7 test passes and the suite is green.
 3. Compile and commit the figures file (clause 3).
-4. Install pending Windows and NVIDIA driver updates, then pause both until step 7 is committed
+4. Pause Windows Update and NVIDIA driver updates, installing nothing, until step 7 is committed
    (clause 5).
 5. Run `certify` at the identity after steps 3 and 4. Both references must pass.
 6. Run `retune` on `official_val_mask`, then commit the registry.
@@ -815,9 +882,12 @@ result per arm and seed, which every re-computation must reproduce**.
 9. Record the winners and run ids here as a dated amendment, and in `notebooks/lab/`.
 
 The runner enforces steps 3 and 5–7: the figures file, certification, the pinned identity and
-reproduction. Step 4 is procedural, but the runner detects its failure: an update changes
-`env_identity`, and the batch refuses. Steps 8 and 9, the registry commits, and the figures file's
-completeness are procedural.
+reproduction. Step 4 is procedural:
+- the runner detects a feature update, a driver change or a package change slipping through, as a
+  change of `env_identity`;
+- it does not detect a monthly cumulative update (clause 5).
+
+Steps 8 and 9, the registry commits, and the figures file's completeness are procedural.
 
 ## Docs affected — to apply on acceptance
 
@@ -879,7 +949,13 @@ ADR-011 was (`ADR-011:28-29`).
 - **Require results a defect ADR declares unaffected to reproduce.** It would add machinery back for
   a case the full re-run already covers.
 - **Name the environment variables individually** (draft 9). Three unnamed ones were measured to
-  change results; families catch the next one.
+  change results. Families cover more of them, and Invariant 2 catches any that fall outside.
+- **Read the variables after one named import** (draft 10). Later imports set variables inside the
+  families, so the read point would decide the identity.
+- **Install updates before certifying** (draft 10). It risks certifying against a driver whose
+  previous version is recorded nowhere. Pausing them is enough.
+- **Add the Windows build revision to the identity.** Every monthly patch would become a stop, so
+  the pause guards against those instead.
 - **Hash the data directory's files** (draft 9). The repository's own principle is to hash content,
   not bytes (`gbe/eval/scores.py:13-14`). File hashes also move with stray files or a re-pickled
   cache.
