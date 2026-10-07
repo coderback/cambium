@@ -1,21 +1,21 @@
-"""Run DGF-1 GNN batches — the retune grid, the validation pilot, the gate batch, or the repro check.
+"""Run DGF-1 GNN batches — the retune grid, the validation pilot, or the repro check.
 
     python scripts/run_dgf1_gnn.py --mode retune                       # 9 configs x 1 seed, val
     python scripts/run_dgf1_gnn.py --mode pilot  --lr L --batch-size B # 5 seeds, val
-    python scripts/run_dgf1_gnn.py --mode gate   --lr L --batch-size B \
-        --preregistration decisions/ADR-012-dgf1-gate1-preregistration.md
     python scripts/run_dgf1_gnn.py --mode repro-check                  # 1 seed, val, no flags
 
-The first three modes are the execution order ADR-012 clause 8 fixes, and each carries its own guard:
+Retune, pilot and gate are the execution order ADR-012 clause 8 fixes, and each carries its own guard:
 
 * **retune** (clause 3) — the nine `lr` x `batch_size` configurations, one seed each, scored on the
   **validation** window and selected on AUPRC. The winner is the researcher's to record in the ADR;
   this script prints the table and never edits a document.
 * **pilot** (clause 4) — 5 seeds at the winning configuration, on **validation**, persisting scores.
   Its variance is what mechanically fixes the stage-1 seed count (clause 5).
-* **gate** — the **test** window, and only with a pre-registration that is accepted *and* carries
-  `**Stage-1 seeds:** <integer>`. **The seed count comes from that document, not from a flag**, so
-  the batch cannot run a different `n` than the one pre-registered.
+* **gate** — **closed** (ADR-016). It ran Gate 1's one pre-registered **test** batch at `09c6e72`,
+  and the verdict is signed (`gates/GATE-DGF1-1.md`). The mode is kept so its refusal says why: the
+  shared guard in `scripts/preregistration.py` refuses it before any flag is read, whatever
+  `--preregistration` names, ADR-012 included. A later gated batch opens the test window only through
+  its own mode, mapped there to its own accepted pre-registration, which fixes its seed count.
 
 The fourth is ADR-013 clause 3's re-certification of the trainer after the reported views left it:
 
@@ -43,11 +43,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from preregistration import require_accepted_preregistration, require_clean_tree  # noqa: E402
+from preregistration import require_clean_tree, require_gated_preregistration  # noqa: E402
 
 SCORES_DIR = REPO_ROOT / "experiments" / "scores"
 PIN_PATH = REPO_ROOT / "experiments" / "extract_reference_env.txt"   # ADR-008 clause 4
 PILOT_SEEDS = 5   # ADR-012 clause 4
+MODES = ("retune", "pilot", "gate", "repro-check")
 
 # -- ADR-013 clause 3: the re-certification's fixed reference -------------------------------------
 REPRO_TAG = "repro_check"
@@ -81,7 +82,10 @@ DELIBERATELY_UNCOMPARED: frozenset[str] = frozenset({
 
 
 def resolve_batch(mode: str, args) -> tuple[list[tuple[float, int]], list[int], str, str]:
-    """``(configs, seeds, window, experiment_tag)`` for one mode — the whole policy in one place."""
+    """``(configs, seeds, window, experiment_tag)`` for one mode — the whole policy in one place.
+
+    Every mode is named, so none falls through to the test window (ADR-016 clause 4).
+    """
     from adapters.dgf1.eval import dgf1_retune_grid
 
     if mode == "retune":
@@ -104,18 +108,18 @@ def resolve_batch(mode: str, args) -> tuple[list[tuple[float, int]], list[int], 
                              "device, and a dirty row certifies nothing (ADR-013 clause 3).")
         return [(REPRO_LR, REPRO_BATCH_SIZE)], [0], "val", REPRO_TAG
 
-    if args.lr is None or args.batch_size is None:
-        raise SystemExit(f"--mode {mode} needs --lr and --batch-size (the retune winner).")
-    config = [(float(args.lr), int(args.batch_size))]
-
     if mode == "pilot":
-        return config, list(range(PILOT_SEEDS)), "val", "pilot"
+        if args.lr is None or args.batch_size is None:
+            raise SystemExit(f"--mode {mode} needs --lr and --batch-size (the retune winner).")
+        return [(float(args.lr), int(args.batch_size))], list(range(PILOT_SEEDS)), "val", "pilot"
 
-    # gate: the count comes from the pre-registration, never from the command line
-    n_seeds = require_accepted_preregistration(args.preregistration)
-    print(f"[dgf1] test window unlocked by {Path(args.preregistration).name}: "
-          f"stage-1 seeds = {n_seeds} (from the ADR, not a flag)")
-    return config, list(range(n_seeds)), "test", "gate"
+    if mode == "gate":
+        # Closed (ADR-016 clause 3). The shared guard refuses it before any flag is read, whatever
+        # --preregistration names; the raise below only makes that visible here.
+        require_gated_preregistration(mode, args.preregistration, args.allow_dirty)
+        raise SystemExit("refusing --mode gate: closed by ADR-016.")
+
+    raise SystemExit(f"refusing --mode {mode!r}: not one of {', '.join(MODES)} (ADR-016 clause 4).")
 
 
 # -- repro check: pure helpers, unit-tested without a run -------------------------------------------
@@ -264,7 +268,7 @@ def repro_check_verdict(reference: dict[str, Any], observed: dict[str, Any]) -> 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--mode", choices=("retune", "pilot", "gate", "repro-check"), required=True)
+    ap.add_argument("--mode", choices=MODES, required=True)
     ap.add_argument("--lr", type=float, default=None)
     ap.add_argument("--batch-size", type=int, default=None)
     ap.add_argument("--preregistration", default=None)

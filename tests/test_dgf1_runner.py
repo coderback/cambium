@@ -1,10 +1,10 @@
 """Guards for the DGF-1 runners and their shared pre-registration module (ADR-012 clauses 3-5, 8;
-ADR-013 clause 3's repro check).
+ADR-013 clause 3's repro check; ADR-016).
 
 No batch is executed here: what is pinned is the *policy* — which window a mode may touch, where
 the seed count comes from, and what each mode is allowed to persist. The one property worth stating
-plainly: **in gate mode the seed count is read from the pre-registration document, never from a
-command-line flag**, so a batch cannot quietly run a different `n` than the one pre-registered.
+plainly: **no mode reaches the test window except through the shared guard**, which since ADR-016
+opens it for no mode at all, and refuses Gate 1's `gate` mode whatever document it is handed.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from preregistration import require_accepted_preregistration, require_clean_tree  # noqa: E402
+from preregistration import require_clean_tree  # noqa: E402
 from run_dgf1_floor import resolve_floor_batch  # noqa: E402
 from run_dgf1_gnn import (  # noqa: E402
     DELIBERATELY_UNCOMPARED,
@@ -65,39 +65,66 @@ def test_retune_and_pilot_stay_on_validation():
     assert configs == [(1e-3, 512)]
 
 
-def test_gate_mode_takes_its_seed_count_from_the_adr_not_a_flag(tmp_path):
-    args = _args(lr=1e-3, batch_size=512, preregistration=str(_adr(tmp_path, seeds="7")))
-    configs, seeds, window, tag = resolve_batch("gate", args)
-    assert window == "test" and tag == "gate"
-    assert seeds == list(range(7)), "the pre-registered count must decide the batch size"
-    assert configs == [(1e-3, 512)]
+def _closed_gate_documents(tmp_path):
+    """What gate mode might be handed: nothing, the real ADR-012 (accepted, with its count of 8), and
+    a temporary accepted file with a seed line. The old guard opened 482-821 for the last two."""
+    return [None, str(REPO_ROOT / "decisions" / "ADR-012-dgf1-gate1-preregistration.md"),
+            str(_adr(tmp_path))]
 
 
-def test_gate_mode_is_refused_without_an_accepted_preregistration(tmp_path):
-    base = dict(lr=1e-3, batch_size=512)
-    with pytest.raises(SystemExit, match="no --preregistration"):
-        resolve_batch("gate", _args(**base))
-    with pytest.raises(SystemExit, match="not 'accepted'"):
-        resolve_batch("gate", _args(**base, preregistration=str(_adr(tmp_path, status="proposed"))))
-    with pytest.raises(SystemExit, match="no stage-1 seed count"):
-        resolve_batch("gate", _args(**base, preregistration=str(_adr(tmp_path, seeds=None))))
+def test_gate_mode_is_closed_whatever_the_preregistration(tmp_path, monkeypatch):
+    """Re-pinned 2026-10-07 (ADR-016). Until then the real ADR-012 opened the test window with its
+    8 seeds. Gate 1 ran that batch once and is signed, so gate mode is now refused, and the refusal
+    comes from the shared guard before the hyperparameter check (the first call passes none)."""
+    import preregistration
+
+    monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: False)
+    for doc in _closed_gate_documents(tmp_path):
+        with pytest.raises(SystemExit, match="ADR-016"):
+            resolve_batch("gate", _args(preregistration=doc))
+        with pytest.raises(SystemExit, match="ADR-016"):
+            resolve_batch("gate", _args(lr=1e-3, batch_size=512, preregistration=doc))
 
 
-def test_pilot_and_gate_require_the_retune_winner(tmp_path):
-    for mode, extra in (("pilot", {}), ("gate", {"preregistration": str(_adr(tmp_path))})):
-        with pytest.raises(SystemExit, match="needs --lr and --batch-size"):
-            resolve_batch(mode, _args(**extra))
+def test_pilot_requires_the_retune_winner():
+    with pytest.raises(SystemExit, match="needs --lr and --batch-size"):
+        resolve_batch("pilot", _args())
 
 
-def test_the_real_adr_012_unlocks_the_test_window_with_exactly_the_derived_count():
-    """Re-pinned 2026-09-14. Until the pilots ran, this test asserted the real ADR *refused* the
-    test window, because its seed count was a placeholder. Clause 5's rule has since derived 8 and
-    it is recorded in the header, so the state being pinned changed by design — not the guard.
+def test_an_unknown_mode_is_refused_at_both_resolvers(tmp_path):
+    """ADR-016 clause 4: every mode is named, so a new or mistyped one cannot fall through to the
+    test window, even carrying every flag a test-window batch would need."""
+    doc = str(_adr(tmp_path))
+    with pytest.raises(SystemExit, match="not one of"):
+        resolve_batch("gate3", _args(lr=1e-3, batch_size=512, preregistration=doc))
+    with pytest.raises(SystemExit, match="not one of"):
+        resolve_floor_batch("gate3", _fargs(max_depth=6, subsample=1.0, preregistration=doc))
 
-    What stays pinned is the property that matters: the gate batch runs the number the document
-    fixed, and a later edit to that line cannot silently change it without failing here."""
-    adr = REPO_ROOT / "decisions" / "ADR-012-dgf1-gate1-preregistration.md"
-    assert require_accepted_preregistration(adr) == 8
+
+@pytest.mark.parametrize("runner", ["run_dgf1_gnn", "run_dgf1_floor"])
+def test_each_runners_gate_branch_calls_the_one_shared_guard_first(runner, tmp_path, monkeypatch):
+    """Both runners bind the same guard, and their gated branch hands it the mode, the path and the
+    dirty override before reading any hyperparameter (none is passed here)."""
+    import importlib
+
+    import preregistration
+
+    module = importlib.import_module(runner)
+    resolve, args = ((resolve_batch, _args) if runner == "run_dgf1_gnn"
+                     else (resolve_floor_batch, _fargs))
+    assert module.require_gated_preregistration is preregistration.require_gated_preregistration
+
+    calls = []
+
+    def spy(mode, path, allow_dirty):
+        calls.append((mode, path, allow_dirty))
+        raise SystemExit("spy")
+
+    monkeypatch.setattr(module, "require_gated_preregistration", spy)
+    doc = str(_adr(tmp_path))
+    with pytest.raises(SystemExit, match="spy"):
+        resolve("gate", args(preregistration=doc))
+    assert calls == [("gate", doc, False)]
 
 
 # -- ADR-013 clause 3: the repro check --------------------------------------------------------------
@@ -521,7 +548,8 @@ def test_read_row_requires_exactly_one_match(tmp_path):
 
 # -- the floor runner's modes mirror the GNN runner's -------------------------------------------
 def _fargs(**kw):
-    return Namespace(**{"max_depth": None, "subsample": None, "preregistration": None, **kw})
+    return Namespace(**{"max_depth": None, "subsample": None, "preregistration": None,
+                        "allow_dirty": False, **kw})
 
 
 def test_floor_retune_is_the_nine_config_grid_on_validation():
@@ -539,25 +567,22 @@ def test_floor_pilot_seed_count_follows_whether_the_winner_subsamples():
     assert seeds == list(range(PILOT_SEEDS))
 
 
-def test_floor_gate_takes_its_seed_count_from_the_adr(tmp_path):
-    args = _fargs(max_depth=6, subsample=1.0, preregistration=str(_adr(tmp_path, seeds="9")))
-    configs, seeds, window, tag = resolve_floor_batch("gate", args)
-    assert window == "test" and tag == "gate" and seeds == list(range(9))
-    assert configs == [{"max_depth": 6, "subsample": 1.0}]
+def test_floor_gate_mode_is_closed_whatever_the_preregistration(tmp_path, monkeypatch):
+    """ADR-016 clause 3, as for the GNN runner: refused by the shared guard, before the
+    hyperparameter check (the first call passes none)."""
+    import preregistration
+
+    monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: False)
+    for doc in _closed_gate_documents(tmp_path):
+        with pytest.raises(SystemExit, match="ADR-016"):
+            resolve_floor_batch("gate", _fargs(preregistration=doc))
+        with pytest.raises(SystemExit, match="ADR-016"):
+            resolve_floor_batch("gate", _fargs(max_depth=6, subsample=1.0, preregistration=doc))
 
 
-def test_floor_gate_is_refused_without_an_accepted_preregistration(tmp_path):
-    with pytest.raises(SystemExit, match="no --preregistration"):
-        resolve_floor_batch("gate", _fargs(max_depth=6, subsample=1.0))
-    with pytest.raises(SystemExit, match="no stage-1 seed count"):
-        resolve_floor_batch("gate", _fargs(max_depth=6, subsample=1.0,
-                                           preregistration=str(_adr(tmp_path, seeds=None))))
-
-
-def test_floor_pilot_and_gate_require_the_retune_winner(tmp_path):
-    for mode, extra in (("pilot", {}), ("gate", {"preregistration": str(_adr(tmp_path))})):
-        with pytest.raises(SystemExit, match="needs --max-depth and --subsample"):
-            resolve_floor_batch(mode, _fargs(**extra))
+def test_floor_pilot_requires_the_retune_winner():
+    with pytest.raises(SystemExit, match="needs --max-depth and --subsample"):
+        resolve_floor_batch("pilot", _fargs())
 
 
 # -- the clean-tree guard -------------------------------------------------------------------------

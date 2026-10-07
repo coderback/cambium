@@ -1,4 +1,5 @@
-"""DGF-1 parity floor guards — ADR-011 clause 4, clause-5 test 8; ADR-007 metric discipline.
+"""DGF-1 parity floor guards — ADR-011 clause 4, clause-5 test 8; ADR-007 metric discipline; and
+the shared test-window guard (ADR-016).
 
 Synthetic fixtures only (the snapshot is gitignored). The load-bearing property is **parity**: the
 floor's columns are the GNN's input columns — same function, same views, same node sets — so any
@@ -31,7 +32,8 @@ from adapters.dgf1.features import INPUT_FEATURE_NAMES, fit_input_transform, nod
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
-from run_dgf1_floor import require_accepted_preregistration  # noqa: E402
+import preregistration  # noqa: E402
+from preregistration import require_gated_preregistration  # noqa: E402
 
 SPLIT_VAL = TemporalSplit(train_max=8, test_min=9, test_max=12)
 SPLIT_TEST = TemporalSplit(train_max=8, test_min=13, test_max=20)
@@ -135,19 +137,65 @@ def test_run_floor_writes_one_row_with_provenance(tmp_path):
     assert "fraud_auprc" in logged and "prevalence" in logged
 
 
-# -- the test-window guard --------------------------------------------------------------------
-def test_test_window_is_refused_without_a_preregistration():
+# -- the shared test-window guard (ADR-016) ---------------------------------------------------------
+# The real map is empty, so every acceptance below goes through a fixture entry, and `git_dirty` is
+# pinned so that no result depends on the state of the checkout.
+ADR_012 = REPO_ROOT / "decisions" / "ADR-012-dgf1-gate1-preregistration.md"
+ADR_015 = REPO_ROOT / "decisions" / "ADR-015-dgf1-official-split-positioning.md"
+ADR_016 = REPO_ROOT / "decisions" / "ADR-016-close-gate1-test-window.md"
+
+
+def _doc(path: Path, status: str | None = "accepted",
+         seeds_line: str = "**Stage-1 seeds:** 12\n") -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# ADR-999\n\n" + (f"**Status:** {status}\n" if status else "no status\n")
+                    + seeds_line, encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def mapped(tmp_path, monkeypatch):
+    """A clean tree, and one fixture mode mapped to an accepted document that carries its count."""
+    doc = _doc(tmp_path / "decisions" / "ADR-999-x.md")
+    monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: False)
+    monkeypatch.setattr(preregistration, "GATED_MODES", {"fixture": doc})
+    return doc
+
+
+def test_a_mapped_mode_opens_with_its_own_document_and_returns_its_count(mapped, tmp_path,
+                                                                         monkeypatch):
+    assert require_gated_preregistration("fixture", mapped, allow_dirty=False) == 12
+    # compared in resolved form, so another spelling of the same file is the same document
+    monkeypatch.chdir(tmp_path)
+    respelled = "decisions/../decisions/ADR-999-x.md"
+    assert require_gated_preregistration("fixture", respelled, allow_dirty=False) == 12
+
+
+def test_another_document_is_refused_even_when_accepted_with_a_count(mapped, tmp_path):
+    """ADR-015 clause 6's defect: any accepted file with a seed line used to open the window."""
+    other = _doc(tmp_path / "elsewhere" / "ADR-999-x.md")
+    with pytest.raises(SystemExit, match="not the document mapped"):
+        require_gated_preregistration("fixture", other, allow_dirty=False)
     with pytest.raises(SystemExit, match="no --preregistration"):
-        require_accepted_preregistration(None)
+        require_gated_preregistration("fixture", None, allow_dirty=False)
+
+
+def test_a_dirty_tree_and_its_override_are_both_refused_in_a_gated_mode(mapped, monkeypatch):
+    """The guard checks the tree itself (ADR-016 clause 2), and no flag waives it."""
+    with pytest.raises(SystemExit, match="--allow-dirty"):
+        require_gated_preregistration("fixture", mapped, allow_dirty=True)       # clean tree
+    monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: True)
+    with pytest.raises(SystemExit, match="uncommitted"):
+        require_gated_preregistration("fixture", mapped, allow_dirty=False)
+    with pytest.raises(SystemExit, match="--allow-dirty"):
+        require_gated_preregistration("fixture", mapped, allow_dirty=True)       # dirty tree
 
 
 @pytest.mark.parametrize("status", ["proposed", "rejected", None])
-def test_test_window_is_refused_unless_the_adr_is_accepted(tmp_path, status):
-    adr = tmp_path / "ADR-999-x.md"
-    adr.write_text("# ADR-999\n\n" + (f"**Status:** {status}\n" if status else "no status\n")
-                   + "**Stage-1 seeds:** 12\n", encoding="utf-8")
-    with pytest.raises(SystemExit, match="refusing --window test"):
-        require_accepted_preregistration(adr)
+def test_the_mapped_document_must_be_accepted(mapped, status):
+    _doc(mapped, status=status)
+    with pytest.raises(SystemExit, match="not 'accepted'"):
+        require_gated_preregistration("fixture", mapped, allow_dirty=False)
 
 
 @pytest.mark.parametrize("seeds_line", [
@@ -155,26 +203,69 @@ def test_test_window_is_refused_unless_the_adr_is_accepted(tmp_path, status):
     "**Stage-1 seeds:** _not yet derived — after the pilot_\n",   # ADR-012's placeholder
     "Stage-1 seeds: 12\n",                                 # right words, wrong format
 ])
-def test_an_accepted_adr_without_a_seed_count_still_shuts_the_test_window(tmp_path, seeds_line):
-    """ADR-012 fixes the seed-count *rule* and leaves the *number* to the validation pilot, so
-    acceptance alone must not unlock 482-821 (clause 8)."""
-    adr = tmp_path / "ADR-999-x.md"
-    adr.write_text("# ADR-999\n\n**Status:** accepted\n" + seeds_line, encoding="utf-8")
+def test_an_accepted_mapped_document_without_a_seed_count_keeps_the_window_shut(mapped, seeds_line):
+    """ADR-012 fixed the seed-count *rule* and left the *number* to the validation pilot, so
+    acceptance alone must not open 482-821 (clause 8)."""
+    _doc(mapped, seeds_line=seeds_line)
     with pytest.raises(SystemExit, match="no stage-1 seed count"):
-        require_accepted_preregistration(adr)
+        require_gated_preregistration("fixture", mapped, allow_dirty=False)
 
 
-def test_accepted_plus_a_seed_count_unlocks_the_test_window_and_returns_it(tmp_path):
-    adr = tmp_path / "ADR-999-x.md"
-    adr.write_text("# ADR-999\n\n**Status:** accepted\n**Stage-1 seeds:** 12\n", encoding="utf-8")
-    assert require_accepted_preregistration(adr) == 12
+def test_the_guard_refuses_in_adr_016s_order(mapped, monkeypatch, tmp_path):
+    """Mode before tree, tree before path, path before content."""
+    other = _doc(tmp_path / "elsewhere" / "ADR-999-x.md", status="proposed")
+    monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: True)
+    with pytest.raises(SystemExit, match="not a gated mode"):
+        require_gated_preregistration("pilot", other, allow_dirty=True)
+    with pytest.raises(SystemExit, match="uncommitted"):
+        require_gated_preregistration("fixture", other, allow_dirty=False)
+    monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: False)
+    with pytest.raises(SystemExit, match="not the document mapped"):
+        require_gated_preregistration("fixture", other, allow_dirty=False)
 
 
-def test_the_real_adr_012_carries_a_stage_1_seeds_line():
-    """The guard reads this line by an exact format; the ADR must keep offering it. Its *value* is
-    deliberately not pinned — it is a placeholder until the pilot derives the count."""
-    adr = (REPO_ROOT / "decisions" / "ADR-012-dgf1-gate1-preregistration.md").read_text(encoding="utf-8")
-    assert "**Stage-1 seeds:**" in adr
+def test_a_map_entry_is_read_against_the_repo_root_not_the_working_directory(monkeypatch, tmp_path):
+    """Real entries are repo-relative. ADR-016 is accepted and carries no seed line, so reaching the
+    seed-count refusal shows the path matched."""
+    monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: False)
+    monkeypatch.setattr(preregistration, "GATED_MODES",
+                        {"fixture": Path("decisions") / ADR_016.name})
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit, match="no stage-1 seed count"):
+        require_gated_preregistration("fixture", ADR_016, allow_dirty=False)
+
+
+def test_gate_is_closed_whatever_document_is_named(tmp_path, monkeypatch):
+    """ADR-016 clause 3. Under the old guard, ADR-012 and the temporary file both opened 482-821."""
+    monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: False)
+    for doc in (None, ADR_012, _doc(tmp_path / "ADR-999-x.md")):
+        with pytest.raises(SystemExit, match=r"ADR-016.*gates/GATE-DGF1-1\.md"):
+            require_gated_preregistration("gate", doc, allow_dirty=False)
+
+
+def test_adr_012_passes_every_content_check_so_its_refusal_is_the_closure():
+    """Keeps the refusal above from passing vacuously: ADR-012 is accepted, and its seed line
+    matches the guard's own pattern."""
+    text = ADR_012.read_text(encoding="utf-8")
+    assert preregistration._STATUS.search(text).group(1).lower() == "accepted"
+    assert int(preregistration._SEEDS.search(text).group(1)) == 8
+
+
+def test_the_real_map_is_empty():
+    """After ADR-016 no mode opens the test window. A later gated batch's implementation adds its
+    entry, and updates this test, in the same change."""
+    assert preregistration.GATED_MODES == {}
+    assert set(preregistration.CLOSED_MODES) == {"gate"}
+
+
+def test_the_real_map_never_names_gate_adr_012_or_adr_015():
+    """ADR-016 clause 5 binds every future entry, not only today's empty map."""
+    assert "gate" not in preregistration.GATED_MODES
+    forbidden = {ADR_012.resolve(), ADR_015.resolve()}
+    for mode, doc in preregistration.GATED_MODES.items():
+        resolved = (preregistration.REPO_ROOT / doc).resolve()
+        assert resolved not in forbidden, mode
+        assert not resolved.name.startswith(("ADR-012", "ADR-015")), mode
 
 
 # -- the gated floor model (ADR-012 clause 2) --------------------------------------------------
