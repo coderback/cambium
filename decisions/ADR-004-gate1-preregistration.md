@@ -69,21 +69,26 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
 
 **`:55-57` misreads its source and miscounts the aggregates.** It says "the RF floor already sits at
 the 0.807 high-water mark that collapses to ~0.12 under strict eval elsewhere". The source is
-Maganti 2026, arXiv:2604.19514v1, read as a PDF (`notebooks/audit/2026-10-07/literature-recheck.md`
-§1):
+Maganti 2026, arXiv:2604.19514v1, read as a PDF (`notebooks/audit/2026-10-07/literature-recheck.md` §1, §5):
 - **0.807 is not an RF floor.** It is the F1 that the paper's earlier drafts reported for a hybrid,
   a random forest on GraphSAGE embeddings concatenated with the raw features (abstract, p.1).
   ELL-1's RF floor of 0.806 is close to it by coincidence.
-- **Nothing falls to ~0.12.** Under the paper's clean protocol the hybrid falls to 0.699 ± 0.015.
+- **Nothing falls to ~0.12.** Under the paper's strict protocol the hybrid falls to 0.699 ± 0.015.
   0.124 is the hybrid's gap to a random forest on the raw features (0.823 ± 0.002 in that
   comparison, p.2).
-- **The paper names BatchNorm and full-graph message passing as leakage channels,** and rules both
-  out at once. It does not measure how much either contributed (p.2, p.11).
+- **The paper attributes the fall to the strict protocol as a whole.** Training the encoder only on
+  the step-≤34 subgraph keeps both full-graph message passing and batch statistics away from
+  test-period vectors (p.17). It does not separate the two channels' shares.
 - **Two cautions** before citing it for any number. Its training early-stops on test-period F1
   (p.11), and it misquotes Weber's baselines (p.4).
 - **"Features 94–164"** is off by one: the aggregates are 72 columns (ADR-001's erratum).
 
 **What stands:** clause 1 as a bar, and its conclusion that the bar is genuine. An RF floor at
 0.806 is high whatever the citation says. The strict inductive protocol stands on its own grounds,
-and on Elliptic it drops nothing: zero edges cross the cutoff (GATE-ELL1-3:166-167). The governing
-docs that repeat the figure are corrected in place when this erratum is accepted.
+and on Elliptic it drops nothing: zero edges cross the cutoff (GATE-ELL1-3:166-167).
+
+**Where else the figure appears.**
+- **Governing docs** that repeat it are corrected in place when this erratum is accepted.
+- **Code comments** at `gbe/gnn/backbone.py:10` and `adapters/ell1/train_gnn.py:12` are left as
+  they are. Editing either path requires ADR-008's re-run, so each is corrected with the next change
+  there.

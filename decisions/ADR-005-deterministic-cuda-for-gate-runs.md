@@ -133,9 +133,16 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
 - **Clause 3 (`:72-77`), "a row states for itself whether it was reproducible", did not hold until
   `ca8181d` (2026-10-07).**
   - **Before:** `RunSession` read the state just after forcing determinism on, so every row
-    recorded `deterministic=true` by construction. Rows written before `ca8181d` are not evidence
-    of how they ran. Their reproducibility rests on bit-for-bit re-runs: ADR-008's reference set,
-    GATE-DGF1-0's batches and ADR-013's re-certification.
+    recorded `deterministic=true` by construction. For rows written before `ca8181d`, the field
+    shows only that determinism was switched on at the start. What shows that a run reproduces
+    is a re-run, and that evidence differs by gate:
+    - **ELL-1's Gate-0 and Gate-3 rows** were reproduced bit-for-bit by ADR-008's batches (49/49
+      at `d614671` and again at `8060cf2`);
+    - **DGF-1:** one validation pilot row was reproduced bit-for-bit (ADR-013's
+      re-certification, `dgf1-20260915T151348Z-0d390b65`). The 24 Gate-1 test rows were never
+      re-run, and ADR-016 has closed their window;
+    - **ELL-1's Gate-1 rows** predate this ADR and ran without determinism, so no re-run can
+      reproduce them (ADR-008:93-95).
   - **Since:** the field is true only when strict determinism held both at entry and at exit
     (`gbe/run/session.py:62`, `:73-74`). `tests/test_determinism_guard.py` fails if a run that
     switches determinism off, or to `warn_only`, is recorded true.

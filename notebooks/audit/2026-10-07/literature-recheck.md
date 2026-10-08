@@ -192,7 +192,7 @@ its protocol, and its numbers only with the test-set early-stopping caveat.
 
 Two more checks, by the same method. Davis & Goadrich has no arXiv version: the ICML 2006 paper was
 downloaded from `ftp.cs.wisc.edu/machine-learning/shavlik-group/davis.icml06.pdf`, SHA-256
-`94b4a112…3f908`, 8 pages.
+`94b4a112…f3908`, 8 pages.
 
 **Davis & Goadrich (2006), "The Relationship Between Precision-Recall and ROC Curves".** The repo
 says ROC and PR space are not order-equivalent under skew (ADR-007:47-48; doc-00:161; doc-02:98;
@@ -226,7 +226,22 @@ on DGraph-Fin:
 | RF-Graph | 67.78 |
 | XGB-Graph | 75.83 |
 
-On both metrics the plain trees sit below the GNNs, and XGB-Graph matches them; RF-Graph does not.
+On both metrics the plain trees sit below these four GNNs, and XGB-Graph matches them; RF-Graph does
+not. Across every GNN in the two tables the range is wider: AUPRC from 2.49 (SGC) to 4.24 (BGNN),
+and AUROC from 68.63 (SGC) to 76.30 (BWGNN), so SGC sits below both plain trees. XGB-Graph and
+RF-Graph aggregate over two layers by default, searched over 1–4 (Table 9, p.23).
 So "tree baselines match GNNs on DGraph" (ADR-010:106, relied on at :134) and "trees nearly match
 GNNs here" (document-amendments-v0.2:51) hold for XGB-Graph only. GADBench's own summary (p.8) is that "all
 methods perform poorly on the DGraph-Fin dataset".
+
+**Corrections to §1 and §3** (2026-10-08, from the errata's review; the text above is kept as
+written on 2026-10-07):
+- **§1 says the paper "attributes no part of the hybrid's drop to BatchNorm".** Its §7.8 (p.17)
+  attributes the drop to the strict protocol, under which "neither message passing nor batch
+  statistics observe any test-period vector during training". It does not separate the two
+  channels' shares.
+- **§1 says doc-01's risk row "Transductive leakage inflates GNN gains" is not what this experiment
+  shows.** That holds for the paired GraphSAGE experiment (Table 10, p.17). The hybrid's fall (p.17)
+  goes the risk's way, so the paper shows both directions.
+- **§3's "plain trees sit about one point below the GNNs"** holds against the leading GNNs (GCN,
+  GraphSAGE, GAT and BWGNN), not against all of them (above).

@@ -79,11 +79,11 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
   - **Local-94** (`x[:, :94]`, `scripts/run_ell1_local94.py:45`, `:69`) therefore held the 93 local
     features plus the first aggregate.
 - **The same slip recurs as "features 94–164"**, a range of 71 columns:
-  - ADR-003:61 and ADR-004:55;
+  - ADR-003:61 and ADR-004:55, each with an erratum of its own;
   - GATE-ELL1-1:70, and GATE-ELL1-3:28 and :176, each with an erratum beside it;
   - doc-01 and `docs/document-amendments-v0.2.md`, corrected in place when this erratum is accepted;
-  - code comments at `gbe/eval/ablations.py:112` and `scripts/run_ell1_local94.py:5`, `:10` and
-    `:45`, left as they are. Editing `gbe/` requires ADR-008's re-run, so each is corrected with
+  - code comments at `gbe/eval/ablations.py:112` and `scripts/run_ell1_local94.py:5`, `:10`, `:19`
+    and `:45`, left as they are. Editing `gbe/` requires ADR-008's re-run, so each is corrected with
     the next change to its file;
   - lab 2026-07-25:6 ("all 71 hand-built one-hop aggregates"), a dated log, which is not edited.
 - **What it changes:** no verdict. The local-94 diagnostic removed 71 of the 72 aggregates, not all

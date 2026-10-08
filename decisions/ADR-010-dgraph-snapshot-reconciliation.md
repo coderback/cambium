@@ -173,15 +173,14 @@ label" is true of the *task* and false of the *tensor*; §2.1 gains a parentheti
 The text above is not edited, so citations of its lines stay valid. **No clause changes.**
 
 **GADBench does not find that "tree baselines match GNNs on DGraph" (`:106`, relied on at `:134`).**
-On DGraph-Fin with tuned hyperparameters (Tables 4 and 13;
-`notebooks/audit/2026-10-07/literature-recheck.md` §3 and §5):
-- **Plain RF and XGBoost sit below the GNNs:** AUPRC 2.57 and 2.75 against 3.77–3.97, and AUROC
-  70.37 and 72.43 against 75.51–76.30.
-- **XGB-Graph matches them:** a tree with one-hop neighbour aggregation, at AUPRC 3.79 and AUROC
-  75.83. RF-Graph does not.
+On DGraph-Fin with tuned hyperparameters (Tables 4 and 13, pp.8 and 26; `notebooks/audit/2026-10-07/literature-recheck.md` §3 and §5):
+- **Plain RF and XGBoost sit below most of the GNNs.** Their AUPRC is 2.57 and 2.75, and their
+  AUROC 70.37 and 72.43. GCN, GraphSAGE, GAT and BWGNN score 3.77–3.97 and 75.51–76.30.
+- **Across every GNN in the two tables** the range is 2.49–4.24 AUPRC and 68.63–76.30 AUROC, so the
+  weakest, SGC, sits below both plain trees.
+- **XGB-Graph matches the four GNNs above,** at AUPRC 3.79 and AUROC 75.83. It is a tree with
+  neighbour aggregation, two layers by default (Table 9, p.23). RF-Graph does not (2.15 and 67.78).
 
-**What it changes.** doc-02 §0's expectation of a small structural delta still has independent
-support, but that support is the tree-plus-aggregation result and the 38.9% figure, not plain trees
-matching GNNs. DGF-1's Gate 1 later found its GNN above a tree given the same node-level
-information (GATE-DGF1-1). Whether that gain survives one-hop neighbour aggregation is the question
-of Gate 3's reported tree arm (CLAUDE.md, *Next* item 7).
+**What it changes:** `:106` and `:134` state a premise that is false as written. Whether clause 3's
+expectation still holds on the corrected evidence is the researcher's question. This erratum does
+not re-base it.

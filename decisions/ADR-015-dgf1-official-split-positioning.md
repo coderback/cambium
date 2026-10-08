@@ -1290,8 +1290,5 @@ unchanged. That check ran on code no commit contains.
 - **The name appears in no code.** `git log --all -S extra_metrics -- adapters gbe scripts tests`
   finds it only as a test fixture of the evidence checker (`508ab04`).
 
-So the channel is a design, not a verified property. The implementation must establish it by test
-before any certify row is written, as CLAUDE.md's *Next* item 8 already requires:
-- the config hash equals the stored pilot row's;
-- the keys reach `metrics_json`;
-- the test fails if the keyword is routed into `run_config_values`.
+So the channel is a design, not a verified property. CLAUDE.md's *Next* list already requires
+ADR-015's implementation to establish it by test (audit A S5).

@@ -455,4 +455,4 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
   ADR-014 was withdrawn on 2026-09-15, undecided (`399dd7f`). Clause 3's bar does not include the
   environment, and no pending document changes that.
 - **`:299-301`'s note is labelled "Corrected 2026-09-15"** but was committed on 2026-10-06
-  (`8296f4b`). A correction is dated by the commit that makes it.
+  (`8296f4b`), three weeks after the date it carries.

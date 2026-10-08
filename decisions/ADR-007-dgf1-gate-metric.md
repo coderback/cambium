@@ -233,7 +233,8 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
 - **`:47-48` misattributes Davis & Goadrich (2006).** It says "ROC and PR space are not
   order-equivalent under class skew".
   - **What the paper proves** (`notebooks/audit/2026-10-07/literature-recheck.md` §5, read as a
-    PDF): a curve dominates in ROC space if and only if it dominates in PR space (Theorem 3.2, p.3).
+    PDF): for fixed numbers of positive and negative examples, a curve dominates in ROC space if
+    and only if it dominates in PR space (Theorem 3.2, p.3).
   - **What can disagree is the area:** an algorithm that optimises ROC-AUC is not guaranteed to
     optimise AUPRC (abstract, p.1). §5 (p.7) gives a skewed example where the two areas pick
     different curves.
@@ -244,7 +245,7 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
     accepted, and at `gbe/eval/metrics.py:9-10`, corrected with the next change to `gbe/`.
   - `:131-132`'s citation, that linear interpolation in PR space is wrong, is correct.
 - **`:163`, "AUPRC has no comparator", is false.** GADBench (Tang et al. 2023, arXiv:2306.12251v2)
-  reports AUPRC on DGraph-Fin for every model it runs (Table 4, p.8; `literature-recheck.md` §3).
+  reports AUPRC on DGraph-Fin for every model in its Table 4 (p.8; `literature-recheck.md` §3).
   - **Its protocol and split differ from DGF-1's gated temporal split,** so it is a cross-protocol
     comparator only.
   - **The rejection of "AUPRC alone" stands** on ROC-AUC's role as the leaderboard metric.

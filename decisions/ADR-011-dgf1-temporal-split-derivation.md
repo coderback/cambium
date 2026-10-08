@@ -534,10 +534,9 @@ containing one-hop aggregates".**
   histogram, degree and recency) and no neighbour features.
 
 So it is a lower bar than ELL-1's, though still strictly harder for the GNN than the raw-17 floor,
-as `:283` says. GADBench's XGB-Graph, which adds one-hop neighbour aggregation to a tree, matches
-the GNNs on DGraph-Fin (`notebooks/audit/2026-10-07/literature-recheck.md` §3 and §5).
+as `:283` says. GADBench's XGB-Graph, which adds neighbour aggregation to a tree (two layers by
+default), matches the leading GNNs on DGraph-Fin (`notebooks/audit/2026-10-07/literature-recheck.md` §3 and §5).
 
 GATE-DGF1-1 states its comparison correctly, as "a tree given the same node-level information". It
 carries the qualification that the gain is not yet attributable to message passing. Gate 3's
-pre-registration adds the reported tree + one-hop neighbour-aggregates arm (CLAUDE.md, *Next* item
-7).
+pre-registration is to add a reported tree + one-hop neighbour-aggregates arm (CLAUDE.md, *Next*).
