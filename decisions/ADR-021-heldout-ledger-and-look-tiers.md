@@ -1,17 +1,23 @@
 # ADR-021 — The held-out ledger, the three tiers of a look, and the leakage rule's wording
 
 **Status:** proposed
-**Date:** proposed 2026-10-08 · draft 3 2026-10-08
+**Date:** proposed 2026-10-08 · draft 4 2026-10-08
 **Tier:** A. It sets the held-out and leakage rules, and it amends a Tier-A ADR (CLAUDE.md
 *Process*, ADR-017).
-**Review rounds:** 2/4
+**Review rounds:** 3/4. Round 4 is the last. A blocking finding after it comes to the researcher.
 **Deciders:** coderback
 **Implemented by:** plan row 5a, in the order clause 11 gives. The work starts at least 12 hours
 after acceptance and not on the same calendar day. This ADR must be accepted before EDR-1 starts
 (ADR-020 condition 6), and before the next look at a held-out set (CLAUDE.md, *Next*).
-**Amends ADR-015, narrowly** (clause 12). The ledger joins its identity exclusions beside the
-registry, and its "HEAD equals the working tree" sentence allows ledger appends. No other clause of
-ADR-015 changes. ADR-015 is unimplemented, so its restarted wait costs nothing.
+**Amends ADR-015, narrowly** (clause 12). It changes:
+- the identity exclusions;
+- the "HEAD equals the working tree" sentence;
+- where the mask check and `data_identity` get their tensors;
+- two "Held-out look" lines;
+- one disclosure.
+
+ADR-015 is unimplemented, and it needs row 5a's accessors anyway, so its restarted wait costs
+nothing.
 
 **Docs affected:**
 - `CLAUDE.md`:
@@ -19,13 +25,13 @@ ADR-015 changes. ADR-015 is unimplemented, so its restarted wait costs nothing.
   - `:187-189` (the leakage-test rule);
   - DGF-1's qualifications (a bullet after `:108-109`);
   - *Next* item 4 (`:70-71`).
-- `decisions/ADR-015-dgf1-official-split-positioning.md:580-582` (clause 12).
+- `decisions/ADR-015-dgf1-official-split-positioning.md` (clause 12).
 - `docs/timeline.md`, rows 5 and 5a.
 - `docs/subagent-preamble.md`: an agent's report of a held-out figure becomes a ledger row. This adds
   a duty and narrows no ban.
 
 **ADR-016 is unchanged.** Its mode → document map is untouched. Its admitted gap, that library entry
-points accept the test split (ADR-016:92-94), is closed by clause 5's hidden labels and accessors.
+points accept the test split (ADR-016:92-94), is closed by clause 5.
 
 ## Context
 
@@ -57,32 +63,24 @@ qualification 4.
   consistency ADR (`notebooks/audit/2026-10-07/README.md:78`), which drops it once this ADR is
   accepted.
 
-**From the measurement and the prototype** (ADR-017 item 3;
+**From the measurement, the prototypes and three review rounds** (ADR-017 item 3;
 `notebooks/measurements/2026-10-08-heldout-ledger/`):
 - **The guard sees a third of the paths.** Six committed scripts can read a held-out DGF-1 set, and
   four of them do so outside the guard (`notebooks/measurements/2026-10-08-heldout-ledger/output.txt`).
-- **Two rounds of review found more routes.**
-  - **Round 1:** the runners open the window as `dgf1_splits()[window]`, the adapter exposes the
-    mask as `official_test_mask`, and the library functions accept the test split from any caller
-    (ADR-016:92-94).
-  - **Round 2:** `load_dgraph()` hands every user's label and appearance time to every caller, so
-    `data.y[data.node_time >= 482]` reads the window's labels with no window object at all. The
-    window's bounds are public config, so guarding them guards nothing.
+- **Each review round found routes the previous design left open:**
+  - **Round 1:** `dgf1_splits()[window]`, `official_test_mask`, and library calls with the test
+    split.
+  - **Round 2:** every user's label is loaded for every caller, so `data.y[data.node_time >= 482]`
+    needs no window object.
+  - **Round 3:** the official train and validation masks together mark exactly the labelled users,
+    so with node times they say which hidden users are labelled. Hiding labels by node time also
+    broke ADR-015's official track.
 
-  The guard therefore sits on the labels themselves.
-- **Prototype v3** is in `notebooks/measurements/2026-10-08-heldout-ledger/prototype/`. It has 51
-  tests, and 47 of its 48 mutants are killed
-  (`notebooks/measurements/2026-10-08-heldout-ledger/prototype/mutation-output.txt`). The survivor,
-  "a document not in HEAD authorises", is equivalent: a missing document yields empty text, which
-  the Status check then refuses. It covers:
-  - the ledger and the hidden labels;
-  - the accessors, and what each tier returns;
-  - the authority check, read from HEAD;
-  - the guarded backfill and overlapping sets;
-  - the append-only dirty check;
-  - the backstop lint.
-
-  v1 is at `012a023`, and v2 at `7f15bce`.
+  The guarantee is therefore what the default load leaves out, not who calls what.
+- **Prototype v4** has 59 tests, and 62 of 62 mutants are killed
+  (`notebooks/measurements/2026-10-08-heldout-ledger/prototype/mutation-output.txt`). Its first run
+  left 5 survivors, all weak tests, and those tests were strengthened. v1 is at
+  `012a023`, v2 at `7f15bce`, and v3 at `91d2031`.
 
 **Decided by the researcher on 2026-10-08** (`notebooks/lab/2026-10-08.md`):
 - **Before draft 1:**
@@ -92,19 +90,21 @@ qualification 4.
   - the prototype is kept in `notebooks/measurements/`.
 - **After round 1:**
   - looks are recorded at the adapter's accessors;
-  - the held-out parts of the two scripts that looked at test labels before any document
-    authorised it are retired.
+  - the two label scripts' held-out parts are retired.
 - **After round 2:**
   - held-out labels are hidden by default;
   - ADR-015 is amended narrowly, here;
-  - held-out sets are scoped by the track that reserves them.
+  - sets are scoped by track.
+- **After round 3:**
+  - both round-3 blockers are fixed;
+  - the mechanism is stated as invariants, each pinned by a named test and its mutants (clause 5).
 
 ## Decision
 
 ### 1. Held-out sets, scoped by track
 
 A held-out set is data that a pre-registration or a reported-only ADR reserves, and it is held out
-from **the track that reserves it**. There are two today:
+from **the track that reserves it**:
 - `dgf1-temporal-test-482-821`: DGF-1's temporal test window, held out from the temporal track's
   fitting, selection and design (ADR-011);
 - `dgraph-official-test`: DGraph's official test mask, held out from the official track's fitting
@@ -113,9 +113,13 @@ from **the track that reserves it**. There are two today:
 **Overlaps.** The two sets share users (ADR-015:234). So a look at either counts, for clauses 4 and
 6, as a look at both.
 
-**One overlap is design, not a look.** The official test's users also sit in the temporal track's
-training and validation windows. Their labels are used by design there, and ADR-015 discloses this
-once (ADR-015:430). That use is the temporal track's design, not a look at the official set.
+**Two overlaps are design, not looks.** Each track's use of the other track's held-out users, inside
+its own training and validation data, is that track's design. Each is disclosed once in the
+reserving ADR:
+- **the temporal track's training and validation windows** contain official-test users
+  (ADR-015:430);
+- **the official track's training and validation masks** contain temporal-test users. Clause 12 adds
+  this disclosure to ADR-015.
 
 A later document that reserves a set adds it, with its track and overlaps, in the commit that accepts
 it. ELL-1's test steps are out of scope. ELL-1 is closed, and its window is never reused (ADR-008).
@@ -129,16 +133,16 @@ it. ELL-1's test steps are out of scope. ELL-1 is closed, and its window is neve
 
 **Not looks:**
 - re-reading a signed gate file, or a figure it prints;
-- the loader's integrity checks over the whole snapshot, which compare whole-dataset totals with
-  the figures the dataset's own publication reports (ADR-010:24). This exemption takes precedence
+- the adapter's whole-snapshot integrity check (invariant I9), which compares totals with the
+  dataset's publication (ADR-010:24) and returns only pass or fail. This exemption takes precedence
   over the pooled rule below.
 
 **A look's tier is the highest it reaches:**
 - **structure:** label-free facts about the set's inputs, such as sizes, dates, degrees, feature
   ranges and graph views;
-- **labels:** any statistic that uses the set's labels without a model. A statistic pooled over
-  several sets is a labels look at every held-out set it includes, apart from clause 1's
-  design overlap;
+- **labels:** any statistic that uses the set's labels without a model, or a mask derived from them.
+  A statistic pooled over several sets is a labels look at each held-out set it includes, apart
+  from clause 1's design overlaps;
 - **scores:** any model output or metric on the set.
 
 ### 3. What each tier allows
@@ -148,14 +152,17 @@ it. ELL-1's test steps are out of scope. ELL-1 is closed, and its window is neve
 - **Structure:** allowed, once it is recorded. Its authority is a stated reason.
 - **Labels and scores: only under an accepted document that named the look first.** That means all
   of these:
-  - the document is accepted in HEAD, on an earlier calendar day than the look;
-  - it names the script making the look;
-  - that script is the running `__main__`, taken from the process, never typed by the caller.
+  - the document is accepted in HEAD, on an earlier calendar day than the look. When the document
+    has been amended, the latest amendment date counts, so an amendment's restarted wait is
+    honoured;
+  - it carries a line `**Held-out look:** <set> · <tier> · <script>` naming this set, tier and
+    script. A scores line covers labels;
+  - that script is the running `__main__`, taken from the process.
 
-  A draft cannot authorise its own look. Scores are produced only in a batch that an accepted
-  pre-registration (gated) or an accepted reported-only ADR names.
-- **An assembler reads under its batch's authority.** That document must name the assembler too.
-  An assembler that reads held-out registry rows records its look directly with `record_look`.
+  A prose mention authorises nothing, and a draft cannot authorise its own look. Scores are produced
+  only in a batch that an accepted pre-registration (gated) or an accepted reported-only ADR names.
+- **An assembler reads under its batch's authority.** That document carries a line for the assembler
+  too. An assembler that reads held-out registry rows records its look directly with `record_look`.
 - **An unauthorised look,** such as an agent's slip or an incidental sighting, is recorded as soon as
   it is known. Its authority reads "none", with the reason, and it goes through the hand path. It
   does not lift clause 4.
@@ -177,134 +184,104 @@ Each such document discloses the overlapping sets' ledger rows (clause 6). This 
 ADR-011's rule (ADR-011:106-110) from one gate to every document on a set that has been looked at.
 It already binds DGF-1's test window and the official test mask.
 
-### 5. The ledger, written where the data is handed out
+### 5. The mechanism, as invariants
 
-**Where and what.** The ledger is `experiments/heldout_ledger.csv`. It is append-only like the
-registry, and committed. One row per look, with these columns:
+**The ledger** is `experiments/heldout_ledger.csv`: append-only like the registry, and committed. Its
+columns are:
 - `timestamp_utc`, `held_out_set`, `tier`;
-- `what`: the look named, never its value. The repository is public, so a standalone number is
-  refused, and a digit inside a name such as `gate3` or `ADR-015` is not;
+- `what`: the look named, never its value. A standalone number is refused, and a digit inside a name
+  such as `gate3` is not;
 - `by`, `via`;
 - `authority`: the accepted document, a structure reason, or "none: …";
+- `batch`: the label of the batch the look belongs to;
 - `git_commit`.
 
-**One function writes every row,** `record_look` in `scripts/heldout_ledger.py`. It flushes and
-syncs the row to disk before returning. It refuses an unknown set or tier, an empty field, a figure
-in `what`, and an authority that fails clause 3.
+**Where the code lives.** `record_look` and the accessors live in `adapters/dgf1/heldout.py`, and the
+hand path's command line in `scripts/heldout_ledger.py`. The adapter imports nothing from
+`scripts/`.
 
-**What the adapter hands out by default:**
-- `dgf1_splits()` returns the validation window only;
-- `load_dgraph()` drops the official test mask;
-- **`load_dgraph()` hides the label of every user who appears after the validation window**. They
-  carry a "hidden" value that `labelled_mask` excludes, so no caller can count, condition on, train
-  on or score against them;
-- the raw snapshot loader for the verifier does the same.
+**Each invariant below is pinned by a named test and by the prototype's mutants listed against it in
+`mutation-output.txt`.** Row 5a writes the tests on the real modules and re-runs those mutants.
+One rule has no prototype mutant yet: clause 3's use of the latest amendment date. Row 5a writes its
+test, with a mutant that reads the first acceptance date instead, before step 2's commit.
 
-**The accessors.** Each held-out part comes only from one, which records the look and then returns
-it: `open_test_window(…)` and `open_official_test_mask(…)`.
-- **What each tier returns.** A structure open returns the window, with labels still hidden. A labels
-  or scores open also returns the true labels. So the tier is enforced by what comes back, not just
-  declared.
-- **The gated runners** open after the pre-registration guard has passed, with the guard's document
-  as the authority. ADR-016's map is unchanged.
-- **ADR-015's runner** opens the official test mask under ADR-015.
-- **An assembler** opens under its batch's document.
+| # | invariant | test |
+|---|---|---|
+| I1 | `record_look` appends one row under one header, and syncs it to disk before returning | `tests/test_heldout_ledger.py` |
+| I2 | it refuses an unknown set or tier, an empty field (`batch` included), and a figure in `what` | same |
+| I3 | a labels or scores look needs clause 3's authority: in HEAD, accepted on an earlier day, a matching "Held-out look" line, and `via` equal to the running `__main__` | same |
+| I4 | an incidental look says "none". A backfill row skips only I3, keeps I2, and is refused from the cutoff | same |
+| I5 | the committed ledger is a prefix of the working one, and `git_dirty` ignores the ledger only then | same, and `tests/test_git_dirty.py` |
+| I6 | the default paths carry no held-out label and nothing derived from one. `dgf1_splits()` gives validation only; `load_dgraph()` drops all three official masks and hides every label after the validation window, with a hidden value that is no real label | `tests/test_dgf1_heldout_access.py` |
+| I7 | `open_test_window` records, then returns the window, plus the true labels at the labels or scores tier only | same |
+| I8 | `open_official_track` refuses the structure tier. Otherwise it records, then returns every label and all three official masks | same |
+| I9 | the integrity check returns pass or fail only | same |
+| I10 | disclosure lists earlier rows for the batch's set and its overlaps, before the batch's first row, in time order. A batch with no opener row cannot be disclosed. Two batches under one document stay apart | `tests/test_heldout_ledger.py` |
+| I11 | the backstop finds raw routes in committed code under `scripts/`, `adapters/dgf1/` and `notebooks/`, outside the accessor modules, `test_*.py` and `notebooks/measurements/*/prototype/`: PyG's `DGraphFin(`, `TemporalSplit(`, any attribute or subscript naming an official mask, `load_scores(` in a file with no accessor, and `incidental=` or `backfill=` outside the hand path | `tests/test_heldout_readers.py` |
 
-The window's bounds stay public config. They are read through a separate bounds reader, and a bounds
-object reaches no label.
+**The backstop's limits, stated rather than hidden.** It is per file. It cannot tell a held-out
+registry read from a validation one, since the registry holds both. So I6 to I8, what the default
+load leaves out, are the guarantee. The backstop only catches raw routes, and a route found later is
+added to it with a mutant (*Revisit when*).
 
-**The backstop.** A test parses every committed Python file under `scripts/`, `adapters/dgf1/` and
-`notebooks/`. It skips three kinds of file:
-- the accessor modules;
-- `test_*.py` files, which use synthetic fixtures;
-- `notebooks/measurements/*/prototype/` folders.
+**The batch label.** Each opener passes a `batch` label that names one batch: a gated pre-registration
+and its stage, or ADR-015's identity and report. Two batches under one document therefore never
+merge.
 
-It fails on any of these:
-- a call to PyG's `DGraphFin(` or to `TemporalSplit(`;
-- an attribute or subscript ending in `test_mask`;
-- a call to `load_scores(` in a file that calls no accessor;
-- an `incidental=` or `backfill=` keyword outside the hand path.
-
-**Its limits, stated rather than hidden.** It is per file. It cannot tell a held-out registry read
-from a validation one, since the registry holds both. So the hidden labels and the accessors are the
-guarantee, and the backstop only catches the raw routes.
-
-**The hand path** (`scripts/heldout_ledger.py`'s command line) records two kinds of row:
-- **an incidental look,** whose authority reads "none: …";
-- **a backfill row,** marked `backfill=True`. It skips only the authority check, so the figure filter
-  still applies. It is refused for a look dated on or after this ADR's acceptance, and the flag is
-  removed once step 5 of clause 11 is committed.
-
-Only this path may record either kind.
-
-**What `git_dirty` ignores.** `git_dirty` ignores the ledger only while the working ledger is HEAD's
-ledger with rows appended. Any other edit makes the tree dirty. This is a generic append-only
-parameter in `gbe/run/config.py`, so ADR-008's regression check is re-run after it, and no batch that
-relies on the trainer runs before that re-run passes. It compounds CLAUDE.md's open question of
-whether DGF-1's repro-check is re-run (`CLAUDE.md:96-97`). The researcher decides both together.
+**What `git_dirty` ignores.** This is a generic append-only parameter in `gbe/run/config.py`, so
+ADR-008's regression check is re-run after it. No batch that relies on the trainer runs before that
+re-run passes. The researcher decides it together with CLAUDE.md's open DGF-1 repro-check question
+(`CLAUDE.md:96-97`). Hiding labels after the validation window cannot change a training or validation
+row, but that repro-check would show it.
 
 ### 6. Disclosure comes from the ledger
 
 Every gate or reported-only file assembled after this ADR builds its "seen before this batch" list
-mechanically, from two sources:
-- the ledger's rows for its set and the sets it overlaps, dated before the batch's first opener row;
+mechanically (I10), from two sources:
+- the ledger;
 - its validation runs, from the registry.
 
-**The batch** is the set of opener rows that carry its authority and name its runner. It is not one
-commit, because ADR-015 commits after every invocation (ADR-015:1104-1107). Nothing in the list is
-typed by hand.
+Nothing is typed by hand.
 
 **The assembler refuses in two cases:**
 - a held-out registry row of its batch predates the batch's first opener row;
 - that row is not in HEAD's ledger.
 
 The first assembler written after this ADR, matched-time's or Gate 3's, is the first to do this.
-Its tests fail on a missing ledger row and on each of the two refusals.
+Its tests fail on a missing ledger row and on each refusal.
 
-### 7. Tests (implementation, plan row 5a)
-
-| invariant | test |
-|---|---|
-| the ledger file: appended, one header, synced before return | `tests/test_heldout_ledger.py` |
-| `record_look`'s field checks, the figure filter included | same |
-| clause 3's authority check: not in HEAD, the working tree read, proposed, accepted after or on the day of the look, a `via` that is no script, naming nothing; labels without a document; an incidental look claiming one | same |
-| the backfill path: authority kept, figure filter kept, refused from the cutoff | same |
-| append-only, and `git_dirty` ignoring only an append to HEAD's ledger | same, and `tests/test_git_dirty.py` |
-| the default paths: no test split, no official test mask, later labels hidden | `tests/test_dgf1_heldout_access.py` |
-| each accessor records before it loads, and a structure open returns no labels | same |
-| disclosure covers overlapping sets' earlier rows, in time order; the assembler's two refusals | `tests/test_heldout_ledger.py`, and the first assembler's tests |
-| the backstop's routes and exclusions | `tests/test_heldout_readers.py` |
-
-Each row is pinned by the prototype's mutants (`mutation-output.txt`). They are re-run on the real
-modules at step 4 of clause 11, and the output is cited in that commit.
+### 7. (Merged into clause 5's table.)
 
 ### 8. What changes in the code that exists today
 
 - **Retired from held-out use:** the held-out parts of `scripts/measure_dgf1_temporal_split.py` and
-  `scripts/audit_dgf1_datasource.py` refuse. Their validation parts stay. No accepted document named
-  their label looks first, and none will.
+  `scripts/audit_dgf1_datasource.py` refuse. Their validation parts stay.
 - **Retired whole:** `scripts/assemble_gate_dgf1_1.py` refuses at its start. GATE-DGF1-1 is signed,
   and ADR-016 closed its window.
-- **`scripts/verify_dgraph_snapshot.py`** loads through the adapter. It opens the official test mask
-  at the structure tier, for snapshot verification (ADR-010).
+- **`scripts/verify_dgraph_snapshot.py`** loads through the adapter. It uses the integrity check
+  (I9) for its label totals, and opens no held-out set.
 - **`scripts/run_dgf1_floor.py` and `scripts/run_dgf1_gnn.py`:** their gate branches open the window
-  after the guard. Gate mode stays closed (ADR-016).
+  after the guard, and put the returned labels into `data.y` before scoring. Scoring reads `data.y`
+  (`adapters/dgf1/train_gnn.py:142`, `adapters/dgf1/baselines_tabular.py:140`). Gate mode stays
+  closed (ADR-016).
 - **Tests that read the test split:**
-  - `tests/test_dgf1_datasource.py:197-201` checks the windows through the bounds reader;
-  - `tests/test_dgf1_runner.py:202-208` builds its test-window object from the bounds, inside the
-    test, with synthetic data.
+  - `tests/test_dgf1_datasource.py:197-201` checks the windows through a bounds reader for the
+    public config;
+  - `tests/test_dgf1_runner.py:202-208` builds its test-window object from those bounds, with
+    synthetic data.
+- **ADR-015's line citations into `adapters/dgf1/datasource_dgraph.py`** will move. Row 5a's commit
+  lists them, and ADR-015's implementation re-checks them.
 
 ### 9. Backfill (plan row 5a)
 
-DGF-1's looks before this ADR are entered through the hand path as backfill rows. Each row's `via`
-names its source, and its authority is one of two:
+DGF-1's looks before this ADR are entered through the hand path as backfill rows (I4). Each row's
+`via` names its source, and its authority is one of two:
 - the document the look ran under, as for the Gate-1 batch under ADR-012;
 - or "none: before any authorising document", as for ADR-011's measurement script and the review
   agent's slip.
 
-**Times and contents.** Exact times come from run ids or git. Where a source gives only a date, the
-row is written at midnight UTC, and `via` says so. Because the figure filter applies, rows taken from
-lab entries carry no figure.
+**Times.** Exact times come from run ids or git. Where a source gives only a date, the row is
+written at midnight UTC, and `via` says so.
 
 **The sources:**
 - the corrected disclosure list in `gates/ERRATUM-DGF1-1.md`;
@@ -313,8 +290,8 @@ lab entries carry no figure.
 - agents' exposures recorded in the audit (`notebooks/audit/2026-10-07/README.md` §6) and in later
   reviews (each added preamble location).
 
-The backfill lands before the matched-time pre-registration (plan row 6a) is accepted, because that
-document's disclosure comes from the ledger.
+The backfill lands before the matched-time pre-registration (plan row 6a) is accepted. Then the
+backfill flag is removed.
 
 ### 10. The leakage rule's wording, a leakage sheet, and qualification 4
 
@@ -326,64 +303,76 @@ the limitation instead, and every gate file on that DataSource carries it.
 eight leakage types (`notebooks/audit/2026-10-07/literature-recheck.md` §4) with a test or a
 documented limitation for each. EDR-1's Phase-0 ADRs are the first (ADR-020).
 
+**Hidden labels in a new adapter.** A new adapter hides its held-out labels by default, and hands
+them out only through accessors of its own, before any look.
+
 **Qualification 4.** CLAUDE.md's Gate-1 list gains the qualification the gate file states
 (GATE-DGF1-1:215-217), as a bullet after the engine-gate bullet.
 
 ### 11. Implementation order (plan row 5a)
 
-1. **The `git_dirty` change and its test.** Then ADR-008's re-run in the researcher's terminal, with
-   the DGF-1 repro-check question decided alongside it.
-2. **`scripts/heldout_ledger.py`** and its tests.
-3. **The adapter:** hidden labels, the accessors, the bounds reader, and their tests.
-4. **The runners, the scripts and tests in clause 8, and the backstop test.** The prototype's
+1. **The `git_dirty` change and its test.** Then ADR-008's re-run, with the DGF-1 repro-check
+   question decided alongside it.
+2. **`adapters/dgf1/heldout.py`** (I1 to I5, I10), and the hand path's command line.
+3. **The adapter's default paths and accessors** (I6 to I9).
+4. **The runners, the scripts and tests in clause 8, and the backstop** (I11). The prototype's
    mutants are re-run here.
-5. **The backfill.** It is committed before plan row 6a is accepted. Then the backfill flag is
-   removed.
+5. **The backfill**, committed before plan row 6a is accepted. Then the backfill flag is removed.
 
 ### 12. The amendment to ADR-015
 
-**What breaks without it.** ADR-015's runner opens the ledger through `open_official_test_mask`.
-- **Its identity test fails.** The test requires every repo file the runner opens to be in
-  `code_identity` or among its exclusions (ADR-015:938-943), and the ledger is in neither
-  (ADR-015:580-581).
-- **Adding the ledger to `code_identity` instead** would change the identity on every append, so the
-  runner would refuse itself.
+**Why it is needed:**
+- **ADR-015's runner opens the official track (I8) and writes the ledger.** Its identity test
+  requires every repo file the runner opens to be in `code_identity` or among its exclusions
+  (ADR-015:938-943), and the ledger is in neither (ADR-015:580-581).
+- **Its mask check and `data_identity` need all labels and all three masks** (ADR-015:565-567,
+  :647-649). Under I6 the default load has neither.
 
-**On acceptance, these edits are applied to ADR-015, line for line, so no line moves:**
+**On acceptance, these edits are applied to ADR-015. Lines `:580` and `:582` change within themselves,
+so the preamble's `:202` and `:208-209` do not move:**
 - **`:580`:** "the registry;" becomes "the registry; the held-out ledger
   (`experiments/heldout_ledger.csv`, ADR-021);".
 - **`:582`:** "Because a dirty tree is refused, HEAD equals the working tree." becomes "Because a
   dirty tree is refused, HEAD equals the working tree, apart from rows appended to the ledger
-  (ADR-021). *Amended <date> by ADR-021 clause 12.*"
-- **The Status line** gains "· amended <date> by ADR-021 clause 12 (`:580-582`)".
+  (ADR-021)."
+- **The Status line** gains "· amended <date> by ADR-021 clause 12, at the end of this file".
+- **A section appended at the end,** "Amendment, <date> (ADR-021 clause 12)". It says:
+  - every mode of `scripts/run_dgf1_official.py` loads through `open_official_track` under this ADR;
+  - the mask check (`:565-567`) and `data_identity` (`:647-649`) run on the tensors it returns: every
+    label, and all three masks;
+  - the official track's training and validation masks contain temporal-test users. That is this
+    track's design, and it is disclosed here (ADR-021 clause 1);
+  - two lines, `**Held-out look:** dgraph-official-test · scores · scripts/run_dgf1_official.py` and
+    `**Held-out look:** dgraph-official-test · scores · scripts/assemble_dgf1_positioning.py`.
 
-No other clause changes. ADR-015's restarted wait (CLAUDE.md *Process*) costs nothing, because it is
-unimplemented.
+No other clause changes.
 
 ## Alternatives rejected
 
 - **A ledger written only by the guard** (the 2026-10-07 decision). It would have missed four of six
   readers (`notebooks/measurements/2026-10-08-heldout-ledger/output.txt`), and the reviews found
   more.
-- **Draft 1's design:** the guard records, each script records, and a regex lint catches the rest.
-  Round 1 showed routes past it.
-- **Draft 2's design:** accessors that guard the window and the mask, but not the labels. Round 2
-  showed `data.y[data.node_time >= 482]` reads the labels with no accessor.
+- **Drafts 1 to 3's designs:**
+  - per-caller recording and a regex lint;
+  - accessors that guarded the window and the mask but not the labels;
+  - hidden labels with the official masks left in the default load.
+
+  Each round showed a route past the design before it.
 - **Documenting the label gap instead of closing it.** The researcher chose to hide the labels.
-- **Every overlap counts.** Every retune and pilot would write official-set rows for a use ADR-015
-  already discloses. The researcher scoped sets by track.
-- **A separate amendment to ADR-015.** That would mean a second Tier-A document with its own rounds,
-  for two lines this ADR already forces.
+- **Every overlap counts.** Every retune and pilot would write rows for a use the reserving ADR
+  discloses. The researcher scoped sets by track.
+- **A separate amendment to ADR-015,** or **splitting this ADR into rules and mechanism.** That would
+  mean a second Tier-A document and budget. The researcher kept one ADR, with the mechanism stated
+  as tested invariants.
+- **Authority by prose mention.** It is trivially satisfied, since ADR-015 mentions `run_dgf1_gnn.py`.
 - **Hand rows only.** This is what produced GATE-DGF1-1's incomplete disclosure.
 - **Two other fixes for the dirty tree:** the guard writes the row and stops, or rows go to a pending
   file. The researcher chose ADR-002's precedent, narrowed here to appends.
 - **Label looks allowed whenever they are recorded.** This is weaker than CLAUDE.md's "never peek".
-- **An authority that need only be accepted.** Any accepted ADR would then authorise any look.
 - **The post-look rule as ADR-011 worded it.** It cannot be met by validation-sized seed counts, and
   it means nothing for reported-only work.
 - **Keeping the two label scripts runnable.** The researcher retired their held-out parts.
-- **A hash chain over the rows.** The ledger is committed, and the append-only check refuses a
-  rewrite.
+- **A hash chain over the rows.** The ledger is committed, and I5 refuses a rewrite.
 
 ## Consequences
 
@@ -398,15 +387,15 @@ repository, and the rest in the governance repository.
 >   - **labels:** any statistic using its labels;
 >   - **scores:** any model output on it.
 >
->   **Where the data comes from.** Held-out labels are hidden by default, and only the adapter's
->   accessors hand them out.
+>   **Where the data comes from.** Held-out labels, and masks derived from them, are left out of the
+>   default load. Only the adapter's accessors hand them out.
 >
 >   **Recording.** Every look is recorded in `experiments/heldout_ledger.csv` before the data is
 >   read, or by hand as soon as an unplanned look is known. Re-reading a signed gate file is not a
 >   look.
 >
->   **Labels and scores** need an accepted document that named the look first, and scores come only
->   from a gated or reported-only batch it names.
+>   **Labels and scores** need an accepted document whose "Held-out look" line named the look first,
+>   and scores come only from a gated or reported-only batch it names.
 >
 >   **A peek** is any look that is unrecorded or unauthorised.
 >
@@ -418,7 +407,7 @@ repository, and the rest in the governance repository.
 > Where the data cannot support such a test (labels without dates, features snapshotted after the
 > cutoff), the DataSource documents the limitation, and every gate file on it carries it. Each new
 > DataSource's Phase-0 ADR answers Kapoor & Narayanan's eight leakage types, each with a test or a
-> documented limitation (ADR-021).
+> documented limitation, and its adapter hides held-out labels by default (ADR-021).
 
 **DGF-1's qualifications** gain, after the engine-gate bullet:
 
@@ -430,15 +419,16 @@ repository, and the rest in the governance repository.
 cites moves. The qualification and the edits at `:166` and `:187` all fall after `:102`. If any
 line the preamble cites does move, the preamble is renumbered in the same commit.
 
-**`docs/timeline.md`:** row 5 gets its actual date, and row 5a reads "hidden labels, accessors and
-ledger; the `git_dirty` change with ADR-008's re-run; the scripts; DGF-1's backfill, before row 6a".
+**`docs/timeline.md`:** row 5 gets its actual date, and row 5a reads "the default load without
+held-out labels or masks, the accessors and ledger; the `git_dirty` change with ADR-008's re-run;
+the scripts; DGF-1's backfill, before row 6a".
 
 **`docs/subagent-preamble.md`:** its "report its `path:line`" sentence adds "so the main session can
 record it in the ledger".
 
 **What gets harder:**
-- every held-out read needs an accessor and an authority that named it;
-- labels after the validation window are invisible by default;
+- every held-out read needs an accessor and an authority line that named it;
+- the default load carries no held-out label;
 - the two label scripts lose their held-out parts;
 - a `gbe/` change costs one ADR-008 re-run.
 
@@ -447,52 +437,61 @@ record it in the ledger".
 ## Revisit when
 
 - A held-out set appears that is not a fixed slice of one dataset, for example EDR-1's rolling
-  cutoffs, or one held in a new adapter. That adapter hides its held-out labels and gets its own
-  accessors before any look.
-- Or a route around the hidden labels is found. The backstop then gains it, with a mutant.
+  cutoffs. Its adapter's default load must then leave the set's labels out, and the set is added
+  with its track and overlaps.
+- Or a route around the default load is found. The backstop then gains it, with a mutant.
 
 ## Draft history
 
 - **Draft 1** (2026-10-08, `0e8aaf1`).
 - **Round 1** (2026-10-08): a full Tier-A review by a fresh subagent with the standing preamble.
-  - **Tier A confirmed.**
   - **4 blocking findings:**
-    - ADR-015's batch and the assemblers could not meet the scores rule;
-    - the lint missed the runners' `dgf1_splits()[window]`, `official_test_mask` and library calls;
+    - the scores route could not serve ADR-015 or the assemblers;
+    - the lint missed the runners, `official_test_mask` and library calls;
     - the post-look rule could not be met;
-    - the two held-out sets overlap.
+    - the sets overlap.
   - **8 should-fix findings and 4 nits.**
-- **The researcher's decisions** (2026-10-08): accessors, and retiring the two label scripts'
-  held-out parts.
+- **The researcher's decisions:** accessors, and retiring the two label scripts' held-out parts.
 - **Prototype v2:** 41 tests, and 36 of 36 mutants killed.
-- **Draft 2** (2026-10-08, `c3f2d4f`). It answered every round-1 finding.
-- **Round 2** (2026-10-08): a diff-only pass by a fresh subagent with the standing preamble.
-  - **Tier A confirmed.**
+- **Draft 2** (`c3f2d4f`).
+- **Round 2** (2026-10-08): a diff-only pass.
   - **3 blocking findings:**
     - the labels were not behind the accessor;
-    - ADR-015 was not unchanged, since its identity test trips on the ledger;
+    - ADR-015's identity test trips on the ledger;
     - the official test overlaps the temporal training and validation windows.
   - **6 should-fix findings and 4 nits.**
-- **The researcher's decisions** (2026-10-08): hide held-out labels by default; amend ADR-015
-  narrowly here; scope sets by track.
-- **Prototype v3:** 51 tests; 47 of 48 mutants killed, the survivor equivalent.
-- **Draft 3** (2026-10-08):
+- **The researcher's decisions:** hide labels by default; amend ADR-015 here; scope sets by track.
+- **Prototype v3:** 51 tests, and 47 of 48 mutants killed. The survivor is equivalent.
+- **Draft 3** (`0209f64`).
+- **Round 3** (2026-10-08): a diff-only pass.
+  - **2 blocking findings:**
+    - hiding labels by node time broke ADR-015's official track;
+    - the official train and validation masks leak which hidden users are labelled.
+  - **4 should-fix findings:**
+    - the verifier's integrity check;
+    - prose mentions authorising;
+    - `via` from `__main__` unpinned;
+    - two batches merging.
+  - **6 nits.**
+- **The researcher's decision:** fix both, with the mechanism stated as tested invariants.
+- **Prototype v4:** 59 tests, and 62 of 62 mutants killed, after five weak tests were strengthened.
+- **Draft 4** (2026-10-08):
   - **Blocking:**
-    - hidden labels, with the tier enforced by what the accessor returns (clause 5);
-    - clause 12's amendment to ADR-015;
-    - track-scoped sets and the design overlap (clauses 1 and 2).
+    - `open_official_track` (I8) and the official-track design overlap (clause 1);
+    - clause 12 widened to the mask check, `data_identity`, the "Held-out look" lines and the
+      disclosure;
+    - the default load drops all three official masks (I6);
+    - the backstop flags any official mask (I11).
   - **Should-fix:**
-    - the backfill keeps the figure filter, is refused from the cutoff, and its flag is removed
-      after step 5;
-    - registry-reading assemblers record directly, and the backstop's registry limit is stated;
-    - the authority is read from HEAD, accepted on an earlier day, with `via` taken from the
-      process;
-    - the batch is defined by authority and runner, not by commit;
-    - "use" is defined, and ADR-011's "harder to earn" branch is kept;
-    - clause 7 covers the assembler's refusals and the backfill.
+    - the integrity check (I9, clause 8);
+    - the structured "Held-out look" line (I3);
+    - `via` from `__main__`, pinned;
+    - the batch label (I10).
   - **Nits:**
-    - the prototype exemption is narrowed to `notebooks/measurements/*/prototype/`;
-    - the integrity exemption takes precedence over the pooled rule;
-    - the mutant counts are left to `mutation-output.txt`;
-    - qualification 4's placement is stated;
-    - the ADR-011 citations are narrowed to `:78-81` and `:92`.
+    - the code moves to `adapters/dgf1/heldout.py`;
+    - the runners put the accessor's labels into `data.y`;
+    - the hidden value is tested;
+    - the latest amendment date counts;
+    - stale ADR-015 citations are listed in row 5a;
+    - the error messages are matched in tests;
+    - ADR-015:208-209 is added to the preamble.
