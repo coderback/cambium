@@ -14,3 +14,21 @@ split:
 
 # Edges symmetrised by default; directed is an ablation (doc-01 §3).
 symmetrise: true
+
+# GNN config frozen from the one-time HPO sweep (ADR-003; winning trial 33, val illicit-F1
+# 0.9274 on the leak-free inner split 30-34). Flows into the gbe.run config hash → registry.
+# GCN inherits this (only the convolution differs) for the capacity-matched Gate-1 comparison.
+gnn:
+  backbone: graphsage
+  num_layers: 3          # 3-hop money-flow chains (ADR-003 multi-hop story)
+  hidden_dim: 128
+  aggr: mean
+  dropout: 0.2
+  lr: 0.0006636671097096978
+  fan_out: [25, 10]
+  encoder_layers: 2
+  norm: layer            # LayerNorm only (gbe/CLAUDE.md rule 2)
+  epochs: 40
+  batch_size: 1024
+  weight_decay: 0.0005
+device: auto             # cuda when present, else cpu

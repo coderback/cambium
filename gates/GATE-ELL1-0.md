@@ -1,6 +1,6 @@
 # GATE-ELL1-0 — ELL-1 tabular floor (RF + LR) logged
 
-**Date assembled:** 2026-07-21
+**Date assembled:** 2026-07-23
 **Phase / doc:** ELL-1 Phase 0 — docs/01-elliptic-embedding-model-BUILD.md §4, §5, §8
 **Assembled from registry rows:** ell1-20260721T222648Z-09bd6770, ell1-20260721T222653Z-c6117a2b, ell1-20260721T222657Z-d9e8778f, ell1-20260721T222701Z-b96e4887, ell1-20260721T222702Z-999309e7, ell1-20260721T222703Z-5333abfe
 **Git commit:** 1f14cfa403f27f100544e0656652b3573e6b883e  ·  **Data snapshot:** elliptic-kaggle-v1
@@ -40,7 +40,7 @@ _All numbers copied from `experiments/registry.csv`. No cell is filled by estima
 _Notes: **165** features per ADR-001 (`time_step` excluded); illicit is the positive class; accuracy deliberately not reported (doc §5); RF on raw features, LR on a train-fit StandardScaler; edges unused — this is the no-graph floor._
 
 ## Verdict
-<!-- Left blank. Decided by the researcher, not by Claude. -->
+**PASSED** — 2026-07-23, coderback. The ELL-1 pipeline is standing and tabular-floor numbers are logged reproducibly. Gate 0 is satisfied. The RF floor (F1 ≈ 0.806) is the number to beat for Gate 1 (strict inductive GraphSAGE). The LR floor (F1 ≈ 0.302) is a sanity check; it is not a pass/fail metric.
 
 ---
 _Verdict, seeds, and table are sacred once dated. Papers are assembled from gate files; nothing is reported that is not in one._

@@ -1,0 +1,82 @@
+unmutated: passes — 68 passed in 27.28s
+KILLED   I1 append becomes overwrite — 1 failed in 4.02s
+KILLED   I1 header written on every append — 1 failed in 4.16s
+KILLED   I1 fsync removed — 1 failed, 15 passed in 9.52s
+KILLED   I2 unknown held-out set accepted — 1 failed, 1 passed in 1.08s
+KILLED   I2 unknown tier accepted — 1 failed, 2 passed in 1.62s
+KILLED   I2 empty fields accepted — 1 failed, 3 passed in 3.01s
+KILLED   I2 an empty batch accepted — 1 failed, 6 passed in 4.06s
+KILLED   I2 figure check removed — 1 failed, 7 passed in 4.59s
+KILLED   I2 figure check back to draft 1's pattern — 1 failed, 8 passed in 6.02s
+KILLED   I2 figure check flags digits inside names — 1 failed, 12 passed in 6.95s
+KILLED   I3 authority never checked — 1 failed, 16 passed in 8.61s
+KILLED   I3 a document not in HEAD authorises — 1 failed, 24 passed in 12.80s
+KILLED   I3 the working-tree document is read — 1 failed, 35 passed in 19.24s
+KILLED   I3 a proposed document authorises — 1 failed, 16 passed in 9.33s
+KILLED   I3 no wait at all — 1 failed, 18 passed in 11.04s
+KILLED   I3 a document accepted the same day authorises — 1 failed, 29 passed in 16.71s
+KILLED   I3 the twelve hours are not checked — 1 failed, 27 passed in 13.95s
+KILLED   I3 the Status line's amendments are ignored — 1 failed, 27 passed in 14.62s
+KILLED   I3 the first date counts, not the latest — 1 failed, 27 passed in 16.40s
+KILLED   I3 a date without a time counts from midnight — 1 failed, 27 passed in 16.50s
+KILLED   I3 a caller's via is trusted — 1 failed, 33 passed in 30.36s
+KILLED   I3 a prose mention authorises — 1 failed, 22 passed in 15.74s
+KILLED   I3 the set is not matched — 1 failed, 26 passed in 15.83s
+KILLED   I3 the batch is not matched — 1 failed, 30 passed in 18.17s
+KILLED   I3 a scores line does not cover labels — 1 failed, 26 passed in 15.42s
+KILLED   I3 labels need no document — 1 failed, 16 passed in 8.59s
+KILLED   I3 an interactive session may look — 1 failed, 34 passed in 19.73s
+KILLED   I3 a look may be dated after the clock — 1 failed, 32 passed in 20.40s
+KILLED   I4 an incidental look may claim authority — 1 failed, 38 passed in 21.69s
+KILLED   I4 backfill accepts looks after the cutoff — 1 failed, 41 passed in 28.14s
+KILLED   I4 backfill skips the figure filter — 1 failed, 40 passed in 25.26s
+KILLED   I4 backfill runs the authority check — 1 failed, 39 passed in 23.78s
+KILLED   I5 append-only check always passes — 1 failed, 56 passed in 29.60s
+KILLED   I5 append-only check only compares lengths — 1 failed, 57 passed in 31.92s
+KILLED   I5 dirty check ignores HEAD — 1 failed, 60 passed in 31.08s
+KILLED   I6 default splits hand out the test window — 1 failed, 42 passed in 26.26s
+KILLED   I6 default load keeps the official masks — 1 failed, 42 passed in 26.90s
+KILLED   I6 default load keeps the train and val masks — 1 failed, 42 passed in 26.97s
+KILLED   I6 default load keeps later labels — 1 failed, 42 passed in 25.15s
+KILLED   I6 labels hidden only after the test window — 1 failed, 42 passed in 26.47s
+KILLED   I6 the hidden value is a real label — 1 failed, 45 passed in 25.69s
+KILLED   I6 labelled_mask built from the raw labels (round 4's B1) — 1 failed, 43 passed in 23.94s
+KILLED   I7 opening the window records nothing — 1 failed, 47 passed in 25.87s
+KILLED   I7 window labels loaded before the look is recorded — 1 failed, 47 passed in 25.09s
+KILLED   I7 a structure open of the window returns labels — 1 failed, 50 passed in 21.26s
+KILLED   I7 putting labels back leaves labelled_mask hidden — 1 failed, 44 passed in 21.93s
+KILLED   I8 the official track opens at structure — 1 failed, 52 passed in 24.71s
+KILLED   I8 the official track loads before recording — 1 failed, 51 passed in 27.14s
+KILLED   I8 the official track returns hidden labels — 1 failed, 51 passed in 22.12s
+KILLED   I8 an opener takes the caller's via — 1 failed, 49 passed in 26.29s
+KILLED   I9 integrity check always passes — 1 failed, 46 passed in 26.13s
+KILLED   I9 no pinned totals passes — 1 failed, 46 passed in 28.03s
+KILLED   I10 disclosure ignores overlapping sets — 1 failed, 62 passed in 41.34s
+KILLED   I10 disclosure includes the batch's own row — 1 failed, 62 passed in 30.89s
+KILLED   I10 disclosure keeps file order — 1 failed, 62 passed in 31.07s
+KILLED   I10 disclosure starts at the last batch row — 1 failed, 64 passed in 35.94s
+KILLED   I10 disclosure of an unopened batch is empty — 1 failed, 65 passed in 27.32s
+KILLED   I10 a batch label may pass between authorities — 1 failed, 31 passed in 20.58s
+KILLED   I11 backstop misses the PyG loader — 1 failed, 66 passed in 33.65s
+KILLED   I11 backstop misses hand-built windows — 1 failed, 66 passed in 36.73s
+KILLED   I11 backstop misses the raw loader — 1 failed, 66 passed in 31.04s
+KILLED   I11 backstop ignores imports — 1 failed, 66 passed in 35.44s
+KILLED   I11 backstop ignores aliases — 1 failed, 66 passed in 37.99s
+KILLED   I11 backstop misses store paths — 1 failed, 66 passed in 38.80s
+KILLED   I11 backstop misses joined store paths — 1 failed, 66 passed in 37.73s
+KILLED   I11 backstop joins paths in walk order — 1 failed, 66 passed in 36.06s
+KILLED   I11 backstop misses mask attributes — 1 failed, 66 passed in 32.02s
+KILLED   I11 backstop misses mask subscripts — 1 failed, 66 passed in 35.96s
+KILLED   I11 backstop sees only the test mask — 1 failed, 66 passed in 30.34s
+KILLED   I11 backstop flags derived masks — 1 failed, 66 passed in 37.96s
+KILLED   I11 backstop misses score files — 1 failed, 66 passed in 35.80s
+KILLED   I11 backstop misses hand-set authority and time — 1 failed, 66 passed in 37.29s
+KILLED   I11 backstop misses now= — 1 failed, 66 passed in 38.35s
+KILLED   I11 backstop misses backfill claims — 1 failed, 66 passed in 35.26s
+KILLED   I11 backstop flags the hand path — 1 failed, 66 passed in 29.93s
+KILLED   I11 backstop exempts test-named files again — 1 failed, 66 passed in 27.11s
+KILLED   I11 backstop scans prototypes — 1 failed, 66 passed in 30.55s
+KILLED   I11 backstop exempts any prototype folder — 1 failed, 66 passed in 31.45s
+KILLED   I11 backstop skips notebooks — 1 failed, 66 passed in 27.20s
+
+79/79 mutants killed

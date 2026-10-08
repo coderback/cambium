@@ -10,8 +10,10 @@ requires-python = ">=3.11"
 dependencies = [
     "torch",
     "torch-geometric",
+    "optuna",
     "pandas",
     "scikit-learn",
+    "xgboost",
     "pyyaml",
     "pytest",
 ]

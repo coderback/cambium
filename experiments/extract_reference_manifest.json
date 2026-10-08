@@ -1,0 +1,753 @@
+{
+  "adr": "ADR-008",
+  "created_utc": "2026-07-26T11:06:19.731086+00:00",
+  "git_commit": "55b595b62ca1790bdb097a2048ad9b785af65b5b",
+  "env_pin": "experiments/extract_reference_env.txt",
+  "note": "Frozen pre-refactor. Pair post-refactor rows by (source, arm, seed) \u2014 never by config_hash, which a refactor changes. Bar is exact float equality (ADR-008 clause 2).",
+  "counts": {
+    "gate0": 6,
+    "gate3": 40,
+    "gcn_ref": 3,
+    "total": 49
+  },
+  "rows": [
+    {
+      "source": "gate0",
+      "arm": "rf",
+      "seed": 0,
+      "run_id": "ell1-20260721T222648Z-09bd6770",
+      "config_hash": "ad4b83e77649c20c4aba19e892eebc6f9c99d02dc0fcded466aebf15777c1bd0",
+      "git_commit": "1f14cfa403f27f100544e0656652b3573e6b883e",
+      "deterministic": null,
+      "metrics": {
+        "illicit_f1": 0.807235142118863,
+        "illicit_recall": 0.7211449676823638,
+        "illicit_precision": 0.9166666666666666,
+        "illicit_auc": 0.9396104585817158
+      }
+    },
+    {
+      "source": "gate0",
+      "arm": "rf",
+      "seed": 1,
+      "run_id": "ell1-20260721T222653Z-c6117a2b",
+      "config_hash": "2e0e7076f3fdee808a965dd2c1befdd59984e3993976cab2b1d43e5cb39ef6bf",
+      "git_commit": "1f14cfa403f27f100544e0656652b3573e6b883e",
+      "deterministic": null,
+      "metrics": {
+        "illicit_f1": 0.8024691358024691,
+        "illicit_recall": 0.7202216066481995,
+        "illicit_precision": 0.9059233449477352,
+        "illicit_auc": 0.9386668673689945
+      }
+    },
+    {
+      "source": "gate0",
+      "arm": "rf",
+      "seed": 2,
+      "run_id": "ell1-20260721T222657Z-d9e8778f",
+      "config_hash": "11ae7d104a88ec63a30b401e7d66210bf9120b70888665c97ed2d914d6b10adc",
+      "git_commit": "1f14cfa403f27f100544e0656652b3573e6b883e",
+      "deterministic": null,
+      "metrics": {
+        "illicit_f1": 0.8078108941418294,
+        "illicit_recall": 0.7257617728531855,
+        "illicit_precision": 0.9107763615295481,
+        "illicit_auc": 0.939811516344592
+      }
+    },
+    {
+      "source": "gate0",
+      "arm": "lr",
+      "seed": 0,
+      "run_id": "ell1-20260721T222701Z-b96e4887",
+      "config_hash": "c0809056e858f5beb8b2d3d62dcfde4f8b4329ef44fb0d9c2294cec1666beb22",
+      "git_commit": "1f14cfa403f27f100544e0656652b3573e6b883e",
+      "deterministic": null,
+      "metrics": {
+        "illicit_f1": 0.3022959183673469,
+        "illicit_recall": 0.8753462603878116,
+        "illicit_precision": 0.18269416072460976,
+        "illicit_auc": 0.8812660608513107
+      }
+    },
+    {
+      "source": "gate0",
+      "arm": "lr",
+      "seed": 1,
+      "run_id": "ell1-20260721T222702Z-999309e7",
+      "config_hash": "c8b59bc943a08793f0410ad218e44676d820cca63743adff366e53c20e118b39",
+      "git_commit": "1f14cfa403f27f100544e0656652b3573e6b883e",
+      "deterministic": null,
+      "metrics": {
+        "illicit_f1": 0.3022959183673469,
+        "illicit_recall": 0.8753462603878116,
+        "illicit_precision": 0.18269416072460976,
+        "illicit_auc": 0.8812660608513107
+      }
+    },
+    {
+      "source": "gate0",
+      "arm": "lr",
+      "seed": 2,
+      "run_id": "ell1-20260721T222703Z-5333abfe",
+      "config_hash": "fe2b80c79df9726c5846e8804f85ee968bdd3fcaf560cff2c751ec43429f6336",
+      "git_commit": "1f14cfa403f27f100544e0656652b3573e6b883e",
+      "deterministic": null,
+      "metrics": {
+        "illicit_f1": 0.3022959183673469,
+        "illicit_recall": 0.8753462603878116,
+        "illicit_precision": 0.18269416072460976,
+        "illicit_auc": 0.8812660608513107
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "real",
+      "seed": 0,
+      "run_id": "ell1-20260725T095727Z-a14a4337",
+      "config_hash": "5f46529b4ae90a65aec6f5a244ccd570773d1042fb06193bfe49bf8dd86d365d",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5655430711610487,
+        "illicit_recall": 0.5577100646352724,
+        "illicit_precision": 0.5735992402659069,
+        "illicit_auc": 0.9096466910388483
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "real",
+      "seed": 1,
+      "run_id": "ell1-20260725T095828Z-d0905a25",
+      "config_hash": "ef0198e99f2cb33aebbf1b03756df2fd9775a4c5fb34f40ccfdd3132e76459d1",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6857936140675613,
+        "illicit_recall": 0.6842105263157895,
+        "illicit_precision": 0.6873840445269017,
+        "illicit_auc": 0.9179313194027672
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "real",
+      "seed": 2,
+      "run_id": "ell1-20260725T095926Z-e4e28e51",
+      "config_hash": "a18e67ac6c452bf2602aee6f7345eed0184d1889ec806f4d982ea9decdaa04df",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6325426550145651,
+        "illicit_recall": 0.7017543859649122,
+        "illicit_precision": 0.5757575757575758,
+        "illicit_auc": 0.9193572359853587
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "real",
+      "seed": 3,
+      "run_id": "ell1-20260725T100023Z-10dcacbb",
+      "config_hash": "95775b62ac8672b807e1a9480876d8636aebb073e415432d459addbcf5407dd9",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6618030224075039,
+        "illicit_recall": 0.5863342566943675,
+        "illicit_precision": 0.7595693779904307,
+        "illicit_auc": 0.9226343175744685
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "real",
+      "seed": 4,
+      "run_id": "ell1-20260725T100122Z-ec761169",
+      "config_hash": "5b3648c7710acb8f768d92908874b3238010c40aa82a095ece76e62371b1b25b",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6923937360178971,
+        "illicit_recall": 0.5715604801477377,
+        "illicit_precision": 0.8780141843971632,
+        "illicit_auc": 0.9313831441204435
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "real",
+      "seed": 5,
+      "run_id": "ell1-20260725T100219Z-632725eb",
+      "config_hash": "09983c95afb1731177723b7c57766c2d3cd0d27083c00b4a83244d9863c04e19",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5720060636685195,
+        "illicit_recall": 0.5226223453370268,
+        "illicit_precision": 0.6316964285714286,
+        "illicit_auc": 0.9022649861934214
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "real",
+      "seed": 6,
+      "run_id": "ell1-20260725T100316Z-73a257f5",
+      "config_hash": "6013f5a3fea79f6fc10c5f0cdfcd4905da17186b72c60012d83afa601925209f",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.7624132407901761,
+        "illicit_recall": 0.6592797783933518,
+        "illicit_precision": 0.9037974683544304,
+        "illicit_auc": 0.9270354921451518
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "real",
+      "seed": 7,
+      "run_id": "ell1-20260725T100416Z-b10907e4",
+      "config_hash": "9834f26419c04146e733f50c99bd62a91e1116594f3393249046464e0934f523",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.7303609341825902,
+        "illicit_recall": 0.6352723915050785,
+        "illicit_precision": 0.8589263420724095,
+        "illicit_auc": 0.9271477800029987
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "scrambled",
+      "seed": 0,
+      "run_id": "ell1-20260725T100514Z-aeaed570",
+      "config_hash": "a5652d5d570a5e7f231ed09d11a8fd19359ee5e1ac956501e42ed67820e6f7b7",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5628140703517588,
+        "illicit_recall": 0.5687903970452447,
+        "illicit_precision": 0.5569620253164557,
+        "illicit_auc": 0.8813288543777247
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "scrambled",
+      "seed": 1,
+      "run_id": "ell1-20260725T100611Z-a91278df",
+      "config_hash": "d5aa09fdcaa8368436e6adb1fdcff03d9a62d9bfc860df8f2b44832bf5ff3a3f",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5857142857142857,
+        "illicit_recall": 0.605724838411819,
+        "illicit_precision": 0.5669835782195333,
+        "illicit_auc": 0.8883770722826354
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "scrambled",
+      "seed": 2,
+      "run_id": "ell1-20260725T100708Z-71e14e3e",
+      "config_hash": "ffbea4434b9472e38b48092a52d20ca03fac80aca6a89a42b73640e51d229ed9",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5219150370869858,
+        "illicit_recall": 0.7146814404432132,
+        "illicit_precision": 0.4110462028677642,
+        "illicit_auc": 0.904353019044625
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "scrambled",
+      "seed": 3,
+      "run_id": "ell1-20260725T100805Z-6c07b33f",
+      "config_hash": "87b535dc8f2ab0e00db1fc9b2936c49a57f908927d26e9af0ede697a09805b3c",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5148130160271976,
+        "illicit_recall": 0.48938134810710987,
+        "illicit_precision": 0.5430327868852459,
+        "illicit_auc": 0.8726883170452256
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "scrambled",
+      "seed": 4,
+      "run_id": "ell1-20260725T100901Z-5e163a8e",
+      "config_hash": "1f4ac46fdecb82b5da2ff140ce3a08026580cea25f87d4e4e08c822f136f442e",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5749892565535024,
+        "illicit_recall": 0.6177285318559557,
+        "illicit_precision": 0.5377813504823151,
+        "illicit_auc": 0.8950715730684726
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "scrambled",
+      "seed": 5,
+      "run_id": "ell1-20260725T100958Z-75f56ba2",
+      "config_hash": "1fd0772a0b714e08419ed27ebab9b56b501865814e03303090d2a73b545de89b",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5402342274272761,
+        "illicit_recall": 0.6602031394275162,
+        "illicit_precision": 0.4571611253196931,
+        "illicit_auc": 0.893292324421451
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "scrambled",
+      "seed": 6,
+      "run_id": "ell1-20260725T101054Z-a9c2daae",
+      "config_hash": "5d238b645da1e3ac51a2d0e03c864d333be3f622d96595163e9bee901667a614",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6001676445934618,
+        "illicit_recall": 0.6611265004616805,
+        "illicit_precision": 0.5495011511895626,
+        "illicit_auc": 0.8958071162955659
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "scrambled",
+      "seed": 7,
+      "run_id": "ell1-20260725T101151Z-0bb71b0e",
+      "config_hash": "06137e7090dcf48926ce57b561bb4525ff2d743bc1e8eae8b9a9d4f522e638d3",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5882352941176471,
+        "illicit_recall": 0.6048014773776547,
+        "illicit_precision": 0.5725524475524476,
+        "illicit_auc": 0.8855715049138008
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "random",
+      "seed": 0,
+      "run_id": "ell1-20260725T101249Z-eef0ec62",
+      "config_hash": "ea1d7862f3da375fa7ca783bba05ac3054102cf11236b5ab9a79e52fad615cd5",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5851528384279476,
+        "illicit_recall": 0.61865189289012,
+        "illicit_precision": 0.5550952775476388,
+        "illicit_auc": 0.8782397386936256
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "random",
+      "seed": 1,
+      "run_id": "ell1-20260725T101351Z-e01e213c",
+      "config_hash": "9b7e381a6ef7764b26186433f2d8dd353cf95542941da7123e1b71ff3b610b96",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6304860783388391,
+        "illicit_recall": 0.6168051708217913,
+        "illicit_precision": 0.6447876447876448,
+        "illicit_auc": 0.8898578443420753
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "random",
+      "seed": 2,
+      "run_id": "ell1-20260725T101456Z-ae5bb2de",
+      "config_hash": "b030b33e501dfb252272fe345cc9bd0fc115619969d1230fb0377c8118adea88",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6304780876494024,
+        "illicit_recall": 0.5844875346260388,
+        "illicit_precision": 0.6843243243243243,
+        "illicit_auc": 0.8980208250583609
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "random",
+      "seed": 3,
+      "run_id": "ell1-20260725T101602Z-5813cebb",
+      "config_hash": "8d23b931a06fc20ec28f0aef758f6cfcb6ea4a87cbfd1abdb929d8f4493501f7",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.4828532235939643,
+        "illicit_recall": 0.48753462603878117,
+        "illicit_precision": 0.4782608695652174,
+        "illicit_auc": 0.8714580970800951
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "random",
+      "seed": 4,
+      "run_id": "ell1-20260725T101712Z-bde6a105",
+      "config_hash": "d54955ca3476b0622264a908d05f440f46fd8e5930960526d4f629af0dcdddd6",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5390127388535032,
+        "illicit_recall": 0.6251154201292706,
+        "illicit_precision": 0.4737578726382085,
+        "illicit_auc": 0.8905474179686994
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "random",
+      "seed": 5,
+      "run_id": "ell1-20260725T101822Z-f93416c8",
+      "config_hash": "dab5bfc4692703028ea4d90f297b4c5138578529be4ff825049ed34e698919a7",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5976364659538548,
+        "illicit_recall": 0.4903047091412742,
+        "illicit_precision": 0.7651296829971181,
+        "illicit_auc": 0.8683823990693289
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "random",
+      "seed": 6,
+      "run_id": "ell1-20260725T101933Z-c2e025f7",
+      "config_hash": "1253953f0bdb79dd62bee6cf6098514c57e79ae1997dcc7f483bdc9ef190c803",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.604602510460251,
+        "illicit_recall": 0.5337026777469991,
+        "illicit_precision": 0.6972255729794934,
+        "illicit_auc": 0.8893000778817445
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "random",
+      "seed": 7,
+      "run_id": "ell1-20260725T102044Z-ab4c7db5",
+      "config_hash": "f78f24a6566822b1687b7dd1d67da789ad64d131221190fefc26c2433a40df8e",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6377833753148615,
+        "illicit_recall": 0.5844875346260388,
+        "illicit_precision": 0.7017738359201774,
+        "illicit_auc": 0.8861006292326021
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "no_edges",
+      "seed": 0,
+      "run_id": "ell1-20260725T102150Z-b579551f",
+      "config_hash": "a3e0b03a46f122e471b923ae5865e0dc193239432606cba47565ec25cf1123b1",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5801819052178075,
+        "illicit_recall": 0.5595567867036011,
+        "illicit_precision": 0.6023856858846919,
+        "illicit_auc": 0.8843980064595582
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "no_edges",
+      "seed": 1,
+      "run_id": "ell1-20260725T102218Z-b9bfd000",
+      "config_hash": "334d01a0f031656d80b155e2961553de6ffdc7a6a54442e6d05f2b40e0a023ef",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6198305929247633,
+        "illicit_recall": 0.5743305632502308,
+        "illicit_precision": 0.6731601731601732,
+        "illicit_auc": 0.8660605195714094
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "no_edges",
+      "seed": 2,
+      "run_id": "ell1-20260725T102247Z-624ba875",
+      "config_hash": "bc2289a3eec83a38b2963f9499901286f50a75fb9be5462816d9d750af63a94a",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6114851485148515,
+        "illicit_recall": 0.7128347183748845,
+        "illicit_precision": 0.5353675450762829,
+        "illicit_auc": 0.9124992943133176
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "no_edges",
+      "seed": 3,
+      "run_id": "ell1-20260725T102316Z-d415740e",
+      "config_hash": "0f3ef03e8aca15e0721032bee61449a3def373d5b4f7f8caf5a03c75f1fc3a25",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5298759864712514,
+        "illicit_recall": 0.4339796860572484,
+        "illicit_precision": 0.6801736613603473,
+        "illicit_auc": 0.8898314236696407
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "no_edges",
+      "seed": 4,
+      "run_id": "ell1-20260725T102345Z-316e939c",
+      "config_hash": "ab3b5282faa916c30d9c2402c053f5f8af8c8609fb384d9f5eeef3942ea41204",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5731367078517338,
+        "illicit_recall": 0.6638965835641736,
+        "illicit_precision": 0.5042075736325385,
+        "illicit_auc": 0.8894652959432242
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "no_edges",
+      "seed": 5,
+      "run_id": "ell1-20260725T102414Z-9b7f81c7",
+      "config_hash": "8da94f4d750bd03da236c3c8988bb84494b10056c5fd986a782d3ebbc86a5b86",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.611984282907662,
+        "illicit_recall": 0.5752539242843951,
+        "illicit_precision": 0.6537250786988458,
+        "illicit_auc": 0.8814010669331008
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "no_edges",
+      "seed": 6,
+      "run_id": "ell1-20260725T102442Z-38a10704",
+      "config_hash": "8410ec3b0b09277a1c56856f9c4b5652dc5e8c67b42c3453bd15aac5118c6ff3",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.661207778915046,
+        "illicit_recall": 0.5964912280701754,
+        "illicit_precision": 0.7416762342135477,
+        "illicit_auc": 0.9004953639124775
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "no_edges",
+      "seed": 7,
+      "run_id": "ell1-20260725T102509Z-a2e0786d",
+      "config_hash": "f17556a2a4ee3f010b7c8612f7412c37b4db93e52cc244aaaae17e52a5244285",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5550699300699301,
+        "illicit_recall": 0.5863342566943675,
+        "illicit_precision": 0.5269709543568465,
+        "illicit_auc": 0.8749547190549504
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "config",
+      "seed": 0,
+      "run_id": "ell1-20260725T102544Z-821c4c09",
+      "config_hash": "0cb9d35e42bff598a1b08d8be815bbe83eb94474c715cc4660efe609af6bc4b7",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5715555555555556,
+        "illicit_recall": 0.5937211449676824,
+        "illicit_precision": 0.5509854327335048,
+        "illicit_auc": 0.8920920498597186
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "config",
+      "seed": 1,
+      "run_id": "ell1-20260725T102651Z-a9018ab5",
+      "config_hash": "9d5e1fb2df599c5659f321e0e808db1c1abb7a27fdb02f31fe52c7f9fde65630",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5229826353421859,
+        "illicit_recall": 0.7091412742382271,
+        "illicit_precision": 0.41423948220064727,
+        "illicit_auc": 0.8982054439499355
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "config",
+      "seed": 2,
+      "run_id": "ell1-20260725T102754Z-8e67d93f",
+      "config_hash": "eacbae278ad0891b6f8210a8961517def5f1539c8fe3eb7009f463ec723ae23e",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6635120925341745,
+        "illicit_recall": 0.58264081255771,
+        "illicit_precision": 0.7704517704517705,
+        "illicit_auc": 0.8942416914538188
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "config",
+      "seed": 3,
+      "run_id": "ell1-20260725T102911Z-cd05ac05",
+      "config_hash": "2be9c6afc6771458204790eec612ec37ef7ac27707df96d3030170421beb9656",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5362318840579711,
+        "illicit_recall": 0.5124653739612188,
+        "illicit_precision": 0.5623100303951368,
+        "illicit_auc": 0.8794177985644098
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "config",
+      "seed": 4,
+      "run_id": "ell1-20260725T103018Z-80f7c5a4",
+      "config_hash": "f95694ed9ec146a480144758e8f3fc54dd4afb1ff76c722996cf0987655f5a37",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5761619880349746,
+        "illicit_recall": 0.5780240073868883,
+        "illicit_precision": 0.5743119266055046,
+        "illicit_auc": 0.8911148404146956
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "config",
+      "seed": 5,
+      "run_id": "ell1-20260725T103128Z-b4496beb",
+      "config_hash": "f5eb14b56be57019d8aa1f3b9e314b0fadfc812a9c97182c529bbb624ad26ab8",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.5831775700934579,
+        "illicit_recall": 0.5761772853185596,
+        "illicit_precision": 0.5903500473036897,
+        "illicit_auc": 0.8878442751349306
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "config",
+      "seed": 6,
+      "run_id": "ell1-20260725T103236Z-afd6655b",
+      "config_hash": "d120e473900c8e7961a5fa0bb493f8cc1cc9a87e7858479da3fb9046ef8747c2",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6341685649202734,
+        "illicit_recall": 0.6426592797783933,
+        "illicit_precision": 0.6258992805755396,
+        "illicit_auc": 0.9076280568821675
+      }
+    },
+    {
+      "source": "gate3",
+      "arm": "config",
+      "seed": 7,
+      "run_id": "ell1-20260725T103342Z-e356d176",
+      "config_hash": "4e8ae5e902234f52347d281d624d5d6810e92940284ce1864c1cae992135dd45",
+      "git_commit": "1a852a356ea5081e2f5d95ea3726bff537cd08fe",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.4618848504342232,
+        "illicit_recall": 0.6629732225300092,
+        "illicit_precision": 0.3543928923988154,
+        "illicit_auc": 0.8758800942210939
+      }
+    },
+    {
+      "source": "gcn_ref",
+      "arm": "gcn",
+      "seed": 0,
+      "run_id": "ell1-20260726T104327Z-3ebbadca",
+      "config_hash": "ff2f5f4e847bc69cdc777f0bdcc467a512390301b243c457abf932f17c9d726f",
+      "git_commit": "ab6aa184f1a8eb9fb663a1420f38304e79ed510f",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6356589147286822,
+        "illicit_recall": 0.6814404432132964,
+        "illicit_precision": 0.5956416464891041,
+        "illicit_auc": 0.9039167225143998,
+        "illicit_auprc": 0.6806584758141467
+      }
+    },
+    {
+      "source": "gcn_ref",
+      "arm": "gcn",
+      "seed": 1,
+      "run_id": "ell1-20260726T104433Z-cf6c5728",
+      "config_hash": "260e9e3e92d15936ad01ff72539e3f094bb27deca6fada51661b2ce8008841c0",
+      "git_commit": "ab6aa184f1a8eb9fb663a1420f38304e79ed510f",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.6727272727272727,
+        "illicit_recall": 0.5466297322253001,
+        "illicit_precision": 0.8744460856720827,
+        "illicit_auc": 0.91964812995843,
+        "illicit_auprc": 0.7253728601595549
+      }
+    },
+    {
+      "source": "gcn_ref",
+      "arm": "gcn",
+      "seed": 2,
+      "run_id": "ell1-20260726T104536Z-c7d9b766",
+      "config_hash": "6fa932878a492b5c6c7c000dd964a40215cd6258f509a5a5cfbe87af93e71aa0",
+      "git_commit": "ab6aa184f1a8eb9fb663a1420f38304e79ed510f",
+      "deterministic": true,
+      "metrics": {
+        "illicit_f1": 0.7058189655172413,
+        "illicit_recall": 0.6048014773776547,
+        "illicit_precision": 0.8473479948253557,
+        "illicit_auc": 0.9046274741463946,
+        "illicit_auprc": 0.7210165389764196
+      }
+    }
+  ]
+}
