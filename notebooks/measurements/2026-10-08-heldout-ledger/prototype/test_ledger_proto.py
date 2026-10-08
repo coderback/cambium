@@ -1,4 +1,4 @@
-"""Tests for the held-out ledger prototype v4. Run: python -m pytest -q test_ledger_proto.py"""
+"""Tests for the held-out ledger prototype v5. Run: python -m pytest -q test_ledger_proto.py"""
 from __future__ import annotations
 
 import os
@@ -19,6 +19,9 @@ RUNNER, ASSEMBLER, OTHER = "scripts/run_gate3.py", "scripts/assemble_gate3.py", 
 PREREG, PROPOSED = "decisions/ADR-900-gate3-prereg.md", "decisions/ADR-901-proposed.md"
 LATE, PROSE = "decisions/ADR-902-accepted-later.md", "decisions/ADR-903-prose-only.md"
 SAMEDAY = "decisions/ADR-904-accepted-same-day.md"
+AMENDED, NIGHT = "decisions/ADR-905-amended-later.md", "decisions/ADR-906-accepted-late-evening.md"
+EARLY = "decisions/ADR-908-accepted-early-morning.md"
+BATCHES = ("gate3-stage1", "gate3", "earlier", "o", "official-1", "official-2", "other")
 CONFIG = {"val_min": 370, "val_max": 481, "test_min": 482, "test_max": 821}
 RAW = {"y": [0, 1, 1, 0, 3], "node_time": [100, 400, 500, 700, 600],
        "train_mask": [1, 0, 1, 0, 0], "val_mask": [0, 1, 0, 0, 0], "test_mask": [0, 0, 0, 1, 0],
@@ -34,7 +37,7 @@ def _git(cwd, *args):
 
 
 def looks(*triples):
-    return "".join(f"**Held-out look:** {s} · {t} · {v}\n" for s, t, v in triples)
+    return "".join(f"**Held-out look:** {s} · {t} · {v} · {b}\n" for s, t, v in triples for b in BATCHES)
 
 
 @pytest.fixture
@@ -49,7 +52,10 @@ def root(tmp_path, monkeypatch):
             PROPOSED: ("proposed", "2026-10-05", granted),
             LATE: ("accepted", "2026-10-20", granted),
             PROSE: ("accepted", "2026-10-05", f"Runs {RUNNER} on the {TEST} set.\n"),
-            SAMEDAY: ("accepted", "2026-10-09", granted)}
+            SAMEDAY: ("accepted", "2026-10-09", granted),
+            AMENDED: ("accepted · amended 2026-10-09 by ADR-907, at the end", "2026-10-05", granted),
+            NIGHT: ("accepted", "2026-10-08 (23:00)", granted),
+            EARLY: ("accepted", "2026-10-09 (00:30)", granted)}
     for rel, (status, on, body) in docs.items():
         (tmp_path / rel).write_text(head.format(status, on) + body, encoding="utf-8")
     _git(tmp_path, "init", "-q")
@@ -58,6 +64,7 @@ def root(tmp_path, monkeypatch):
     _git(tmp_path, "add", ".")
     _git(tmp_path, "commit", "-qm", "docs")
     monkeypatch.setattr(sys.modules["__main__"], "__file__", str(tmp_path / RUNNER), raising=False)
+    monkeypatch.setattr(L, "_clock", lambda: at(20))
     return tmp_path
 
 
@@ -70,8 +77,7 @@ def look(root, **over):
 
 def opener(root, **over):
     base = dict(tier="scores", authority=PREREG, by="researcher", what="gated batch",
-                batch="gate3-stage1", ledger=root / "ledger.csv", repo_root=root, git_commit="c",
-                now=at(9))
+                batch="gate3-stage1", ledger=root / "ledger.csv", repo_root=root, git_commit="c")
     return {**base, **over}
 
 
@@ -80,7 +86,7 @@ def opener(root, **over):
 def test_rows_append_under_one_header(root):
     p = root / "ledger.csv"
     L.record_look(p, **look(root))
-    L.record_look(p, **look(root, tier="structure", what="edge dates", authority="engineering"))
+    L.record_look(p, **look(root, tier="structure", what="edge dates", authority="engineering", batch="eng"))
     assert p.read_text(encoding="utf-8").count("timestamp_utc,") == 1
     rows = L.read_ledger(p)
     assert [r["tier"] for r in rows] == ["scores", "structure"] and set(rows[0]) == set(L.COLUMNS)
@@ -123,7 +129,7 @@ def test_the_row_is_flushed_to_disk_before_returning(root, monkeypatch):
 
 @pytest.mark.parametrize("tier", ["labels", "scores"])
 @pytest.mark.parametrize("authority,why", [
-    (PROPOSED, "not accepted"), (LATE, "earlier day"), (SAMEDAY, "earlier day"),
+    (PROPOSED, "not accepted"), (LATE, "night before"), (SAMEDAY, "night before"),
     (PROSE, "Held-out look"), ("decisions/ADR-999-missing.md", "not in HEAD"),
 ])
 def test_labels_and_scores_need_a_document_that_named_the_look_first(root, tier, authority, why):
@@ -142,6 +148,36 @@ def test_a_scores_line_covers_a_labels_look_but_not_another_set_or_script(root, 
     monkeypatch.setattr(sys.modules["__main__"], "__file__", str(root / OTHER))
     with pytest.raises(L.LedgerError, match="Held-out look"):
         L.record_look(root / "ledger.csv", **look(root, via=OTHER, now=at(9, 11)))
+
+
+@pytest.mark.parametrize("authority,refused,allowed", [
+    (AMENDED, at(10, 9), at(10, 13)),     # the amendment's date counts, and its end of day
+    (NIGHT, at(9, 9), at(9, 11)),         # the next day, but twelve hours after the recorded time
+    (EARLY, at(9, 13), at(10, 9)),        # twelve hours on, but still the same calendar day
+])
+def test_the_wait_runs_from_the_latest_change_and_lasts_twelve_hours(root, authority, refused, allowed):
+    p = root / "ledger.csv"
+    with pytest.raises(L.LedgerError, match="night before"):
+        L.record_look(p, **look(root, authority=authority, now=refused))
+    L.record_look(p, **look(root, authority=authority, now=allowed))
+
+
+def test_the_authority_line_must_name_the_batch(root):
+    with pytest.raises(L.LedgerError, match="Held-out look"):
+        L.record_look(root / "ledger.csv", **look(root, batch="unlisted"))
+
+
+def test_a_batch_label_belongs_to_one_authority(root):
+    p = root / "ledger.csv"
+    L.record_look(p, **look(root))
+    with pytest.raises(L.LedgerError, match="another authority"):
+        L.record_look(p, **look(root, tier="structure", what="edge dates", authority="engineering"))
+    assert len(L.read_ledger(p)) == 1
+
+
+def test_a_look_may_not_be_dated_after_the_clock(root):
+    with pytest.raises(L.LedgerError, match="later than the clock"):
+        L.record_look(root / "ledger.csv", **look(root, now=at(21)))
 
 
 def test_via_must_be_the_running_script(root):
@@ -207,13 +243,35 @@ def test_the_default_paths_carry_no_held_out_label_or_mask():
     assert data["node_time"] == RAW["node_time"] and data["x"] == RAW["x"]
 
 
+def test_labelled_mask_marks_no_user_after_the_validation_window():
+    """Round 4's B1: built from the raw labels, it would say which hidden users are labelled."""
+    data = L.load(RAW, CONFIG)
+    late = [t > CONFIG["val_max"] for t in data["node_time"]]
+    assert L.labelled(RAW["y"]) != L.labelled(data["y"]), "the fixture must tell the two apart"
+    assert data["labelled_mask"] == L.labelled(data["y"])
+    assert not any(m and t for m, t in zip(data["labelled_mask"], late))
+
+
+def test_with_labels_rebuilds_labelled_mask_so_the_window_has_targets(root):
+    """A runner that put back only y would score no test user: targets come from labelled_mask."""
+    data = L.load(RAW, CONFIG)
+    w, y = L.open_test_window(CONFIG, lambda: RAW, **opener(root))
+    scored = L.with_labels(data, y)
+    targets = [i for i, (m, t) in enumerate(zip(scored["labelled_mask"], scored["node_time"]))
+               if m and w.lo <= t <= w.hi]
+    assert scored["y"] == RAW["y"] and targets == [2, 3]
+
+
 def test_the_hidden_value_is_no_real_label():
     assert isinstance(L.HIDDEN, int) and L.HIDDEN not in (0, 1, 2, 3)
 
 
-def test_the_integrity_check_says_only_pass_or_fail():
-    assert L.integrity_ok(lambda: RAW, {0: 2, 1: 2, 3: 1}) is True
-    assert L.integrity_ok(lambda: RAW, {0: 2, 1: 3}) is False
+def test_the_integrity_check_says_only_pass_or_fail(monkeypatch):
+    assert L.integrity_ok(lambda: RAW) is False, "no pinned totals, no pass"
+    monkeypatch.setattr(L, "PUBLISHED", {0: 2, 1: 2, 3: 1})
+    assert L.integrity_ok(lambda: RAW) is True
+    monkeypatch.setattr(L, "PUBLISHED", {0: 2, 1: 3})
+    assert L.integrity_ok(lambda: RAW) is False
 
 
 # ---- the accessors --------------------------------------------------------------------------------
@@ -232,7 +290,15 @@ def test_a_scores_open_of_the_window_records_first_then_returns_labels(root):
     load_raw, seen = _counting_loader(p)
     w, y = L.open_test_window(CONFIG, load_raw, **opener(root))
     assert (w.lo, w.hi) == (482, 821) and y == RAW["y"] and seen == [1]
-    assert L.read_ledger(p)[0]["via"] == RUNNER
+    row = L.read_ledger(p)[0]
+    assert row["via"] == RUNNER and row["timestamp_utc"] == at(20).isoformat(), "the clock's time"
+
+
+def test_the_openers_take_no_time_from_their_caller(root):
+    for fn in (L.open_test_window, L.open_official_track):
+        with pytest.raises(TypeError):
+            fn(CONFIG, lambda: RAW, **opener(root), now=at(1)) if fn is L.open_test_window \
+                else fn(lambda: RAW, **opener(root), now=at(1))
 
 
 def test_an_open_records_the_running_script_as_via(root, monkeypatch):
@@ -371,6 +437,16 @@ def test_the_backstop_finds_each_raw_route_and_ignores_strings():
         "scripts/e.py": "g = load_scores(p)\n",
         "scripts/f.py": "record_look(p, incidental=flag)\n",
         "scripts/f2.py": "record_look(p, backfill=True)\n",
+        "scripts/f3.py": "record_look(p, now=t)\n",
+        "scripts/al.py": "from torch_geometric.datasets import DGraphFin as D\n",
+        "scripts/al2.py": "from gbe.eval.scores import load_scores as ls\ng = ls(p)\n",
+        "scripts/al3.py": "import x as tsplit\nfrom m import TemporalSplit as TS\ns = TS(1, 2, 3)\n",
+        "scripts/raw.py": "from adapters.dgf1.heldout import _load_raw\n",
+        "scripts/raw2.py": "import adapters.dgf1.heldout as h\nr = h._load_raw()\n",
+        "scripts/sp.py": "a = np.load('data/dgraph/raw/dgraphfin.npz')\n",
+        "scripts/sp2.py": "d = ROOT / 'experiments' / 'scores'\n",
+        "scripts/sp3.py": "d = 'experiments\\\\scores\\\\run.npz'\n",
+        "scripts/nsp.py": "d = ROOT / 'scores' / 'experiments'\nNEVER = ('data/', 'experiments/')\n",
         "scripts/ok.py": "t = data.labelled_mask & train_seed_mask(d, s) & window_target_mask(d, s)\n",
         "notebooks/g.py": "PAT = 'DGraphFin( and test_mask'\n",
         "notebooks/k.py": "data = DGraphFin(root=r)[0]\n",
@@ -382,14 +458,20 @@ def test_the_backstop_finds_each_raw_route_and_ignores_strings():
         "adapters/dgf1/eval.py": "s = TemporalSplit(1, 2, 3)\n",
         L.HAND_PATH: "record_look(p, incidental=True, backfill=True)\n",
     }
-    assert L.backstop(srcs) == [
+    hand = "sets a look's authority or time by hand"
+    assert L.backstop(srcs) == sorted([
         "notebooks/k.py: PyG loader", "scripts/a.py: PyG loader", "scripts/b.py: an official mask",
         "scripts/b2.py: an official mask", "scripts/c.py: an official mask",
         "scripts/d.py: hand-built window", "scripts/e.py: score files without an accessor",
-        "scripts/f.py: claims an incidental or backfill look",
-        "scripts/f2.py: claims an incidental or backfill look",
+        f"scripts/f.py: {hand}", f"scripts/f2.py: {hand}", f"scripts/f3.py: {hand}",
+        "scripts/al.py: PyG loader", "scripts/al2.py: score files without an accessor",
+        "scripts/al3.py: hand-built window",
+        "scripts/raw.py: the raw loader", "scripts/raw2.py: the raw loader",
+        "scripts/sp.py: a held-out store path", "scripts/sp2.py: a held-out store path",
+        "scripts/sp3.py: a held-out store path",
+        "scripts/test_j.py: PyG loader",
         "scripts/prototype/q.py: an official mask",
-    ]
+    ])
 
 
 def test_the_backstop_on_committed_code_finds_the_known_routes():
@@ -400,11 +482,17 @@ def test_the_backstop_on_committed_code_finds_the_known_routes():
     assert L.backstop(srcs) == EXPECTED_TODAY
 
 
-EXPECTED_TODAY = [
+EXPECTED_TODAY = [     # the store paths move into the accessor modules in row 5a (ADR-021 I11)
     "scripts/assemble_gate_dgf1_1.py: score files without an accessor",
+    "scripts/audit_dgf1_datasource.py: a held-out store path",
     "scripts/measure_dgf1_temporal_split.py: PyG loader",
+    "scripts/measure_dgf1_temporal_split.py: a held-out store path",
     "scripts/measure_dgf1_temporal_split.py: an official mask",
+    "scripts/run_dgf1_floor.py: a held-out store path",
+    "scripts/run_dgf1_gnn.py: a held-out store path",
     "scripts/run_dgf1_gnn.py: score files without an accessor",
+    "scripts/verify_dgf1_temporal_sampler.py: a held-out store path",
     "scripts/verify_dgraph_snapshot.py: PyG loader",
+    "scripts/verify_dgraph_snapshot.py: a held-out store path",
     "scripts/verify_dgraph_snapshot.py: an official mask",
 ]
