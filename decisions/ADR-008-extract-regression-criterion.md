@@ -1,6 +1,6 @@
 # ADR-008 — What "ELL-1 still passes" means after EXTRACT: bit-for-bit reproduction, not re-passing
 
-**Status:** accepted
+**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
 **Date:** 2026-07-26 · **accepted** 2026-07-26
 **Deciders:** coderback
 **Docs affected — all amendments applied 2026-07-26 on acceptance:**
@@ -205,3 +205,36 @@ Never for EXTRACT once the check is run and recorded. **EXTEND (EDR-1) must deri
 criterion in its own ADR** — the same principle (reproduce recorded numbers bit-for-bit in an
 unchanged environment) but a different reference set, and EDR-1 will additionally have to decide
 how a *frozen text encoder's* outputs are pinned, which has no analogue here.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; findings A2 E-B3, E-S3 and E-S9).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+- **Clause 2's no-retry rule (`:108-109`) was not implemented by `scripts/check_extract_regression.py`
+  until `c51c1d5` (2026-10-07).**
+  - **Before:** it paired the latest tagged row per `(arm, seed)` from any commit, dirty and
+    errored rows included, and it exited 0 with nothing to compare.
+  - **Since:** it certifies one commit's clean, deterministic, non-errored rows, and it fails on a
+    retried identity and on an empty set.
+  - **The certification stands.** The fixed checker re-checked it on 2026-10-07:
+    `--compare-only --commit d614671` passes 49/49, and the batch at `8060cf2` passes 49/49
+    (`3aed8bb`; lab 2026-10-07:9).
+  - **One limit:** the `deterministic` filter is vacuous for rows written before `ca8181d`
+    (ADR-005's erratum).
+- **Clause 4's driver pin is not checked.** `environment_drift`
+  (`scripts/check_extract_regression.py:161-183`) compares the pinned packages, the GPU name and
+  the CUDA runtime, never the driver. It also reads the environment of the process running the
+  check, not that of the runs it certifies.
+- **`:94-95`, Gate 1's "±0.031 is largely run noise, not seed variance", is unsupported.**
+  - **The "0.034" it cites** is the range of three repeats. Their sample standard deviation is
+    0.017 (ADR-005's erratum).
+  - **Seed variance alone exceeds Gate 1's band:** GATE-ELL1-3's deterministic real arm has a
+    standard deviation of 0.0702 at 8 seeds.
+  - **The two bands are not comparable as written:** Gate 1's ±0.0306 uses `ddof=0`, and Gate 3's
+    uses `ddof=1`.
+  - **The lab had already concluded otherwise** the day before: "Seed variance is real, not run
+    noise" (lab 2026-07-25:9).
+  - **The exclusion of Gate 1's rows stands** on its other ground: they ran without determinism, so
+    no re-run can reproduce them.

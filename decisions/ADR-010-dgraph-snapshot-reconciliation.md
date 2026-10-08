@@ -1,6 +1,6 @@
 # ADR-010 — DGraph snapshot reconciliation: the official split is random, and two shape corrections
 
-**Status:** accepted
+**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
 **Date:** 2026-07-27 · **accepted** 2026-07-27
 **Deciders:** coderback
 **Data snapshot:** `DGraphFin.zip` (150,476,320 bytes) from dgraph.xinye.com, loaded via
@@ -165,3 +165,23 @@ label" is true of the *task* and false of the *tensor*; §2.1 gains a parentheti
   before relying on either.
 - **The official leaderboard adopts a temporal split.** Clause 1's two-track reporting would
   collapse into one, and the gated/reported division could be revisited.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; the literature re-check of GADBench).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+**GADBench does not find that "tree baselines match GNNs on DGraph" (`:106`, relied on at `:134`).**
+On DGraph-Fin with tuned hyperparameters (Tables 4 and 13;
+`notebooks/audit/2026-10-07/literature-recheck.md` §3 and §5):
+- **Plain RF and XGBoost sit below the GNNs:** AUPRC 2.57 and 2.75 against 3.77–3.97, and AUROC
+  70.37 and 72.43 against 75.51–76.30.
+- **XGB-Graph matches them:** a tree with one-hop neighbour aggregation, at AUPRC 3.79 and AUROC
+  75.83. RF-Graph does not.
+
+**What it changes.** doc-02 §0's expectation of a small structural delta still has independent
+support, but that support is the tree-plus-aggregation result and the 38.9% figure, not plain trees
+matching GNNs. DGF-1's Gate 1 later found its GNN above a tree given the same node-level
+information (GATE-DGF1-1). Whether that gain survives one-hop neighbour aggregation is the question
+of Gate 3's reported tree arm (CLAUDE.md, *Next* item 7).

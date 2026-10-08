@@ -1,6 +1,6 @@
 # ADR-011 — DGF-1 temporal split: node time from the earliest edge, training graph by edge date
 
-**Status:** accepted
+**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
 **Date:** 2026-09-11 · **accepted** 2026-09-11
 **Deciders:** coderback
 **Data snapshot:** `DGraphFin.zip` (150,476,320 bytes), verified by `scripts/verify_dgraph_snapshot.py`
@@ -519,3 +519,25 @@ That is our own definition, not a claim about any third party's protocol. It is 
   in their own ADR, **before** any DGF-1 score exists, and never after.
 - **Never for DGF-1 once any DGF-1 score exists on 370–481 or 482–821.** From that point, changing
   the split, the view or the floor is re-thresholding after seeing a result.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; finding B-S1).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+**`:281-283` is wrong: the parity floor is not "the same bar ELL-1's RF floor set by already
+containing one-hop aggregates".**
+- **ELL-1's RF** saw Elliptic's 72 aggregate features, which summarise each transaction's
+  neighbours.
+- **DGF-1's parity floor** sees node-level statistics of a user's own edges (the edge-type
+  histogram, degree and recency) and no neighbour features.
+
+So it is a lower bar than ELL-1's, though still strictly harder for the GNN than the raw-17 floor,
+as `:283` says. GADBench's XGB-Graph, which adds one-hop neighbour aggregation to a tree, matches
+the GNNs on DGraph-Fin (`notebooks/audit/2026-10-07/literature-recheck.md` §3 and §5).
+
+GATE-DGF1-1 states its comparison correctly, as "a tree given the same node-level information". It
+carries the qualification that the gain is not yet attributable to message passing. Gate 3's
+pre-registration adds the reported tree + one-hop neighbour-aggregates arm (CLAUDE.md, *Next* item
+7).

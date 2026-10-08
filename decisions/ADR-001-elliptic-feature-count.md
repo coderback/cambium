@@ -1,6 +1,6 @@
 # ADR-001 — Elliptic feature count is 165 (time_step excluded from node features)
 
-**Status:** accepted
+**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
 **Date:** 2026-07-21
 **Deciders:** coderback
 **Docs affected:** `docs/01-elliptic-embedding-model-BUILD.md` §2.1 (and §2.2)
@@ -62,3 +62,30 @@ paper's "166" counts `time_step` among the local features, and set the feature c
 
 Switching to Elliptic++ (different feature schema) or if a future re-download shows a
 different column count — in which case re-verify against this ADR before trusting any run.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; finding A2 E-S1).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+- **`:57-58`, "local features are columns 2..95 (94 cols)", is off by one against `:21-22`.**
+  - **The layout.** Weber et al.'s first 94 features are local and include `time_step`
+    (`notebooks/audit/2026-10-07/literature-recheck.md` §2, quoting Weber p.2), and `time_step` is
+    CSV column 1 (`:17`). So the local features without it are CSV columns 2..94 (93 columns), and
+    the 72 aggregates are CSV columns 95..166, which are `x` columns 93..164.
+  - **The assumption.** This holds if the CSV keeps the paper's column order. That was not checked
+    against the data, though ADR-001's own layout (`:17`) is consistent with it.
+  - **Local-94** (`x[:, :94]`, `scripts/run_ell1_local94.py:45`, `:69`) therefore held the 93 local
+    features plus the first aggregate.
+- **The same slip recurs as "features 94–164"**, a range of 71 columns:
+  - ADR-003:61 and ADR-004:55;
+  - GATE-ELL1-1:70, and GATE-ELL1-3:28 and :176, each with an erratum beside it;
+  - doc-01 and `docs/document-amendments-v0.2.md`, corrected in place when this erratum is accepted;
+  - code comments at `gbe/eval/ablations.py:112` and `scripts/run_ell1_local94.py:5`, `:10` and
+    `:45`, left as they are. Editing `gbe/` requires ADR-008's re-run, so each is corrected with
+    the next change to its file;
+  - lab 2026-07-25:6 ("all 71 hand-built one-hop aggregates"), a dated log, which is not edited.
+- **What it changes:** no verdict. The local-94 diagnostic removed 71 of the 72 aggregates, not all
+  of them (`gates/ERRATUM-ELL1-1.md`). The 165-feature contract, `EXPECTED_FEATURES` and the
+  `time_step` exclusion are unaffected.

@@ -1,6 +1,6 @@
 # ADR-005 — Runs are deterministic by default (CUDA scatter nondeterminism exceeded our effect sizes)
 
-**Status:** accepted
+**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
 **Date:** 2026-07-24
 **Deciders:** coderback
 **Docs affected:** `CLAUDE.md` (integrity rule "≥3 seeds with variance on every gate number");
@@ -123,3 +123,35 @@ roughly 4× the noise floor. FAILED stands on any reading.
 A model hits an op with no deterministic CUDA implementation (decide: CPU fallback, or a
 different formulation); or determinism's wall-clock cost rises materially above the ~5% measured
 here at ELL-1's scale.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; findings A2 E-B1, E-B2, E-S2 and E-S3).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+- **Clause 3 (`:72-77`), "a row states for itself whether it was reproducible", did not hold until
+  `ca8181d` (2026-10-07).**
+  - **Before:** `RunSession` read the state just after forcing determinism on, so every row
+    recorded `deterministic=true` by construction. Rows written before `ca8181d` are not evidence
+    of how they ran. Their reproducibility rests on bit-for-bit re-runs: ADR-008's reference set,
+    GATE-DGF1-0's batches and ADR-013's re-certification.
+  - **Since:** the field is true only when strict determinism held both at entry and at exit
+    (`gbe/run/session.py:62`, `:73-74`). `tests/test_determinism_guard.py` fails if a run that
+    switches determinism off, or to `warn_only`, is recorded true.
+- **Clause 2 (`:68-71`), "strict, not `warn_only`", was neither recorded nor tested until
+  `ca8181d`.** The recorded field now requires `warn_only` to be off (`gbe/run/seeding.py:64-65`).
+- **Clause 4's example (`:81-82`) contradicts its rule.**
+  - **The rule:** a count derived from the variance of a deterministic batch.
+  - **The example:** ADR-006's 8→20 design was fixed in advance, with no deterministic batch, and
+    ADR-006 says the provisional σ "cannot size the batch" (ADR-006:109-110).
+  - **The first count derived as the rule requires** is ADR-012's `Stage-1 seeds: 8`, from its
+    validation pilots. Gates pre-registered after ADR-018's acceptance follow ADR-018.
+- **The context labels a range as a standard deviation (`:33-36`, `:52`).**
+  - **The figures:** the three repeats (0.915055, 0.928322, 0.893891) span 0.034431. Their sample
+    standard deviation is 0.0174.
+  - **`:35-36`** compares that range with GATE-ELL1-1's "±0.0306", a standard deviation computed
+    with `ddof=0` (ADR-006:71-72).
+  - **At `:56-57`,** Gate 1's deficit of 0.127 is about 7 standard deviations of the repeats, not 4.
+  - **What stands:** the decision. The repeats were real nondeterminism, which bit-for-bit runs
+    removed.

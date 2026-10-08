@@ -1,6 +1,6 @@
 # ADR-013 — DGF-1's reported sensitivity views: the defect recorded, the numbers withdrawn, the question given its own pre-registration
 
-**Status:** accepted
+**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
 **Date:** 2026-09-14 · **accepted** 2026-09-15
 **Deciders:** coderback
 **Replaces the first draft of this ADR** (commits `70f61a4`, `4667dfe`), withdrawn before acceptance.
@@ -443,3 +443,16 @@ The real-data re-certification is clause 3's.
   ADRs, why one does not apply.
 - **Never, to re-admit the withdrawn numbers.** They broke a clause accepted blind. A valid row is a
   new row.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; finding A S4).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+- **`:295-298` still treats ADR-014 as pending.** It says the environment question "is being decided"
+  there, and that "until ADR-014 is accepted the environment is not part of this clause's bar".
+  ADR-014 was withdrawn on 2026-09-15, undecided (`399dd7f`). Clause 3's bar does not include the
+  environment, and no pending document changes that.
+- **`:299-301`'s note is labelled "Corrected 2026-09-15"** but was committed on 2026-10-06
+  (`8296f4b`). A correction is dated by the commit that makes it.

@@ -1,6 +1,6 @@
 # ADR-015 — DGF-1's official-split positioning batch
 
-**Status:** accepted
+**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
 **Date:** first proposed 2026-09-15 · **accepted 2026-10-07 by coderback**, as the fifteenth draft.
 It folds the fourteenth (`7118b1a`) review's non-blocking items in, under the review's stopping
 rule. It replaces `5f7f388`, `30fbf92`, an uncommitted third, `8296f4b`, `f769880`, `a029413`,
@@ -1275,3 +1275,23 @@ ADR-011 was (`ADR-011:28-29`).
 - **Never** to re-score these three arms except through clause 5's defect route; never to attach a
   pass condition to any number this batch produces; never to move an official-split figure into a
   gate table.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; finding A S5).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+**`:791-797` rests on a verification that exists in no commit.** It quotes ADR-014:60-61: a keyword
+on `run_dgf1`, passed to `log_metrics` and never to `run_config_values`, leaves the config hash
+unchanged. That check ran on code no commit contains.
+- **`run_dgf1`'s signature never had such a keyword.** It is the same, with no such keyword, in
+  every commit of `adapters/dgf1/train_gnn.py` (`6b02164`, `2bd88e0`, `ccb986f`, `cd4912d`).
+- **The name appears in no code.** `git log --all -S extra_metrics -- adapters gbe scripts tests`
+  finds it only as a test fixture of the evidence checker (`508ab04`).
+
+So the channel is a design, not a verified property. The implementation must establish it by test
+before any certify row is written, as CLAUDE.md's *Next* item 8 already requires:
+- the config hash equals the stored pilot row's;
+- the keys reach `metrics_json`;
+- the test fails if the keyword is routed into `run_config_values`.

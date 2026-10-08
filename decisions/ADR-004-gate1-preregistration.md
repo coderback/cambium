@@ -1,6 +1,6 @@
 # ADR-004 — Gate 1 pass criterion, pre-registered before any 35–49 run
 
-**Status:** accepted
+**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
 **Date:** 2026-07-24
 **Deciders:** coderback
 **Docs affected:** none (operationalises an existing gate; recorded in `gates/GATE-ELL1-1.md`)
@@ -60,3 +60,30 @@ comparison is capacity- and compute-matched (doc-00 §8). Seeds: 0, 1, 2.
 
 Never for ELL-1 Gate 1 once dated (the criterion is sacred once the gate is assembled).
 Later models pre-register their own gate criteria in their own ADRs.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; findings B-S2 and A2 E-S1).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+**`:55-57` misreads its source and miscounts the aggregates.** It says "the RF floor already sits at
+the 0.807 high-water mark that collapses to ~0.12 under strict eval elsewhere". The source is
+Maganti 2026, arXiv:2604.19514v1, read as a PDF (`notebooks/audit/2026-10-07/literature-recheck.md`
+§1):
+- **0.807 is not an RF floor.** It is the F1 that the paper's earlier drafts reported for a hybrid,
+  a random forest on GraphSAGE embeddings concatenated with the raw features (abstract, p.1).
+  ELL-1's RF floor of 0.806 is close to it by coincidence.
+- **Nothing falls to ~0.12.** Under the paper's clean protocol the hybrid falls to 0.699 ± 0.015.
+  0.124 is the hybrid's gap to a random forest on the raw features (0.823 ± 0.002 in that
+  comparison, p.2).
+- **The paper names BatchNorm and full-graph message passing as leakage channels,** and rules both
+  out at once. It does not measure how much either contributed (p.2, p.11).
+- **Two cautions** before citing it for any number. Its training early-stops on test-period F1
+  (p.11), and it misquotes Weber's baselines (p.4).
+- **"Features 94–164"** is off by one: the aggregates are 72 columns (ADR-001's erratum).
+
+**What stands:** clause 1 as a bar, and its conclusion that the bar is genuine. An RF floor at
+0.806 is high whatever the citation says. The strict inductive protocol stands on its own grounds,
+and on Elliptic it drops nothing: zero edges cross the cutoff (GATE-ELL1-3:166-167). The governing
+docs that repeat the figure are corrected in place when this erratum is accepted.

@@ -1,6 +1,6 @@
 # ADR-014 — Withdrawn: the DGF-1 re-certification's environment rule
 
-**Status:** withdrawn
+**Status:** withdrawn · erratum proposed 2026-10-08, at the end of this file
 **Date:** proposed 2026-09-15 · **withdrawn 2026-09-15**, undecided, before any acceptance
 **Deciders:** coderback
 **Decides nothing.** No clause of this ADR is in force, and no run, number, gate or document depends
@@ -88,3 +88,14 @@ These were measured, not argued, and are recorded so the next attempt starts fro
   belongs in its own ADR (ADR-005: "the environment is the piece it does not pin").
 - **Never** by reviving any of the four drafts' routes. Each was rejected on its merits, and the
   reasons are in the table above.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; finding A S5).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+**`:6-7`, "no run, number, gate or document depends on it", stopped being true on 2026-10-07.**
+ADR-015, accepted that day, quotes `:60-61` as evidence for its unhashed metrics channel
+(ADR-015:791-797). That check ran on code that no commit contains (ADR-015's erratum).
+Nothing else here changes: this ADR stays withdrawn and decides nothing.

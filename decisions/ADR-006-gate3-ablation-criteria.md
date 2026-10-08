@@ -1,6 +1,6 @@
 # ADR-006 — Gate 3 pass criteria (the defending ablations)
 
-**Status:** accepted
+**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
 **Date:** 2026-07-24
 **Deciders:** coderback
 **Docs affected:** `docs/01-elliptic-embedding-model-BUILD.md` §4 (Phase 3) and §7 (Gate 3 row) —
@@ -197,3 +197,23 @@ Two properties of that conjunction, stated so a reader is not misled by "3/3 res
 Never for ELL-1 Gate 3 once the gate is assembled and dated. DGF-1/EDR-1 pre-register their own
 ablation criteria in their own ADRs, inheriting the resolvability test but re-deriving seed
 counts from their own measured variance.
+
+## Erratum, 2026-10-08 (proposed)
+
+**Source:** research audit 2026-10-07, §2
+(`notebooks/audit/2026-10-07/README.md`; finding A2 E-B4).
+The text above is not edited, so citations of its lines stay valid. **No clause changes.**
+
+**The pins called "mechanical" (`:69-72`, `:181`) were untested code until 2026-10-07.** `ddof=1`
+and `diff > 2·SE_diff` were implemented in scripts that no test imported:
+- **ELL-1's copies:** `scripts/run_ell1_ablations.py:174`, `:199`, `:247` and `:286`;
+- **DGF-1 Gate 1's copy:** `scripts/assemble_gate_dgf1_1.py:103-123`;
+- **Gate 0's sample standard deviation:** `scripts/assemble_gate_dgf1_0.py:82`.
+
+So "mechanical" meant a reviewed reading of code, not a tested function.
+- **Since `f3e64fd`,** `tests/test_gate_criteria.py` pins the Gate-1 copy, and an edit to `ddof` or
+  to the bound fails it.
+- **ELL-1's copy stays untested.** ELL-1 is closed, and its Gate-3 statistics recompute from the
+  gate tables (audit A2, *Summary*).
+- **Gates pre-registered after ADR-018's acceptance** use its tested shared function instead (plan
+  row 2a).
