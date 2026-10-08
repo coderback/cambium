@@ -1,4 +1,4 @@
-"""Tests for the held-out ledger prototype v2. Run: python -m pytest -q test_ledger_proto.py"""
+"""Tests for the held-out ledger prototype v3. Run: python -m pytest -q test_ledger_proto.py"""
 from __future__ import annotations
 
 import os
@@ -18,24 +18,38 @@ TEST, OFFICIAL = "dgf1-temporal-test-482-821", "dgraph-official-test"
 RUNNER, ASSEMBLER = "scripts/run_gate3.py", "scripts/assemble_gate3.py"
 PREREG, PROPOSED = "decisions/ADR-900-gate3-prereg.md", "decisions/ADR-901-proposed.md"
 LATE, SILENT = "decisions/ADR-902-accepted-later.md", "decisions/ADR-903-names-nothing.md"
+SAMEDAY = "decisions/ADR-904-accepted-same-day.md"
 CONFIG = {"val_min": 370, "val_max": 481, "test_min": 482, "test_max": 821}
+RAW = {"y": [0, 1, 1, 0], "node_time": [100, 400, 500, 700], "test_mask": [0, 0, 1, 1], "x": "feats"}
 
 
 def at(day: int, h: int = 9) -> datetime:
     return datetime(2026, 10, day, h, tzinfo=timezone.utc)
 
 
+def _git(cwd, *args):
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
 @pytest.fixture
 def root(tmp_path):
-    d = tmp_path / "decisions"
-    d.mkdir()
+    (tmp_path / "decisions").mkdir()
+    (tmp_path / "scripts").mkdir()
+    for s in (RUNNER, ASSEMBLER):
+        (tmp_path / s).write_text("# a script\n", encoding="utf-8")
     head = "# x\n\n**Status:** {}\n**Date:** proposed 2026-10-01 · **accepted {}** by coderback\n"
     docs = {PREREG: ("accepted", "2026-10-05", f"Runs {RUNNER}; {ASSEMBLER}.\n"),
             PROPOSED: ("proposed", "2026-10-05", f"Runs {RUNNER}.\n"),
             LATE: ("accepted", "2026-10-20", f"Runs {RUNNER}.\n"),
-            SILENT: ("accepted", "2026-10-05", "Runs something else.\n")}
+            SILENT: ("accepted", "2026-10-05", "Runs something else.\n"),
+            SAMEDAY: ("accepted", "2026-10-09", f"Runs {RUNNER}.\n")}
     for rel, (status, on, body) in docs.items():
         (tmp_path / rel).write_text(head.format(status, on) + body, encoding="utf-8")
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "t@t")
+    _git(tmp_path, "config", "user.name", "t")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "docs")
     return tmp_path
 
 
@@ -50,7 +64,7 @@ def look(root, **over):
 def test_rows_append_under_one_header(root):
     p = root / "ledger.csv"
     L.record_look(p, **look(root))
-    L.record_look(p, **look(root, tier="structure", what="edge dates", authority="engineering"), )
+    L.record_look(p, **look(root, tier="structure", what="edge dates", authority="engineering"))
     assert p.read_text(encoding="utf-8").count("timestamp_utc,") == 1
     rows = L.read_ledger(p)
     assert [r["tier"] for r in rows] == ["scores", "structure"] and set(rows[0]) == set(L.COLUMNS)
@@ -86,15 +100,28 @@ def test_the_row_is_flushed_to_disk_before_returning(root, monkeypatch):
     assert synced
 
 
-# ---- authority: accepted, accepted by then, and names the look's script ---------------------------
+# ---- authority -------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("tier", ["labels", "scores"])
-@pytest.mark.parametrize("authority", [PROPOSED, LATE, SILENT, "decisions/ADR-999-missing.md"])
+@pytest.mark.parametrize("authority", [PROPOSED, LATE, SILENT, SAMEDAY, "decisions/ADR-999-missing.md"])
 def test_labels_and_scores_need_a_document_that_named_the_look_first(root, tier, authority):
     p = root / "ledger.csv"
     with pytest.raises(L.LedgerError):
         L.record_look(p, **look(root, tier=tier, authority=authority))
     assert not p.exists()
+
+
+@pytest.mark.parametrize("via", ["scripts/", "scripts/run_gate3", "scripts/missing.py"])
+def test_via_must_be_an_existing_script(root, via):
+    with pytest.raises(L.LedgerError):
+        L.record_look(root / "ledger.csv", **look(root, via=via))
+
+
+def test_the_authority_is_read_from_head_not_the_working_tree(root):
+    doc = root / PROPOSED
+    doc.write_text(doc.read_text(encoding="utf-8").replace("proposed\n", "accepted\n", 1), encoding="utf-8")
+    with pytest.raises(L.LedgerError):
+        L.record_look(root / "ledger.csv", **look(root, authority=PROPOSED))
 
 
 def test_a_structure_look_needs_a_reason_not_a_document(root):
@@ -113,19 +140,55 @@ def test_an_incidental_look_cannot_claim_an_authority(root):
         L.record_look(root / "ledger.csv", **look(root), incidental=True)
 
 
+# ---- backfill ---------------------------------------------------------------------------------------
+
+def test_a_backfill_row_keeps_its_authority_unchecked(root):
+    p = root / "ledger.csv"
+    L.record_look(p, **look(root, authority="ADR-012", via="backfill: gate batch", now=at(1)), backfill=True)
+    assert L.read_ledger(p)[0]["authority"] == "ADR-012"
+
+
+def test_a_backfill_row_still_refuses_a_figure(root):
+    with pytest.raises(L.LedgerError):
+        L.record_look(root / "ledger.csv", **look(root, what="prevalence 1.48%", now=at(1)), backfill=True)
+
+
+def test_a_backfill_row_cannot_record_a_look_from_after_the_cutoff(root):
+    with pytest.raises(L.LedgerError):
+        L.record_look(root / "ledger.csv", **look(root, authority="ADR-012", now=L.BACKFILL_BEFORE),
+                      backfill=True)
+
+
 # ---- the chokepoint -------------------------------------------------------------------------------
 
 def test_the_ordinary_paths_carry_no_held_out_part():
     assert set(L.splits(CONFIG)) == {"val"}
-    assert "test_mask" not in L.load({"x": 1, "train_mask": 2, "val_mask": 3, "test_mask": 4})
+    data = L.load(RAW, CONFIG)
+    assert "test_mask" not in data
+    assert data["y"] == [0, 1, L.HIDDEN, L.HIDDEN], "labels after the validation window are hidden"
+    assert data["node_time"] == RAW["node_time"] and data["x"] == RAW["x"]
 
 
-def test_opening_the_test_window_records_first_then_returns_it(root):
+def test_a_scores_open_records_first_then_returns_the_window_and_labels(root):
     p = root / "ledger.csv"
-    w = L.open_test_window(CONFIG, tier="scores", authority=PREREG, by="researcher", via=RUNNER,
-                           ledger=p, repo_root=root, git_commit="c", what="gated batch", now=at(9))
-    assert (w.lo, w.hi) == (482, 821)
+    seen = []
+
+    def load_raw():
+        seen.append(len(L.read_ledger(p)) if p.exists() else 0)
+        return RAW
+
+    w, y = L.open_test_window(CONFIG, load_raw, tier="scores", authority=PREREG, by="researcher",
+                              via=RUNNER, ledger=p, repo_root=root, git_commit="c", what="gated batch",
+                              now=at(9))
+    assert (w.lo, w.hi) == (482, 821) and y == RAW["y"] and seen == [1]
     assert L.read_ledger(p)[0]["held_out_set"] == TEST
+
+
+def test_a_structure_open_never_returns_labels(root):
+    w, y = L.open_test_window(CONFIG, lambda: RAW, tier="structure", authority="engineering: views",
+                              by="r", via=RUNNER, ledger=root / "ledger.csv", repo_root=root,
+                              git_commit="c", what="graph views", now=at(9))
+    assert y is None
 
 
 def test_opening_the_official_mask_records_before_the_data_is_loaded(root):
@@ -146,14 +209,18 @@ def test_opening_the_official_mask_records_before_the_data_is_loaded(root):
 def test_an_unauthorised_open_records_nothing_and_returns_nothing(root, opener):
     p = root / "ledger.csv"
     loaded = []
+
+    def load_raw():
+        loaded.append(1)
+        return RAW
+
     with pytest.raises(L.LedgerError):
         if opener == "window":
-            L.open_test_window(CONFIG, tier="labels", authority=PROPOSED, by="r", via=RUNNER,
+            L.open_test_window(CONFIG, load_raw, tier="labels", authority=PROPOSED, by="r", via=RUNNER,
                                ledger=p, repo_root=root, git_commit="c", what="a count", now=at(9))
         else:
-            L.open_official_test_mask(lambda: loaded.append(1) or {"test_mask": 1}, tier="labels",
-                                      authority=PROPOSED, by="r", via=RUNNER, ledger=p,
-                                      repo_root=root, git_commit="c", what="a count", now=at(9))
+            L.open_official_test_mask(load_raw, tier="labels", authority=PROPOSED, by="r", via=RUNNER,
+                                      ledger=p, repo_root=root, git_commit="c", what="a count", now=at(9))
     assert not p.exists() and not loaded
 
 
@@ -177,21 +244,14 @@ def test_append_only_refuses_any_other_change(working):
     assert not L.is_append_only(L.csv_text(_rows(1, 2)), working)
 
 
-def _git(cwd, *args):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
-
-
 def test_git_dirty_may_ignore_an_append_to_the_ledger_and_nothing_else(root):
-    _git(root, "init", "-q")
-    _git(root, "config", "user.email", "t@t")
-    _git(root, "config", "user.name", "t")
     (root / "experiments").mkdir()
     ledger = root / L.LEDGER_REL
     L.record_look(ledger, **look(root))
     _git(root, "add", ".")
-    _git(root, "commit", "-qm", "init")
+    _git(root, "commit", "-qm", "ledger")
     assert L.ledger_change_is_append(root)
-    L.record_look(ledger, **look(root, now=at(10)))          # a guard row at batch start
+    L.record_look(ledger, **look(root, now=at(10)))          # an opener row at batch start
     assert L.ledger_change_is_append(root)
     ledger.write_text(ledger.read_text(encoding="utf-8").replace("researcher", "someone"),
                       encoding="utf-8")
@@ -201,14 +261,11 @@ def test_git_dirty_may_ignore_an_append_to_the_ledger_and_nothing_else(root):
 def test_today_git_dirty_counts_a_ledger_append_as_code(root):
     sys.path.insert(0, str(REPO))
     from gbe.run.config import git_dirty
-    _git(root, "init", "-q")
-    _git(root, "config", "user.email", "t@t")
-    _git(root, "config", "user.name", "t")
     (root / "experiments").mkdir()
     ledger = root / L.LEDGER_REL
     L.record_look(ledger, **look(root))
     _git(root, "add", ".")
-    _git(root, "commit", "-qm", "init")
+    _git(root, "commit", "-qm", "ledger")
     L.record_look(ledger, **look(root, now=at(10)))
     assert git_dirty(root)
 
@@ -235,19 +292,24 @@ def test_the_backstop_finds_each_raw_route_and_ignores_strings():
         "scripts/d.py": "s = TemporalSplit(train_max=1, test_min=2, test_max=3)\n",
         "scripts/e.py": "g = load_scores(p)\n",
         "scripts/f.py": "record_look(p, incidental=flag)\n",
+        "scripts/f2.py": "record_look(p, backfill=True)\n",
         "notebooks/g.py": "PAT = 'DGraphFin( and test_mask'\n",
         "notebooks/k.py": "data = DGraphFin(root=r)[0]\n",
         "scripts/h.py": "w = open_test_window(c, tier='scores')\ng = load_scores(p)\n",
         "tests/i.py": "data = DGraphFin(root=r)[0]\n",
         "scripts/test_j.py": "data = DGraphFin(root=r)[0]\n",
         "notebooks/measurements/x/prototype/p.py": "m = raw['test_mask']\n",
+        "scripts/prototype/q.py": "m = raw['test_mask']\n",
         "adapters/dgf1/eval.py": "s = TemporalSplit(1, 2, 3)\n",
-        L.HAND_PATH: "record_look(p, incidental=True)\n",
+        L.HAND_PATH: "record_look(p, incidental=True, backfill=True)\n",
     }
     assert L.backstop(srcs) == [
         "notebooks/k.py: PyG loader", "scripts/a.py: PyG loader", "scripts/b.py: official test mask",
         "scripts/c.py: official test mask", "scripts/d.py: hand-built window",
-        "scripts/e.py: score files without an accessor", "scripts/f.py: claims an incidental look",
+        "scripts/e.py: score files without an accessor",
+        "scripts/f.py: claims an incidental or backfill look",
+        "scripts/f2.py: claims an incidental or backfill look",
+        "scripts/prototype/q.py: official test mask",
     ]
 
 

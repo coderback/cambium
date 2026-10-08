@@ -1,39 +1,51 @@
-unmutated: passes — 41 passed in 5.62s
-KILLED   append becomes overwrite — 1 failed in 0.42s
-KILLED   header written on every append — 1 failed in 0.42s
-KILLED   fsync removed — 1 failed, 14 passed in 0.53s
-KILLED   unknown held-out set accepted — 1 failed, 1 passed in 0.30s
-KILLED   unknown tier accepted — 1 failed, 2 passed in 0.33s
-KILLED   empty fields accepted — 1 failed, 3 passed in 0.38s
-KILLED   figure check removed — 1 failed, 6 passed in 0.40s
-KILLED   figure check back to draft 1's pattern — 1 failed, 7 passed in 0.43s
-KILLED   figure check flags digits inside names — 1 failed, 11 passed in 0.52s
-KILLED   authority never checked — 1 failed, 15 passed in 0.76s
-KILLED   a missing document authorises — 1 failed, 21 passed in 0.77s
-KILLED   a proposed document authorises — 1 failed, 15 passed in 0.57s
-KILLED   a document accepted after the look authorises — 1 failed, 17 passed in 0.62s
-KILLED   a document that names nothing authorises — 1 failed, 19 passed in 0.61s
-KILLED   labels need no document — 1 failed, 15 passed in 0.66s
-KILLED   an incidental look may claim authority — 1 failed, 25 passed in 2.02s
-KILLED   append-only check always passes — 1 failed, 32 passed in 0.82s
-KILLED   append-only check only compares lengths — 1 failed, 33 passed in 0.81s
-KILLED   dirty check ignores HEAD — 1 failed, 36 passed in 1.50s
-KILLED   ordinary splits hand out the test window — 1 failed, 26 passed in 0.77s
-KILLED   ordinary load keeps the official test mask — 1 failed, 26 passed in 0.74s
-KILLED   opening the window records nothing — 1 failed, 27 passed in 0.93s
-KILLED   the mask is loaded before the look is recorded — 1 failed, 28 passed in 0.76s
-KILLED   disclosure ignores overlapping sets — 1 failed, 38 passed in 6.55s
-KILLED   disclosure includes the batch's own row — 1 failed, 38 passed in 6.27s
-KILLED   disclosure keeps file order — 1 failed, 38 passed in 6.79s
-KILLED   backstop misses the PyG loader — 1 failed, 39 passed in 6.52s
-KILLED   backstop misses hand-built windows — 1 failed, 39 passed in 6.25s
-KILLED   backstop misses mask attributes — 1 failed, 39 passed in 6.35s
-KILLED   backstop misses mask subscripts — 1 failed, 39 passed in 6.34s
-KILLED   backstop misses score files — 1 failed, 39 passed in 6.62s
-KILLED   backstop misses incidental claims — 1 failed, 39 passed in 6.41s
-KILLED   backstop flags the hand path — 1 failed, 39 passed in 6.63s
-KILLED   backstop scans test files — 1 failed, 39 passed in 6.65s
-KILLED   backstop scans prototypes — 1 failed, 39 passed in 6.71s
-KILLED   backstop skips notebooks — 1 failed, 39 passed in 6.59s
+unmutated: passes — 51 passed in 27.48s
+KILLED   append becomes overwrite — 1 failed in 1.01s
+KILLED   header written on every append — 1 failed in 2.81s
+KILLED   fsync removed — 1 failed, 14 passed in 7.97s
+KILLED   unknown held-out set accepted — 1 failed, 1 passed in 1.11s
+KILLED   unknown tier accepted — 1 failed, 2 passed in 1.46s
+KILLED   empty fields accepted — 1 failed, 3 passed in 2.51s
+KILLED   figure check removed — 1 failed, 6 passed in 2.92s
+KILLED   figure check back to draft 1's pattern — 1 failed, 7 passed in 3.38s
+KILLED   figure check flags digits inside names — 1 failed, 11 passed in 4.76s
+KILLED   authority never checked — 1 failed, 15 passed in 7.21s
+SURVIVED a document not in HEAD authorises — 51 passed in 25.79s
+KILLED   the working-tree document is read — 1 failed, 28 passed in 14.41s
+KILLED   a proposed document authorises — 1 failed, 15 passed in 8.58s
+KILLED   a document accepted after the look authorises — 1 failed, 17 passed in 11.72s
+KILLED   a document accepted the same day authorises — 1 failed, 21 passed in 13.00s
+KILLED   via need not be a script — 1 failed, 25 passed in 15.73s
+KILLED   a document that names nothing authorises — 1 failed, 19 passed in 11.41s
+KILLED   labels need no document — 1 failed, 15 passed in 9.28s
+KILLED   an incidental look may claim authority — 1 failed, 31 passed in 17.56s
+KILLED   backfill accepts looks after the cutoff — 1 failed, 34 passed in 18.51s
+KILLED   backfill skips the figure filter — 1 failed, 33 passed in 17.44s
+KILLED   backfill runs the authority check — 1 failed, 32 passed in 18.91s
+KILLED   append-only check always passes — 1 failed, 42 passed in 19.77s
+KILLED   append-only check only compares lengths — 1 failed, 43 passed in 22.00s
+KILLED   dirty check ignores HEAD — 1 failed, 46 passed in 23.08s
+KILLED   ordinary splits hand out the test window — 1 failed, 35 passed in 16.96s
+KILLED   ordinary load keeps the official test mask — 1 failed, 35 passed in 20.39s
+KILLED   ordinary load keeps later labels — 1 failed, 35 passed in 19.51s
+KILLED   labels hidden only after the test window — 1 failed, 35 passed in 18.83s
+KILLED   opening the window records nothing — 1 failed, 36 passed in 19.59s
+KILLED   labels loaded before the look is recorded — 1 failed, 36 passed in 19.75s
+KILLED   a structure open returns labels — 1 failed, 37 passed in 20.14s
+KILLED   the mask is loaded before the look is recorded — 1 failed, 38 passed in 20.94s
+KILLED   disclosure ignores overlapping sets — 1 failed, 48 passed in 32.25s
+KILLED   disclosure includes the batch's own row — 1 failed, 48 passed in 28.85s
+KILLED   disclosure keeps file order — 1 failed, 48 passed in 28.89s
+KILLED   backstop misses the PyG loader — 1 failed, 49 passed in 29.14s
+KILLED   backstop misses hand-built windows — 1 failed, 49 passed in 29.28s
+KILLED   backstop misses mask attributes — 1 failed, 49 passed in 28.96s
+KILLED   backstop misses mask subscripts — 1 failed, 49 passed in 29.05s
+KILLED   backstop misses score files — 1 failed, 49 passed in 29.42s
+KILLED   backstop misses incidental and backfill claims — 1 failed, 49 passed in 25.39s
+KILLED   backstop misses backfill claims — 1 failed, 49 passed in 23.27s
+KILLED   backstop flags the hand path — 1 failed, 49 passed in 24.28s
+KILLED   backstop scans test files — 1 failed, 49 passed in 27.87s
+KILLED   backstop scans prototypes — 1 failed, 49 passed in 24.17s
+KILLED   backstop exempts any prototype folder — 1 failed, 49 passed in 23.26s
+KILLED   backstop skips notebooks — 1 failed, 49 passed in 23.14s
 
-36/36 mutants killed
+47/48 mutants killed

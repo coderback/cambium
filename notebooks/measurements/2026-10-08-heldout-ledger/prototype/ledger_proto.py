@@ -1,4 +1,14 @@
-"""Prototype v2: the held-out ledger at the data's chokepoint (ADR-021 round 1; ADR-017 item 3).
+"""Prototype v3: the held-out ledger at the data's chokepoint (ADR-021 rounds 1-2; ADR-017 item 3).
+
+v3, after round 2 (the researcher's decisions of 2026-10-08):
+- **Hidden labels.** ``load()`` also hides the labels of every user who appears after the validation
+  window. Only a labels or scores open of the test window restores them, and a structure open never
+  does.
+- **A stricter authority check.** The authority is read from HEAD, not the working tree. It must be
+  accepted on an earlier calendar day than the look, and it must name ``via``, which must be an
+  existing ``.py`` file.
+- **A guarded backfill.** Backfill rows skip only the authority check, and they are refused from the
+  cutoff on.
 
 The researcher's decision of 2026-10-08, after round 1: a look is recorded where the data is handed
 out, not by each caller. The DGF-1 adapter stops returning the held-out parts by default:
@@ -39,6 +49,9 @@ _STATUS = re.compile(r"^\*\*Status:\*\*\s*(\w+)", re.MULTILINE)
 _ACCEPTED_ON = re.compile(r"^\*\*Date:\*\*.*?accepted\W*(\d{4}-\d{2}-\d{2})", re.MULTILINE)
 # A number on its own (12, 1.48, 12%, 2,717) is a figure; a digit inside an identifier is not.
 _FIGURE = re.compile(r"(?<![\w-])\d+(?:[.,]\d+)*%?(?![\w-])")
+# Backfill rows record looks made before ADR-021; the implementation sets this to its acceptance.
+BACKFILL_BEFORE = datetime(2026, 10, 9, tzinfo=timezone.utc)
+HIDDEN = -1    # the label every user after the validation window carries until a window is opened
 
 
 class LedgerError(ValueError):
@@ -49,23 +62,26 @@ class LedgerError(ValueError):
 
 def check_authority(tier: str, authority: str, via: str, when: datetime, repo_root: Path,
                     incidental: bool) -> None:
-    """Labels and scores need an accepted document, accepted by then, that names ``via``."""
+    """Labels and scores need a document accepted, in HEAD, on an earlier day, that names ``via``."""
     if incidental:
         if not authority.startswith("none"):
             raise LedgerError("an incidental look records its authority as 'none: <why>'")
         return
     if tier == "structure":
         return
-    doc = repo_root / authority
-    if not doc.is_file():
-        raise LedgerError(f"a {tier} look needs an accepted document; {authority!r} is not a file")
-    text = doc.read_text(encoding="utf-8")
+    head = subprocess.run(["git", "show", f"HEAD:{authority}"], cwd=repo_root, capture_output=True,
+                          text=True, encoding="utf-8")
+    if head.returncode != 0:
+        raise LedgerError(f"a {tier} look needs an accepted document; {authority!r} is not in HEAD")
+    text = head.stdout
     status = _STATUS.search(text)
     if not status or status.group(1).lower() != "accepted":
         raise LedgerError(f"a {tier} look needs an accepted document; {authority} is not accepted")
     on = _ACCEPTED_ON.search(text)
-    if not on or date.fromisoformat(on.group(1)) > when.date():
-        raise LedgerError(f"{authority} was not accepted before this look")
+    if not on or date.fromisoformat(on.group(1)) >= when.date():
+        raise LedgerError(f"{authority} was not accepted on an earlier day than this look")
+    if not (via.endswith(".py") and (repo_root / via).is_file()):
+        raise LedgerError(f"via must be the script making the look; {via!r} is not one")
     if via not in text:
         raise LedgerError(f"{authority} does not name {via}, so it did not name this look first")
 
@@ -74,9 +90,11 @@ def check_authority(tier: str, authority: str, via: str, when: datetime, repo_ro
 
 def record_look(path: Path, *, held_out_set: str, tier: str, what: str, by: str, via: str,
                 authority: str, git_commit: str, repo_root: Path, incidental: bool = False,
-                now: datetime | None = None) -> dict:
+                backfill: bool = False, now: datetime | None = None) -> dict:
     """Append one row and flush it to disk before returning. Never rewrites an existing row."""
     when = now or datetime.now(timezone.utc)
+    if backfill and when >= BACKFILL_BEFORE:
+        raise LedgerError("a backfill row records a look from before ADR-021, not after")
     if held_out_set not in HELD_OUT_SETS:
         raise LedgerError(f"unknown held-out set {held_out_set!r}")
     if tier not in TIERS:
@@ -87,7 +105,8 @@ def record_look(path: Path, *, held_out_set: str, tier: str, what: str, by: str,
     if _FIGURE.search(what):
         # The ledger names what was seen, never the value: it is committed to a public repo.
         raise LedgerError("'what' must describe the look, not carry a figure")
-    check_authority(tier, authority, via, when, repo_root, incidental)
+    if not backfill:      # a backfill row keeps the authority its look ran under; nothing else is skipped
+        check_authority(tier, authority, via, when, repo_root, incidental)
     row = {"timestamp_utc": when.isoformat(timespec="seconds"), "held_out_set": held_out_set,
            "tier": tier, "what": what, "by": by, "via": via, "authority": authority,
            "git_commit": git_commit}
@@ -144,16 +163,27 @@ def splits(config: dict) -> dict[str, Window]:
     return {"val": Window(config["val_min"], config["val_max"])}
 
 
-def load(raw: dict) -> dict:
-    """The graph without the official test mask; open_official_test_mask hands that out."""
-    return {k: v for k, v in raw.items() if k != "test_mask"}
+def load(raw: dict, config: dict) -> dict:
+    """The graph without the official test mask, and with every later user's label hidden.
+
+    Users who appear after the validation window carry HIDDEN, so no caller can count, condition on
+    or score against the test window's labels without opening it.
+    """
+    data = {k: v for k, v in raw.items() if k != "test_mask"}
+    data["y"] = [HIDDEN if t > config["val_max"] else y for y, t in zip(raw["y"], raw["node_time"])]
+    return data
 
 
-def open_test_window(config: dict, *, tier: str, authority: str, by: str, via: str, ledger: Path,
-                     repo_root: Path, git_commit: str, what: str, now: datetime | None = None) -> Window:
+def open_test_window(config: dict, load_raw: Callable[[], dict], *, tier: str, authority: str,
+                     by: str, via: str, ledger: Path, repo_root: Path, git_commit: str, what: str,
+                     now: datetime | None = None) -> tuple[Window, list | None]:
+    """Record the look, then return the window, and its true labels only for a labels or scores look."""
     record_look(ledger, held_out_set="dgf1-temporal-test-482-821", tier=tier, what=what, by=by,
                 via=via, authority=authority, git_commit=git_commit, repo_root=repo_root, now=now)
-    return Window(config["test_min"], config["test_max"])
+    window = Window(config["test_min"], config["test_max"])
+    if tier == "structure":
+        return window, None
+    return window, list(load_raw()["y"])
 
 
 def open_official_test_mask(load_raw: Callable[[], dict], *, tier: str, authority: str, by: str,
@@ -187,7 +217,7 @@ def backstop(sources: dict[str, str]) -> list[str]:
     for name, src in sources.items():
         if (name in ACCESSOR_MODULES or not name.startswith(SCOPE)
                 or Path(name).name.startswith("test_")      # tests use synthetic fixtures
-                or "/prototype/" in name):                  # ADR evidence, not a route to data
+                or re.match(r"notebooks/measurements/[^/]+/prototype/", name)):   # ADR evidence
             continue
         found, opens, reads_scores = set(), False, False
         for node in ast.walk(ast.parse(src)):
@@ -197,8 +227,8 @@ def backstop(sources: dict[str, str]) -> list[str]:
                     found.add(RAW_CALLS[fn])
                 opens |= fn in OPENERS
                 reads_scores |= fn == "load_scores"
-                if name != HAND_PATH and any(k.arg == "incidental" for k in node.keywords):
-                    found.add("claims an incidental look")
+                if name != HAND_PATH and any(k.arg in ("incidental", "backfill") for k in node.keywords):
+                    found.add("claims an incidental or backfill look")
             elif isinstance(node, ast.Attribute) and node.attr.endswith("test_mask"):
                 found.add("official test mask")
             elif (isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant)

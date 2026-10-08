@@ -1,4 +1,4 @@
-"""Mutation check for the ledger prototype v2: each edit breaks one property; some test must fail.
+"""Mutation check for the ledger prototype v3: each edit breaks one property; some test must fail.
 
     python mutate.py > mutation-output.txt
 """
@@ -15,11 +15,12 @@ HERE = Path(__file__).resolve().parent
 SRC = (HERE / "ledger_proto.py").read_text(encoding="utf-8")
 REPO = os.environ.get("CAMBIUM_REPO") or str(HERE.parents[3])
 
-OPEN_WINDOW_RECORD = ('    record_look(ledger, held_out_set="dgf1-temporal-test-482-821", tier=tier, what=what, by=by,\n'
-                      '                via=via, authority=authority, git_commit=git_commit, repo_root=repo_root, now=now)\n')
+WINDOW_RECORD = '    record_look(ledger, held_out_set="dgf1-temporal-test-482-821", tier=tier, what=what, by=by,\n'
 OPEN_MASK = ('    record_look(ledger, held_out_set="dgraph-official-test", tier=tier, what=what, by=by, via=via,\n'
              '                authority=authority, git_commit=git_commit, repo_root=repo_root, now=now)\n'
              '    return load_raw()["test_mask"]')
+HIDE = '    data["y"] = [HIDDEN if t > config["val_max"] else y for y, t in zip(raw["y"], raw["node_time"])]'
+EXEMPT = '                or re.match(r"notebooks/measurements/[^/]+/prototype/", name)):   # ADR evidence'
 
 MUTANTS = [
     # the ledger file
@@ -36,13 +37,22 @@ MUTANTS = [
     ("figure check flags digits inside names", '_FIGURE = re.compile(r"(?<![\\w-])\\d+(?:[.,]\\d+)*%?(?![\\w-])")',
      '_FIGURE = re.compile(r"\\d")'),
     # authority
-    ("authority never checked", "    check_authority(tier, authority, via, when, repo_root, incidental)\n", ""),
-    ("a missing document authorises", "    if not doc.is_file():\n        raise", "    if False:\n        raise"),
+    ("authority never checked", "    if not backfill:      # a backfill row", "    if False:      # a backfill row"),
+    ("a document not in HEAD authorises", "    if head.returncode != 0:\n        raise", "    if False:\n        raise"),
+    ("the working-tree document is read", "    text = head.stdout",
+     '    text = (repo_root / authority).read_text(encoding="utf-8") if (repo_root / authority).exists() else ""'),
     ("a proposed document authorises", '    if not status or status.group(1).lower() != "accepted":\n        raise', "    if False:\n        raise"),
-    ("a document accepted after the look authorises", "date.fromisoformat(on.group(1)) > when.date()", "False"),
+    ("a document accepted after the look authorises", "date.fromisoformat(on.group(1)) >= when.date()", "False"),
+    ("a document accepted the same day authorises", "date.fromisoformat(on.group(1)) >= when.date()",
+     "date.fromisoformat(on.group(1)) > when.date()"),
+    ("via need not be a script", '    if not (via.endswith(".py") and (repo_root / via).is_file()):', "    if False:"),
     ("a document that names nothing authorises", "    if via not in text:\n        raise", "    if False:\n        raise"),
-    ("labels need no document", '    if tier == "structure":\n        return', '    if tier != "scores":\n        return'),
+    ("labels need no document", '    if tier == "structure":\n        return\n', '    if tier != "scores":\n        return\n'),
     ("an incidental look may claim authority", '        if not authority.startswith("none"):\n            raise', "        if False:\n            raise"),
+    # backfill
+    ("backfill accepts looks after the cutoff", "    if backfill and when >= BACKFILL_BEFORE:", "    if False:"),
+    ("backfill skips the figure filter", "    if _FIGURE.search(what):", "    if _FIGURE.search(what) and not backfill:"),
+    ("backfill runs the authority check", "    if not backfill:      # a backfill row", "    if True:      # a backfill row"),
     # append-only and git_dirty
     ("append-only check always passes", "    return working.startswith(committed)", "    return True"),
     ("append-only check only compares lengths", "    return working.startswith(committed)", "    return len(working) >= len(committed)"),
@@ -50,8 +60,12 @@ MUTANTS = [
     # the chokepoint
     ("ordinary splits hand out the test window", '    return {"val": Window(config["val_min"], config["val_max"])}',
      '    return {"val": Window(config["val_min"], config["val_max"]), "test": Window(config["test_min"], config["test_max"])}'),
-    ("ordinary load keeps the official test mask", '    return {k: v for k, v in raw.items() if k != "test_mask"}', "    return dict(raw)"),
-    ("opening the window records nothing", OPEN_WINDOW_RECORD, ""),
+    ("ordinary load keeps the official test mask", '    data = {k: v for k, v in raw.items() if k != "test_mask"}', "    data = dict(raw)"),
+    ("ordinary load keeps later labels", HIDE, '    data["y"] = list(raw["y"])'),
+    ("labels hidden only after the test window", HIDE, HIDE.replace('config["val_max"]', 'config["test_max"]')),
+    ("opening the window records nothing", WINDOW_RECORD, "    if False: record_look(ledger, held_out_set=\"dgf1-temporal-test-482-821\", tier=tier, what=what, by=by,\n"),
+    ("labels loaded before the look is recorded", WINDOW_RECORD, "    _y = load_raw()\n" + WINDOW_RECORD),
+    ("a structure open returns labels", '    if tier == "structure":\n        return window, None', "    if False:\n        return window, None"),
     ("the mask is loaded before the look is recorded", OPEN_MASK,
      '    m = load_raw()["test_mask"]\n'
      '    record_look(ledger, held_out_set="dgraph-official-test", tier=tier, what=what, by=by, via=via,\n'
@@ -67,10 +81,12 @@ MUTANTS = [
     ("backstop misses mask attributes", 'isinstance(node, ast.Attribute) and node.attr.endswith("test_mask")', "False"),
     ("backstop misses mask subscripts", 'isinstance(node.slice.value, str) and node.slice.value.endswith("test_mask")', "False"),
     ("backstop misses score files", "        if reads_scores and not opens:", "        if False:"),
-    ("backstop misses incidental claims", 'any(k.arg == "incidental" for k in node.keywords)', "False"),
+    ("backstop misses incidental and backfill claims", 'any(k.arg in ("incidental", "backfill") for k in node.keywords)', "False"),
+    ("backstop misses backfill claims", 'k.arg in ("incidental", "backfill")', 'k.arg == "incidental"'),
     ("backstop flags the hand path", "if name != HAND_PATH and any(", "if any("),
     ("backstop scans test files", '                or Path(name).name.startswith("test_")', "                or False"),
-    ("backstop scans prototypes", '                or "/prototype/" in name):', "                or False):"),
+    ("backstop scans prototypes", EXEMPT, "                or False):"),
+    ("backstop exempts any prototype folder", EXEMPT, '                or "/prototype/" in name):'),
     ("backstop skips notebooks", 'SCOPE = ("scripts/", "adapters/dgf1/", "notebooks/")', 'SCOPE = ("scripts/", "adapters/dgf1/")'),
 ]
 
