@@ -1,10 +1,13 @@
 # ADR-019 — Failure semantics and falsification
 
-**Status:** proposed
-**Date:** proposed 2026-10-08 · draft 3 2026-10-08
+**Status:** accepted
+**Date:** proposed 2026-10-08 · **accepted 2026-10-08 (02:38) by coderback**, at draft 4, after three
+review rounds (*Draft history*). Tier A: no pre-registration relies on clause 7's one-sided rule before
+2026-10-09 (clause 7, *The wait*).
 **Tier:** A. It fixes what gates answer, sets a refutation criterion and amends an accepted Tier-A
 ADR (CLAUDE.md *Process*, ADR-017).
-**Review rounds:** 2/4
+**Review rounds:** 3/4. Round 3, a diff-only pass, found nothing blocking; its items are folded
+in (*Draft history*).
 **Deciders:** coderback
 **Amends ADR-018, narrowly** (clause 7): clause 1's rule for absence claims, and clause 4.5's
 forward sentence. **No seed rule changes**: sizing, the stage-2 trigger and the per-look levels stay
@@ -27,7 +30,7 @@ neither change, so it may start 2026-10-09. **No verdict changes.**
 **Not amended:**
 - the gate files and their errata, and ADR-004, ADR-006 and ADR-012;
 - ADR-018's other clauses;
-- the timeline's history lines (`docs/timeline.md:140-142`);
+- the timeline's history lines (`docs/timeline.md:140-143`);
 - `docs/research-plan-UNIFIED-GBE-GDE.md:67` ("DGF-1 (scale gate)" already reads as an engine gate)
   and `:84` (GDE's own failure semantics);
 - `docs/document-amendments-v0.2.md:91`, a historical changelog;
@@ -69,7 +72,11 @@ So a pass could count for the thesis, a failure never could, and no outcome answ
   - doc-03 amended here;
   - a narrow amendment of ADR-018, with the wait read as covering only the changed parts;
   - a real but sub-margin gain counts as below the bar;
-  - a design that cannot answer "no" gets no free pass.
+  - a design that cannot answer "no" gets no free pass;
+  - "yes" means a gain shown above zero and not shown below the bar;
+  - the justification applies only where a "no" can hide: "not answered" with neither gate rated
+    above;
+  - the strength to answer "no" is judged jointly.
 
 ## Decision
 
@@ -115,8 +122,8 @@ about the homogeneous, text-free regime, reported in P0. `docs/00-shared-core-gr
 - `m₁`, for each metric of EDR-1's Gate 1: graph+text over the matched text-only model;
 - `m₃`, for each metric of Gate 3's edge-scramble clause: the real graph over the scrambled one.
 
-The two are argued together, on substance: the smallest gain that would change a decision or carry
-P1's claim. They are fixed in EDR-1's Phase-0 ADRs before any model metric on any EDR-1 split
+The two are argued together, on substance: the smallest gain that would change a decision, against
+which P1 reports its estimate. They are fixed in EDR-1's Phase-0 ADRs before any model metric on any EDR-1 split
 exists, baselines included. Any EDR-1 data statistic they use comes from the training window, through
 `gbe.run`.
 
@@ -166,10 +173,12 @@ Measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt`):
   (PASSED/FAILED). The gate file adds "GBE answer (ADR-019): <answer>". A real but small gain can
   therefore show Gate 1 PASSED with the answer "two-part" or "no".
 - **"Yes" shows a gain above zero that was not shown below the bar. It does not show a gain of at least
-  `m`.** "Small" needs a measurement precise enough to resolve both tests at once, which the planned
-  design almost never gives. Measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt`, section 2): at 20 seeds, a true gain of half the bar reads
-  "above" 0.330 of the time and "small" 0.002. So P1's "yes" claims a gain above zero and reports its
-  estimate against `m₁` and `m₃`. A rule requiring the gain shown above `m` was rejected (*Alternatives*).
+  `m`.** "Small" needs a measurement precise enough to resolve both tests at once. That happens only
+  when `m` exceeds about twice the critical value times the standard error at the cap. A margin sized
+  for power almost never does, and a margin argued well above that size can. Measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt`,
+  section 2, 8 then 20 seeds): a true gain of half the bar reads "above" 0.264 of the time and
+  "small" 0.0001. So P1's "yes" claims a gain above zero and reports its estimate against `m₁` and
+  `m₃`. A rule requiring the gain shown above `m` was rejected (*Alternatives*).
 - **The estimand is ADR-018's:** seed variance on one fixed test window and snapshot. A "no" claims
   nothing beyond them. The Phase-0 ADRs decide whether "no" also needs the user bootstrap and the
   rolling-origin cutoffs that ADR-018 left to EDR-1 (clause 6).
@@ -188,23 +197,28 @@ Measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt`):
   design is *able to answer "no"* iff that bound is at least 0.80. With two tests each needs about
   0.90; with four, about 0.95.
 - **Why jointly.** Measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt`, section 3): with each test at 0.80 and both gates' true gains 0,
-  the answer was "no" 0.633 of the time and "not answered" 0.331. A per-test line would let a false
+  the answer was "no" 0.633 of the time and "not answered" 0.335. A per-test line would let a false
   thesis escape one time in three with no justification.
-- **The table.** EDR-1's assembler prints these powers and the joint bound in its own answer-clause
-  table, using ADR-018's shared power function unchanged. ADR-018's table and function are not
-  changed.
-- **If the bound falls below 0.80,** the pre-registration raises the cap under ADR-018 clause 5,
-  renting compute if needed (research plan :137), until it reaches 0.80.
+- **The table.** EDR-1's assembler produces these powers and the joint bound mechanically from the
+  pilot rows, in its own answer-clause table, using ADR-018's shared power function unchanged. The
+  table is committed before EDR-1's first test-window run, as ADR-018 clause 6 does for its own.
+  ADR-018's table and function are not changed.
+- **If the bound falls below 0.80 at the default cap,** the cap is the smallest in a candidate set
+  fixed at the pre-registration's acceptance whose joint bound reaches 0.80. Raising it this way is
+  ADR-018 clause 5's departure, chosen mechanically, so it is not an amendment. Compute may be
+  rented (research plan :137).
 - **No free pass.** If no feasible cap gets there, the pre-registration declares, before EDR-1's first
   test-window run, that the design is unable to answer "no". Then, if the answer is "not answered"
-  and Gate 1 is not above, the case where a "no" can hide:
+  and neither gate is rated above, the only case where a "no" can hide:
   - P1 states that the GBE half went untested at planned power;
   - GDE's start needs the same written re-justification as after "no" (clause 5).
 
   Other answers from such a design stand, with its planned chance of "no" disclosed: a "yes",
   "two-part" or "not supported" is protected against false claims whatever the power. Measured
-  (`notebooks/measurements/2026-10-08-margin-tests/output.txt` section 3, a design at 0.50): when nothing works, this rule requires the justification 0.971 of
-  the time. Where Gate 1 already showed a gain, it requires it 0.011 of the time.
+  (`notebooks/measurements/2026-10-08-margin-tests/output.txt` section 3, a design at 0.50, rule A''): when nothing works, this rule requires the
+  justification 0.961 of the time. Where Gate 1's true gain is 0 and Gate 3's is 2m, so that
+  structure helps but not enough, it requires it 0.010 of the time. Where Gate 1's true gain is 2m
+  and Gate 3's is 0, it requires it 0.011 of the time.
 
 ### Clause 5 — What follows each answer
 
@@ -219,7 +233,7 @@ Measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt`):
   not help".
 - **not answered:** reported as inconclusive at planned power, never as negative.
 - **After any answer but yes,** P3's ceiling is recalibrated in writing.
-- **GDE's start.** After an EDR-1 "no", or after "not answered" with Gate 1 not above from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR. The same sentence goes into every amended text below. The research plan's H1
+- **GDE's start.** After an EDR-1 "no", or after "not answered" with neither gate rated above (ADR-019 clause 3) from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR. The same sentence goes into every amended text below. The research plan's H1
   line (`:79`) and doc-00's H1 row (`:197`) are qualified to match; doc-04's H1 line goes to the
   consistency ADR. After any other answer, GDE proceeds, because code graphs are a different
   regime.
@@ -276,16 +290,21 @@ analytically, plus a hand anchor with unequal standard deviations.
 - **A sixth answer, "small".** The researcher chose to count a real gain below the margin as below
   the bar (2026-10-08).
 - **"Yes" only when the gain is shown above `m`.** It would be a stronger claim, but at 20 seeds a true
-  gain of exactly `m` gives it 0.023 of the time, 1.5m 0.334 and 2m 0.873 (`notebooks/measurements/2026-10-08-margin-tests/output.txt`, section 2). The
+  gain of exactly `m` gives it 0.011 of the time, 1.5m 0.097 and 2m 0.354 (`notebooks/measurements/2026-10-08-margin-tests/output.txt`, section 2, 8
+  then 20 seeds). The
   researcher kept "above zero, not shown below the bar" (2026-10-08).
 - **Disclose-only for a design that cannot answer "no".** The researcher chose "no free pass"
   (2026-10-08).
 - **For a design unable to answer "no", a justification after any "not answered", or after any
-  answer but "yes".** Measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt`, section 3, a design at 0.50): where Gate 1 showed a gain but
-  structure did not, these rules require a justification 0.488 and 0.981 of the time, although a
+  answer but "yes".** Measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt`, section 3, a design at 0.50): where Gate 1's true gain is 2m
+  and Gate 3's is 0, these rules require a justification 0.488 and 0.981 of the time, although a
   "no" was impossible. The researcher chose clause 4's rule: only where a "no" can hide (2026-10-08).
+- **"Gate 1 not rated above" (draft 3's wording).** It also fires when Gate 3 is rated above, where
+  a "no" is impossible. Measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt` section 3, rule A'): 0.488 where Gate 1's true gain is 0 and
+  Gate 3's is 2m, against 0.010 for clause 4's rule. The researcher chose the exact condition
+  (2026-10-08).
 - **Judging strength per test.** With each test at 0.80, a false thesis escapes as "not answered"
-  0.331 of the time (section 3). The researcher chose the joint judgement (2026-10-08).
+  0.335 of the time (section 3). The researcher chose the joint judgement (2026-10-08).
 - **Relabel every ELL-1 and DGF-1 gate.** The decision covers Gate 1. Clause 1's "answered only by
   EDR-1" already keeps their Gate 3s from answering the GBE half.
 - **No refutation condition (the status quo).** The GBE half would be unfalsifiable.
@@ -299,7 +318,7 @@ CLAUDE.md forbids, the note says so without repeating it.
 - **`docs/research-plan-UNIFIED-GBE-GDE.md:15`** gains: "Answered by EDR-1's margin tests: Gate 1
   against the matched text-only floor, Gate 3 against edge-scramble. The tabular floor is reported,
   not gated. No ELL-1, DGF-1 or EDL-1 result answers it (ADR-019)."
-- **`:79`** gains clause 5's sentence: "After an EDR-1 "no", or after "not answered" with Gate 1 not above from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR."
+- **`:79`** gains clause 5's sentence on GDE's start, verbatim: "After an EDR-1 "no", or after "not answered" with neither gate rated above (ADR-019 clause 3) from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR."
 - **`:82`** becomes:
   > ELL-1/DGF-1 Gate 1 is an **engine gate in both directions** (ADR-019): a failure is not a thesis
   > refutation and a pass is not thesis evidence. They lack text and typed edges — the regimes the
@@ -316,11 +335,11 @@ CLAUDE.md forbids, the note says so without repeating it.
   > - **no:** P1 is a negative-result paper on the P0 benchmark;
   > - **not answered:** reported as inconclusive, never as negative.
   >
-  > After an EDR-1 "no", or after "not answered" with Gate 1 not above from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR. After any answer but yes, P3's ceiling is recalibrated in writing.
+  > After an EDR-1 "no", or after "not answered" with neither gate rated above (ADR-019 clause 3) from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR. After any answer but yes, P3's ceiling is recalibrated in writing.
 - **`docs/00-shared-core-graph-embedding-GUIDE.md`:**
   - `:183` gains: "— for the thesis where it is tested (EDR-1); in ELL-1 and DGF-1 it is evidence
     about the engine regime (ADR-019)";
-  - `:197`'s H1 row gains clause 5's sentence: "After an EDR-1 "no", or after "not answered" with Gate 1 not above from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR."
+  - `:197`'s H1 row gains clause 5's sentence on GDE's start, verbatim: "After an EDR-1 "no", or after "not answered" with neither gate rated above (ADR-019 clause 3) from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR."
 - **`docs/01-elliptic-embedding-model-BUILD.md`:**
   - a dated note under `:6`: "ELL-1's Gate 1 is an engine gate in both directions; no ELL-1 result
     answers the GBE half (ADR-019).";
@@ -342,7 +361,7 @@ CLAUDE.md forbids, the note says so without repeating it.
   > - Gate 3 runs even if Gate 1 fails.
   > - Together they answer the GBE half: yes, not supported, two-part, no, or not answered
   >   (unified plan, *Failure semantics*).
-  > - After an EDR-1 "no", or after "not answered" with Gate 1 not above from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR.
+  > - After an EDR-1 "no", or after "not answered" with neither gate rated above (ADR-019 clause 3) from a design declared unable to answer "no" (ADR-019 clause 4), SCM-1 starts only after a written re-justification accepted as a Tier-A ADR.
 
   Its "≥3 seeds" sentence stays with the consistency ADR.
 - **`CLAUDE.md`:**
@@ -352,7 +371,8 @@ CLAUDE.md forbids, the note says so without repeating it.
 - **ADR-018:** the two in-place amendments of clause 7.
 - **Grep** `docs/` and `CLAUDE.md` before and after for "did not help", "beats features at scale",
   "earning its keep", "thesis refutation" and "proceeds regardless". It passes when every remaining
-  hit is a history line, a provenance note, or a "never" context.
+  hit is a history line, a provenance note, or a negated ("not" or "never") context, including the
+  negations this ADR writes (for example "a failure is not a thesis refutation").
 - **Nothing is implemented in code now.**
 
 ## Revisit when
@@ -434,3 +454,29 @@ CLAUDE.md forbids, the note says so without repeating it.
     - :15 names both margins;
     - doc-04's H1 line deferred;
     - the grep has a pass criterion.
+- **Round 3** (2026-10-08): a diff-only pass by a fresh subagent, with the standing preamble, over
+  `9a00135..590fc50`.
+  - **Tier A confirmed.** Every round-2 finding was judged fixed, and every quoted number was
+    confirmed in the output.
+  - **Nothing blocking.** Two should-fix findings and seven nits; folded in below under the stopping
+    rule, with no further round.
+- **The researcher's decision, 2026-10-08,** after section 3 gained rule A'': the justification
+  applies after "not answered" only where neither gate is rated above, the exact condition for a
+  hidden "no". Draft 3 had written "Gate 1 not above".
+- **Draft 4** (2026-10-08):
+  - **Should-fix:**
+    - the hidden-"no" condition is exact in all five copies of the GDE sentence and in clause 4,
+      with rule A'' measured (`notebooks/measurements/2026-10-08-margin-tests/output.txt` section 3);
+    - the grep passes on the negations this ADR writes, and the timeline range is :140-143.
+  - **Nits:**
+    - "not answered" is quoted as 0.335;
+    - the 8-then-20 rows are quoted, and where "small" becomes reachable is stated;
+    - the simulated truths are described as true values;
+    - "rated above (ADR-019 clause 3)", and no doubled quotes;
+    - the margin is "against which P1 reports its estimate";
+    - the answer table is committed before the test window, with the cap chosen mechanically from
+      a set fixed at acceptance;
+    - Context lists the round-2 decisions.
+- **Accepted 2026-10-08** by coderback at draft 4. The amendments under *Consequences* were applied
+  the same day: the governance repository for `docs/` and CLAUDE.md, and in place in ADR-018 with
+  dated notes and an *Amended* header line. The grep ran before and after (see the commit).
