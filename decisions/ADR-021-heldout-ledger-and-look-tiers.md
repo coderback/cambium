@@ -1,7 +1,7 @@
 # ADR-021 — The held-out ledger, the three tiers of a look, and the leakage rule's wording
 
-**Status:** proposed
-**Date:** proposed 2026-10-08 · draft 5 2026-10-08
+**Status:** accepted
+**Date:** proposed 2026-10-08 · **accepted 2026-10-08 (19:37) by coderback**, at draft 5, after four review rounds
 **Tier:** A. It sets the held-out and leakage rules, and it amends a Tier-A ADR (CLAUDE.md
 *Process*, ADR-017).
 **Review rounds:** 4/4, spent. Round 4's one blocking finding was escalated, and the researcher moved

@@ -1,6 +1,6 @@
 # ADR-015 — DGF-1's official-split positioning batch
 
-**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file · amended 2026-10-08 (19:37) by ADR-021 clause 12, at the end of this file
 **Date:** first proposed 2026-09-15 · **accepted 2026-10-07 by coderback**, as the fifteenth draft.
 It folds the fourteenth (`7118b1a`) review's non-blocking items in, under the review's stopping
 rule. It replaces `5f7f388`, `30fbf92`, an uncommitted third, `8296f4b`, `f769880`, `a029413`,
@@ -577,9 +577,9 @@ result per arm and seed, which every re-computation must reproduce**.
     pin `experiments/extract_reference_env.txt` (`scripts/run_dgf1_gnn.py:49`); and the figures
     file.
 
-    **Excluded:** the registry; this ADR; `experiments/scores/`; `data/` (covered by
+    **Excluded:** the registry; the held-out ledger (`experiments/heldout_ledger.csv`, ADR-021); this ADR; `experiments/scores/`; `data/` (covered by
     `data_identity`); the records file below and the documents its entries name; and the errata file.
-    Because a dirty tree is refused, HEAD equals the working tree.
+    Because a dirty tree is refused, HEAD equals the working tree, apart from rows appended to the ledger (ADR-021).
   - **`env_identity`** is a SHA-256 over:
     - every installed Python distribution and version (`importlib.metadata`) and the Python version;
     - the CUDA and cuDNN versions, the GPU name, and the NVIDIA driver version as `nvidia-smi`
@@ -1292,3 +1292,32 @@ unchanged. That check ran on code no commit contains.
 
 So the channel is a design, not a verified property. CLAUDE.md's *Next* list already requires
 ADR-015's implementation to establish it by test (audit A S5).
+
+## Amendment, 2026-10-08 (ADR-021 clause 12)
+
+Accepted with ADR-021 at 19:37 by coderback. This restarts this ADR's wait: nothing it governs runs
+before 2026-10-09, and not until twelve hours after that acceptance. Two lines were changed in
+place, each staying one line: the identity exclusions (`:580`) and the dirty-tree sentence (`:582`).
+The rest is here.
+
+- **Every mode of `scripts/run_dgf1_official.py` loads through `open_official_track`**
+  (`adapters/dgf1/heldout.py`, ADR-021 invariant I8). That accessor records the look in
+  `experiments/heldout_ledger.csv` before it returns anything.
+- **The mask check and `data_identity` run on the tensors it returns:** every label, and all three
+  official masks. The mask check (`:565-567`) compares the masks with a `labelled_mask` rebuilt from
+  those labels, never the default load's, which marks no user after the validation window
+  (ADR-021 I6). `data_identity` (`:648-650`) hashes the same tensors.
+- **Each mode is its own batch,** labelled `official-certify`, `official-retune` or
+  `official-positioning`.
+- **The official track's training and validation masks contain temporal-test users.** That is this
+  track's design, as the temporal track's use of official-test users is that track's (`:430`), and
+  it is disclosed here (ADR-021 clause 1).
+- **The identity test's fixture runs (`:937-941`) never write the real ledger.** The test's wrapper
+  sets the ledger path and repository root on `adapters.dgf1.heldout`, and starts the runner with
+  `runpy.run_path(<runner>, run_name="__main__")`, so the running script is the runner. No
+  environment variable or command-line option redirects the ledger.
+
+**Held-out look:** dgraph-official-test · scores · scripts/run_dgf1_official.py · official-certify
+**Held-out look:** dgraph-official-test · scores · scripts/run_dgf1_official.py · official-retune
+**Held-out look:** dgraph-official-test · scores · scripts/run_dgf1_official.py · official-positioning
+**Held-out look:** dgraph-official-test · scores · scripts/assemble_dgf1_positioning.py · official-positioning
