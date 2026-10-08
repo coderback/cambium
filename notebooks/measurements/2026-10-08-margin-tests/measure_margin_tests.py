@@ -101,6 +101,91 @@ def main():
                   file=out)
         print("", file=out)
 
+    print("2. ADR-019 draft 2's four categories under A (judged at the last look that runs), and the", file=out)
+    print("   alternative 'yes needs the gain shown above m' (d > m + t SE at that look).", file=out)
+    print(f"  {'n1':>3} {'gain/m':>7} | {'above':>7} {'small':>7} {'below':>7} {'unres.':>7} | "
+          f"{'shown > m':>10}", file=out)
+    for n1 in (8, 20):
+        for g in (0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0):
+            c = categories(n1, g * m, m)
+            print(f"  {n1:>3} {g:>7.2f} | {c['above']:>7.4f} {c['small']:>7.4f} {c['below']:>7.4f} "
+                  f"{c['unresolved']:>7.4f} | {c['above_m']:>10.4f}", file=out)
+        print("", file=out)
+
+    section3(out)
+
+
+def gate_category(n1: int, gain: float, m: float, size: int) -> np.ndarray:
+    """One gate, one metric, procedure A: 0 = above, 1 = below the bar (small or below), 2 = unresolved."""
+    lvl = level(n1)
+    a = RNG.normal(gain, 1.0, size=(size, CAP))
+    b = RNG.normal(0.0, 1.0, size=(size, CAP))
+    looks = []
+    for n in ((n1, CAP) if n1 < CAP else (CAP,)):
+        d, se, df = welch(a[:, :n], b[:, :n])
+        t = stats.t.isf(lvl, df) * se
+        looks.append({"sup": d > t, "mar": d < m - t})
+    first, last = looks[0], looks[-1]
+    stage2 = ~first["sup"] if len(looks) == 2 else np.zeros(size, bool)
+    sup = np.where(stage2, last["sup"], first["sup"])
+    mar = np.where(stage2, last["mar"], first["mar"])
+    return np.where(sup & ~mar, 0, np.where(mar, 1, 2))
+
+
+def section3(out) -> None:
+    print("3. When would GDE's start need a written justification? Gates 1 and 3 run independently,", file=out)
+    print("   stage 1 at 8 seeds, cap 20. 'Strong' design: the 'no' test has 0.80 planned power at a true", file=out)
+    print("   gain of 0; 'weak': 0.50. Truths are (Gate-1 gain, Gate-3 gain) in units of each design's m.", file=out)
+    print("   Columns: chance of each answer; then the chance a justification is required under", file=out)
+    print("   rule NO (only after 'no'), A' (also 'not answered' where 'no' was still possible, i.e.", file=out)
+    print("   Gate 1 not above), A (also any 'not answered'), B (any answer but 'yes'). A', A and B add to", file=out)
+    print("   'no' only for the weak design.", file=out)
+    print(f"  {'design':>6} {'truth':>11} | {'yes':>6} {'notsup':>6} {'2-part':>6} {'no':>6} {'NA,G1up':>7} "
+          f"{'NA,other':>8} | {'NO':>6} {'A_':>6} {'A':>6} {'B':>6}", file=out)
+    for name, target in (("strong", 0.80), ("weak", 0.50)):
+        m = optimize.brentq(lambda d: planned_power_at(CAP, d, ALPHA / 2) - target, 1e-6, 10.0)
+        for g1, g3 in ((0.0, 0.0), (0.0, 2.0), (2.0, 0.0), (0.5, 0.5), (1.0, 1.0), (2.0, 2.0)):
+            g1c = gate_category(8, g1 * m, m, REPS)
+            g3c = gate_category(8, g3 * m, m, REPS)
+            yes = (g1c == 0) & (g3c == 0)
+            notsup = (g1c == 0) & (g3c == 1)
+            two = (g1c == 1) & (g3c == 0)
+            no = (g1c == 1) & (g3c == 1)
+            na = ~(yes | notsup | two | no)
+            na_up = na & (g1c == 0)
+            na_other = na & (g1c != 0)
+            weak = name == "weak"
+            rules = {"NO": no, "A_": no | (weak & na_other), "A": no | (weak & na), "B": no | (weak & ~yes)}
+            row = [x.mean() for x in (yes, notsup, two, no, na_up, na_other)]
+            print(f"  {name:>6} {f'({g1:g}, {g3:g})':>11} | " + " ".join(f"{v:>6.3f}" for v in row[:4]) +
+                  f" {row[4]:>7.3f} {row[5]:>8.3f} | " + " ".join(f"{rules[k].mean():>6.3f}" for k in rules),
+                  file=out)
+        print("", file=out)
+
+
+def categories(n1: int, gain: float, m: float) -> dict:
+    counts = {k: 0 for k in ("above", "small", "below", "unresolved", "above_m")}
+    lvl = level(n1)
+    for _ in range(REPS // CHUNK):
+        a = RNG.normal(gain, 1.0, size=(CHUNK, CAP))
+        b = RNG.normal(0.0, 1.0, size=(CHUNK, CAP))
+        looks = []
+        for n in ((n1, CAP) if n1 < CAP else (CAP,)):
+            d, se, df = welch(a[:, :n], b[:, :n])
+            t = stats.t.isf(lvl, df) * se
+            looks.append({"sup": d > t, "mar": d < m - t, "above_m": d > m + t})
+        first, last = looks[0], looks[-1]
+        stage2 = ~first["sup"] if len(looks) == 2 else np.zeros(CHUNK, bool)
+        sup = np.where(stage2, last["sup"], first["sup"])
+        mar = np.where(stage2, last["mar"], first["mar"])
+        above_m = np.where(stage2, last["above_m"], first["above_m"])
+        counts["above"] += int((sup & ~mar).sum())
+        counts["small"] += int((sup & mar).sum())
+        counts["below"] += int((~sup & mar).sum())
+        counts["unresolved"] += int((~sup & ~mar).sum())
+        counts["above_m"] += int(above_m.sum())
+    return {k: v / REPS for k, v in counts.items()}
+
 
 if __name__ == "__main__":
     main()

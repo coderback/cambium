@@ -38,3 +38,46 @@ margin m = 1.0216 arm sds: the margin test's planned power at a true gain of 0 i
    20     2.0 |  1.0000  0.0000    0.0000      0.0000 |  1.0000  0.0000    0.0000
    20     3.0 |  1.0000  0.0000    0.0000      0.0000 |  1.0000  0.0000    0.0000
 
+2. ADR-019 draft 2's four categories under A (judged at the last look that runs), and the
+   alternative 'yes needs the gain shown above m' (d > m + t SE at that look).
+   n1  gain/m |   above   small   below  unres. |  shown > m
+    8    0.00 |  0.0196  0.0000  0.7954  0.1849 |     0.0000
+    8    0.25 |  0.0856  0.0001  0.5199  0.3944 |     0.0001
+    8    0.50 |  0.2639  0.0001  0.2321  0.5038 |     0.0006
+    8    0.75 |  0.5468  0.0001  0.0662  0.3870 |     0.0028
+    8    1.00 |  0.8121  0.0000  0.0110  0.1769 |     0.0110
+    8    1.50 |  0.9921  0.0000  0.0001  0.0078 |     0.0970
+    8    2.00 |  1.0000  0.0000  0.0000  0.0000 |     0.3535
+    8    3.00 |  1.0000  0.0000  0.0000  0.0000 |     0.9149
+
+   20    0.00 |  0.0218  0.0004  0.8727  0.1050 |     0.0000
+   20    0.25 |  0.1105  0.0013  0.6370  0.2512 |     0.0000
+   20    0.50 |  0.3299  0.0019  0.3320  0.3362 |     0.0002
+   20    0.75 |  0.6386  0.0013  0.1098  0.2503 |     0.0027
+   20    1.00 |  0.8723  0.0005  0.0224  0.1048 |     0.0230
+   20    1.50 |  0.9968  0.0000  0.0002  0.0031 |     0.3343
+   20    2.00 |  1.0000  0.0000  0.0000  0.0000 |     0.8732
+   20    3.00 |  1.0000  0.0000  0.0000  0.0000 |     1.0000
+
+3. When would GDE's start need a written justification? Gates 1 and 3 run independently,
+   stage 1 at 8 seeds, cap 20. 'Strong' design: the 'no' test has 0.80 planned power at a true
+   gain of 0; 'weak': 0.50. Truths are (Gate-1 gain, Gate-3 gain) in units of each design's m.
+   Columns: chance of each answer; then the chance a justification is required under
+   rule NO (only after 'no'), A' (also 'not answered' where 'no' was still possible, i.e.
+   Gate 1 not above), A (also any 'not answered'), B (any answer but 'yes'). A', A and B add to
+   'no' only for the weak design.
+  design       truth |    yes notsup 2-part     no NA,G1up NA,other |     NO     A_      A      B
+  strong      (0, 0) |  0.000  0.016  0.016  0.633   0.004    0.331 |  0.633  0.633  0.633  0.633
+  strong      (0, 2) |  0.019  0.000  0.796  0.000   0.000    0.184 |  0.000  0.000  0.000  0.000
+  strong      (2, 0) |  0.019  0.796  0.000  0.000   0.184    0.000 |  0.000  0.000  0.000  0.000
+  strong  (0.5, 0.5) |  0.070  0.061  0.061  0.054   0.132    0.621 |  0.054  0.054  0.054  0.054
+  strong      (1, 1) |  0.658  0.009  0.009  0.000   0.144    0.181 |  0.000  0.000  0.000  0.000
+  strong      (2, 2) |  1.000  0.000  0.000  0.000   0.000    0.000 |  0.000  0.000  0.000  0.000
+
+    weak      (0, 0) |  0.000  0.010  0.010  0.248   0.009    0.722 |  0.248  0.971  0.980  1.000
+    weak      (0, 2) |  0.019  0.000  0.493  0.000   0.000    0.488 |  0.000  0.488  0.488  0.981
+    weak      (2, 0) |  0.019  0.493  0.000  0.000   0.477    0.011 |  0.000  0.011  0.488  0.981
+    weak  (0.5, 0.5) |  0.023  0.019  0.019  0.016   0.109    0.815 |  0.016  0.830  0.940  0.977
+    weak      (1, 1) |  0.274  0.006  0.006  0.000   0.243    0.472 |  0.000  0.472  0.714  0.726
+    weak      (2, 2) |  0.979  0.000  0.000  0.000   0.010    0.011 |  0.000  0.011  0.021  0.021
+
