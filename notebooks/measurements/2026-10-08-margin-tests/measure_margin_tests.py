@@ -139,9 +139,10 @@ def section3(out) -> None:
     print("   Columns: chance of each answer; then the chance a justification is required under", file=out)
     print("   rule NO (only after 'no'), A' (also 'not answered' where 'no' was still possible, i.e.", file=out)
     print("   Gate 1 not above), A (also any 'not answered'), B (any answer but 'yes'). A', A and B add to", file=out)
-    print("   'no' only for the weak design.", file=out)
+    print("   'no' only for the weak design. A'' (added after ADR-019's round 3): 'not answered' only where", file=out)
+    print("   neither gate is above, the exact condition for a hidden 'no'.", file=out)
     print(f"  {'design':>6} {'truth':>11} | {'yes':>6} {'notsup':>6} {'2-part':>6} {'no':>6} {'NA,G1up':>7} "
-          f"{'NA,other':>8} | {'NO':>6} {'A_':>6} {'A':>6} {'B':>6}", file=out)
+          f"{'NA,other':>8} | {'NO':>6} {'A_':>6} {'A':>6} {'B':>6} {'A__':>6}", file=out)
     for name, target in (("strong", 0.80), ("weak", 0.50)):
         m = optimize.brentq(lambda d: planned_power_at(CAP, d, ALPHA / 2) - target, 1e-6, 10.0)
         for g1, g3 in ((0.0, 0.0), (0.0, 2.0), (2.0, 0.0), (0.5, 0.5), (1.0, 1.0), (2.0, 2.0)):
@@ -155,7 +156,8 @@ def section3(out) -> None:
             na_up = na & (g1c == 0)
             na_other = na & (g1c != 0)
             weak = name == "weak"
-            rules = {"NO": no, "A_": no | (weak & na_other), "A": no | (weak & na), "B": no | (weak & ~yes)}
+            rules = {"NO": no, "A_": no | (weak & na_other), "A": no | (weak & na), "B": no | (weak & ~yes),
+                     "A__": no | (weak & na & (g1c != 0) & (g3c != 0))}
             row = [x.mean() for x in (yes, notsup, two, no, na_up, na_other)]
             print(f"  {name:>6} {f'({g1:g}, {g3:g})':>11} | " + " ".join(f"{v:>6.3f}" for v in row[:4]) +
                   f" {row[4]:>7.3f} {row[5]:>8.3f} | " + " ".join(f"{rules[k].mean():>6.3f}" for k in rules),
