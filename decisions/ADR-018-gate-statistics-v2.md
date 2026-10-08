@@ -8,6 +8,7 @@ acceptance and not on 2026-10-08: plan row 2a starts 2026-10-09 at the earliest.
 **Review rounds:** 2/4. Round 2, a diff-only pass, found nothing blocking; its items are folded in
 (*Draft history*).
 **Deciders:** coderback
+**Amended:** 2026-10-08 by ADR-019 clause 7 (clause 1's absence rule; clause 4.5's forward sentence).
 **Replaces, for every gate pre-registered after acceptance:**
 - ADR-006's resolvability test (`ADR-006:60-64`), its fixed multiplier (`:77-81`), its unadjusted
   two-stage boundary (`:112-124`), and the inheritance of that test it sets for DGF-1 and EDR-1
@@ -87,8 +88,12 @@ ADR-006:77 calls the factor an approximation to a two-sided 95% test, which is o
   claim absence or equivalence, for example "GNN-removed matches the floor".
   - A non-resolution under clause 2 never establishes absence.
   - **A difference claim with no direction** is tested two-sided, at `ℓ/2` per tail at each look.
-  - **An absence or equivalence claim** needs two one-sided tests against a pre-registered margin,
-    each at the look's `ℓ` (clause 3), never at α at both looks.
+  - **A one-sided absence claim** — the gain is below a pre-registered margin `m` — needs one one-sided
+    test: clause 2 with the arms swapped and the comparator shifted up by `m`, at the look's `ℓ`. **A
+    two-sided absence or equivalence claim** — the gain lies within `±m` — needs two one-sided tests,
+    each at the look's `ℓ`. Never at α at both looks. *Amended 2026-10-08 (ADR-019 clause 7), was: "An
+    absence or equivalence claim needs two one-sided tests against a pre-registered margin, each at
+    the look's ℓ (clause 3), never at α at both looks."*
   - **Clause 4 does not size these clauses,** and its "powered" label does not apply to them. The
     gate's pre-registration fixes, at its acceptance, each such clause's margin, its sizing, what
     "powered" means for it, and whether its non-resolution triggers stage 2.
@@ -179,8 +184,10 @@ of 0.00024. One look of Welch alone measured 0.0201–0.0230
    - The pilot's standard deviations stand in for each arm's.
 4. **Stage-1 `n`** is the smallest in {8, 12, 16, 20} whose planned power is at least **0.80** on
    every gated clause. If none qualifies, or if any `Δ_val ≤ 0`, it is 20.
-5. **A clause is *powered*** iff its planned stage-1 power at `δ` is at least 0.80. The
-   failure-semantics ADR (plan row 3) uses this definition.
+5. **A clause is *powered*** iff its planned stage-1 power at `δ` is at least 0.80. ADR-019 answers
+   the GBE half by margin tests instead. "Powered failure" still governs how gated clauses report a
+   failure. *Amended 2026-10-08 (ADR-019 clause 7), was: "The failure-semantics ADR (plan row 3) uses
+   this definition."*
    - **An under-powered clause** is printed with its planned power. If it does not resolve, the gate
      file says "not resolvable at planned power p", which supports no claim that the effect is absent.
    - **At gate level,** the table prints two bounds at the chosen `n`, both at the planning effects:
