@@ -187,3 +187,46 @@ supported by the paper.
 
 **Citing from here on:** cite Weber, GADBench and Kapoor by the versions above. Cite Maganti only for
 its protocol, and its numbers only with the test-set early-stopping caveat.
+
+## 5. Added 2026-10-08, for the row-5b errata
+
+Two more checks, by the same method. Davis & Goadrich has no arXiv version: the ICML 2006 paper was
+downloaded from `ftp.cs.wisc.edu/machine-learning/shavlik-group/davis.icml06.pdf`, SHA-256
+`94b4a112…3f908`, 8 pages.
+
+**Davis & Goadrich (2006), "The Relationship Between Precision-Recall and ROC Curves".** The repo
+says ROC and PR space are not order-equivalent under skew (ADR-007:47-48; doc-00:161; doc-02:98;
+`gbe/eval/metrics.py:9-10`). The paper says the opposite about curves, and the repo's
+point about areas:
+- **Curves:** "one curve dominates a second curve in ROC space if and only if the first dominates
+  the second in Precision-Recall space" (Theorem 3.2, p.3, "for a fixed number of positive and
+  negative examples").
+- **Areas:** "algorithms that optimize the area under the ROC curve are not guaranteed to optimize
+  the area under the PR curve" (abstract, p.1). §5 (p.7) gives a counter-example with 20 positives
+  and 2,000 negatives: AUC-ROC prefers curve II (0.875 vs 0.813), and AUC-PR prefers curve I (0.514
+  vs 0.038).
+- **Interpolation:** "in PR space it is incorrect to linearly interpolate between points" (abstract,
+  p.1). ADR-007:131-132 cites this correctly.
+
+So the citation holds for areas, not for orderings in general. The supported wording: ROC-AUC and
+AUPRC can rank two models differently, although a curve that dominates in one space dominates in
+the other.
+
+**GADBench's AUROC table (Table 13, p.26, tuned by random search).** §3 gave AUPRC only. AUROC (%)
+on DGraph-Fin:
+
+| model | AUROC on DGraph-Fin (%) |
+|---|---|
+| RF | 70.37 |
+| XGBoost | 72.43 |
+| GCN | 75.51 |
+| GraphSAGE | 75.60 |
+| GAT | 75.53 |
+| BWGNN | 76.30 |
+| RF-Graph | 67.78 |
+| XGB-Graph | 75.83 |
+
+On both metrics the plain trees sit below the GNNs, and XGB-Graph matches them; RF-Graph does not.
+So "tree baselines match GNNs on DGraph" (ADR-010:106, relied on at :134) and "trees nearly match
+GNNs here" (document-amendments-v0.2:51) hold for XGB-Graph only. GADBench's own summary (p.8) is that "all
+methods perform poorly on the DGraph-Fin dataset".
