@@ -1,27 +1,29 @@
-"""Prototype v3: the held-out ledger at the data's chokepoint (ADR-021 rounds 1-2; ADR-017 item 3).
+"""Prototype v4: the held-out ledger at the data's chokepoint (ADR-021 rounds 1-3; ADR-017 item 3).
 
-v3, after round 2 (the researcher's decisions of 2026-10-08):
-- **Hidden labels.** ``load()`` also hides the labels of every user who appears after the validation
-  window. Only a labels or scores open of the test window restores them, and a structure open never
-  does.
-- **A stricter authority check.** The authority is read from HEAD, not the working tree. It must be
-  accepted on an earlier calendar day than the look, and it must name ``via``, which must be an
-  existing ``.py`` file.
-- **A guarded backfill.** Backfill rows skip only the authority check, and they are refused from the
-  cutoff on.
-
-The researcher's decision of 2026-10-08, after round 1: a look is recorded where the data is handed
-out, not by each caller. The DGF-1 adapter stops returning the held-out parts by default:
+What the adapter hands out by default carries no held-out label and nothing derived from one:
 - ``splits()`` returns the validation window only;
-- ``load()`` drops the official test mask.
+- ``load()`` drops all three official masks (together they mark exactly the labelled users);
+- ``load()`` hides the label of every user who appears after the validation window.
 
-Each held-out part comes only from an ``open_*`` accessor. The accessor records the look (with its
-tier and authority) and only then returns the part. The guard, ADR-015's runner, assemblers and
-any future script all go through it. A lint over committed code is the backstop for anything that
-reaches the raw data another way.
+Held-out parts come only from accessors, which record the look first:
+- ``open_test_window`` returns the window, with the true labels only at the labels or scores tier;
+- ``open_official_track`` returns all labels and the three official masks, at the labels or scores
+  tier only, for the official track (ADR-015).
 
-A labels or scores look needs an accepted document that names the look first. That means it is
-accepted, its acceptance date is on or before the look, and it names the script making the look.
+``integrity_ok`` checks whole-snapshot totals against the published ones and returns pass or fail
+only. It is not a look (ADR-021 clause 2).
+
+A labels or scores look needs an accepted document, in HEAD and accepted on an earlier day, that
+carries a structured line naming the set, the tier and the script. The script is the running
+``__main__``, never a caller's argument. Each look carries a ``batch`` label, so two batches under
+one document stay apart.
+
+v4 changes, after round 3:
+- the default load drops all three official masks;
+- the official-track accessor replaces the official-test-mask accessor;
+- the integrity check;
+- the structured authority line, and ``via`` from ``__main__``;
+- the batch column.
 """
 from __future__ import annotations
 
@@ -31,15 +33,17 @@ import io
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-COLUMNS = ("timestamp_utc", "held_out_set", "tier", "what", "by", "via", "authority", "git_commit")
+COLUMNS = ("timestamp_utc", "held_out_set", "tier", "what", "by", "via", "authority", "batch",
+           "git_commit")
 TIERS = ("structure", "labels", "scores")
-# Each held-out set, with the sets it shares units with (ADR-015:234: the test window shares users
-# with the official test mask). Disclosure and the post-look rule cover the overlapping sets too.
+# Each held-out set, with the sets it shares units with (ADR-015:234). Disclosure and the post-look
+# rule cover the overlapping sets too.
 HELD_OUT_SETS: dict[str, frozenset[str]] = {
     "dgf1-temporal-test-482-821": frozenset({"dgraph-official-test"}),
     "dgraph-official-test": frozenset({"dgf1-temporal-test-482-821"}),
@@ -47,22 +51,42 @@ HELD_OUT_SETS: dict[str, frozenset[str]] = {
 LEDGER_REL = "experiments/heldout_ledger.csv"
 _STATUS = re.compile(r"^\*\*Status:\*\*\s*(\w+)", re.MULTILINE)
 _ACCEPTED_ON = re.compile(r"^\*\*Date:\*\*.*?accepted\W*(\d{4}-\d{2}-\d{2})", re.MULTILINE)
+# The authorising line: **Held-out look:** <set> · <tier> · <script>
+_LOOK_LINE = re.compile(r"^\*\*Held-out look:\*\*\s*(\S+)\s*·\s*(\w+)\s*·\s*(\S+)\s*$", re.MULTILINE)
 # A number on its own (12, 1.48, 12%, 2,717) is a figure; a digit inside an identifier is not.
 _FIGURE = re.compile(r"(?<![\w-])\d+(?:[.,]\d+)*%?(?![\w-])")
 # Backfill rows record looks made before ADR-021; the implementation sets this to its acceptance.
 BACKFILL_BEFORE = datetime(2026, 10, 9, tzinfo=timezone.utc)
 HIDDEN = -1    # the label every user after the validation window carries until a window is opened
+OFFICIAL_MASKS = ("train_mask", "val_mask", "test_mask")
 
 
 class LedgerError(ValueError):
     pass
 
 
+# ---- the running script ---------------------------------------------------------------------------
+
+def current_script(repo_root: Path) -> str:
+    """The repo-relative path of the running ``__main__``; a look is made by a committed script."""
+    f = getattr(sys.modules.get("__main__"), "__file__", None)
+    if not f:
+        raise LedgerError("a look must be made by a script with a file, not an interactive session")
+    p = Path(f).resolve()
+    try:
+        rel = p.relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        raise LedgerError(f"{p} is not inside the repository") from None
+    if not rel.endswith(".py"):
+        raise LedgerError(f"{rel} is not a Python script")
+    return rel
+
+
 # ---- the authority ------------------------------------------------------------------------------
 
-def check_authority(tier: str, authority: str, via: str, when: datetime, repo_root: Path,
-                    incidental: bool) -> None:
-    """Labels and scores need a document accepted, in HEAD, on an earlier day, that names ``via``."""
+def check_authority(held_out_set: str, tier: str, authority: str, via: str, when: datetime,
+                    repo_root: Path, incidental: bool) -> None:
+    """Labels and scores need a document accepted, in HEAD, on an earlier day, naming this look."""
     if incidental:
         if not authority.startswith("none"):
             raise LedgerError("an incidental look records its authority as 'none: <why>'")
@@ -80,17 +104,20 @@ def check_authority(tier: str, authority: str, via: str, when: datetime, repo_ro
     on = _ACCEPTED_ON.search(text)
     if not on or date.fromisoformat(on.group(1)) >= when.date():
         raise LedgerError(f"{authority} was not accepted on an earlier day than this look")
-    if not (via.endswith(".py") and (repo_root / via).is_file()):
-        raise LedgerError(f"via must be the script making the look; {via!r} is not one")
-    if via not in text:
-        raise LedgerError(f"{authority} does not name {via}, so it did not name this look first")
+    if via != current_script(repo_root):
+        raise LedgerError(f"via {via!r} is not the running script")
+    named = {(s, t, v) for s, t, v in _LOOK_LINE.findall(text)}
+    allowed = {tier} | ({"scores"} if tier == "labels" else set())   # a scores look covers its labels
+    if not any((held_out_set, t, via) in named for t in allowed):
+        raise LedgerError(f"{authority} has no 'Held-out look:' line for {held_out_set} · {tier} · {via}")
 
 
 # ---- the ledger ---------------------------------------------------------------------------------
 
 def record_look(path: Path, *, held_out_set: str, tier: str, what: str, by: str, via: str,
-                authority: str, git_commit: str, repo_root: Path, incidental: bool = False,
-                backfill: bool = False, now: datetime | None = None) -> dict:
+                authority: str, batch: str, git_commit: str, repo_root: Path,
+                incidental: bool = False, backfill: bool = False,
+                now: datetime | None = None) -> dict:
     """Append one row and flush it to disk before returning. Never rewrites an existing row."""
     when = now or datetime.now(timezone.utc)
     if backfill and when >= BACKFILL_BEFORE:
@@ -99,17 +126,18 @@ def record_look(path: Path, *, held_out_set: str, tier: str, what: str, by: str,
         raise LedgerError(f"unknown held-out set {held_out_set!r}")
     if tier not in TIERS:
         raise LedgerError(f"tier must be one of {TIERS}, not {tier!r}")
-    for name, value in (("what", what), ("by", by), ("via", via), ("authority", authority)):
+    for name, value in (("what", what), ("by", by), ("via", via), ("authority", authority),
+                        ("batch", batch)):
         if not value.strip():
             raise LedgerError(f"{name} is empty")
     if _FIGURE.search(what):
         # The ledger names what was seen, never the value: it is committed to a public repo.
         raise LedgerError("'what' must describe the look, not carry a figure")
     if not backfill:      # a backfill row keeps the authority its look ran under; nothing else is skipped
-        check_authority(tier, authority, via, when, repo_root, incidental)
+        check_authority(held_out_set, tier, authority, via, when, repo_root, incidental)
     row = {"timestamp_utc": when.isoformat(timespec="seconds"), "held_out_set": held_out_set,
            "tier": tier, "what": what, "by": by, "via": via, "authority": authority,
-           "git_commit": git_commit}
+           "batch": batch, "git_commit": git_commit}
     new_file = not path.exists() or path.stat().st_size == 0
     with path.open("a", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS)
@@ -141,8 +169,12 @@ def ledger_change_is_append(repo_root: Path, rel: str = LEDGER_REL) -> bool:
     return is_append_only(committed, working)
 
 
-def disclosure(rows: list[dict], held_out_set: str, before: str) -> list[str]:
+def disclosure(rows: list[dict], held_out_set: str, batch: str) -> list[str]:
     """What was seen before a batch: earlier rows for its set and every set that overlaps it."""
+    starts = [r["timestamp_utc"] for r in rows if r["batch"] == batch]
+    if not starts:
+        raise LedgerError(f"batch {batch!r} has no opener row in the ledger")
+    before = min(starts)
     sets = {held_out_set} | HELD_OUT_SETS[held_out_set]
     seen = [r for r in rows if r["held_out_set"] in sets and r["timestamp_utc"] < before]
     seen.sort(key=lambda r: r["timestamp_utc"])
@@ -164,47 +196,69 @@ def splits(config: dict) -> dict[str, Window]:
 
 
 def load(raw: dict, config: dict) -> dict:
-    """The graph without the official test mask, and with every later user's label hidden.
+    """The graph without any official mask, and with every later user's label hidden.
 
-    Users who appear after the validation window carry HIDDEN, so no caller can count, condition on
-    or score against the test window's labels without opening it.
+    The official masks go because together they mark exactly the labelled users: with node times,
+    they would say which hidden users are labelled.
     """
-    data = {k: v for k, v in raw.items() if k != "test_mask"}
+    data = {k: v for k, v in raw.items() if k not in OFFICIAL_MASKS}
     data["y"] = [HIDDEN if t > config["val_max"] else y for y, t in zip(raw["y"], raw["node_time"])]
     return data
 
 
+def integrity_ok(load_raw: Callable[[], dict], expected: dict[int, int]) -> bool:
+    """Whole-snapshot label totals against the published ones: pass or fail, nothing else."""
+    y = load_raw()["y"]
+    return all(sum(1 for v in y if v == k) == n for k, n in expected.items())
+
+
+def _open(ledger: Path, held_out_set: str, *, tier: str, authority: str, by: str, what: str,
+          batch: str, repo_root: Path, git_commit: str, now: datetime | None) -> None:
+    record_look(ledger, held_out_set=held_out_set, tier=tier, what=what, by=by,
+                via=current_script(repo_root), authority=authority, batch=batch,
+                git_commit=git_commit, repo_root=repo_root, now=now)
+
+
 def open_test_window(config: dict, load_raw: Callable[[], dict], *, tier: str, authority: str,
-                     by: str, via: str, ledger: Path, repo_root: Path, git_commit: str, what: str,
+                     by: str, what: str, batch: str, ledger: Path, repo_root: Path, git_commit: str,
                      now: datetime | None = None) -> tuple[Window, list | None]:
     """Record the look, then return the window, and its true labels only for a labels or scores look."""
-    record_look(ledger, held_out_set="dgf1-temporal-test-482-821", tier=tier, what=what, by=by,
-                via=via, authority=authority, git_commit=git_commit, repo_root=repo_root, now=now)
+    _open(ledger, "dgf1-temporal-test-482-821", tier=tier, authority=authority, by=by, what=what,
+          batch=batch, repo_root=repo_root, git_commit=git_commit, now=now)
     window = Window(config["test_min"], config["test_max"])
     if tier == "structure":
         return window, None
     return window, list(load_raw()["y"])
 
 
-def open_official_test_mask(load_raw: Callable[[], dict], *, tier: str, authority: str, by: str,
-                            via: str, ledger: Path, repo_root: Path, git_commit: str, what: str,
-                            now: datetime | None = None):
-    record_look(ledger, held_out_set="dgraph-official-test", tier=tier, what=what, by=by, via=via,
-                authority=authority, git_commit=git_commit, repo_root=repo_root, now=now)
-    return load_raw()["test_mask"]
+def open_official_track(load_raw: Callable[[], dict], *, tier: str, authority: str, by: str,
+                        what: str, batch: str, ledger: Path, repo_root: Path, git_commit: str,
+                        now: datetime | None = None) -> dict:
+    """Record the look, then return every label and the three official masks (ADR-015's track)."""
+    if tier == "structure":
+        raise LedgerError("the official masks are label-derived; open them at the labels or scores tier")
+    _open(ledger, "dgraph-official-test", tier=tier, authority=authority, by=by, what=what,
+          batch=batch, repo_root=repo_root, git_commit=git_commit, now=now)
+    raw = load_raw()
+    return {"y": list(raw["y"]), **{m: raw[m] for m in OFFICIAL_MASKS}}
 
 
 # ---- the backstop lint over committed code --------------------------------------------------------
 
-ACCESSOR_MODULES = ("adapters/dgf1/datasource_dgraph.py", "adapters/dgf1/eval.py")
+ACCESSOR_MODULES = ("adapters/dgf1/datasource_dgraph.py", "adapters/dgf1/eval.py",
+                    "adapters/dgf1/heldout.py")
 HAND_PATH = "scripts/heldout_ledger.py"
 SCOPE = ("scripts/", "adapters/dgf1/", "notebooks/")
 RAW_CALLS = {"DGraphFin": "PyG loader", "TemporalSplit": "hand-built window"}
-OPENERS = {"open_test_window", "open_official_test_mask"}
+OPENERS = {"open_test_window", "open_official_track"}
 
 
 def _name(node: ast.AST) -> str:
     return node.id if isinstance(node, ast.Name) else node.attr if isinstance(node, ast.Attribute) else ""
+
+
+def _mask_name(s: str) -> bool:
+    return s.endswith("_mask") and s not in ("labelled_mask", "train_seed_mask", "window_target_mask")
 
 
 def backstop(sources: dict[str, str]) -> list[str]:
@@ -229,11 +283,11 @@ def backstop(sources: dict[str, str]) -> list[str]:
                 reads_scores |= fn == "load_scores"
                 if name != HAND_PATH and any(k.arg in ("incidental", "backfill") for k in node.keywords):
                     found.add("claims an incidental or backfill look")
-            elif isinstance(node, ast.Attribute) and node.attr.endswith("test_mask"):
-                found.add("official test mask")
+            elif isinstance(node, ast.Attribute) and _mask_name(node.attr):
+                found.add("an official mask")
             elif (isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant)
-                  and isinstance(node.slice.value, str) and node.slice.value.endswith("test_mask")):
-                found.add("official test mask")
+                  and isinstance(node.slice.value, str) and _mask_name(node.slice.value)):
+                found.add("an official mask")
         if reads_scores and not opens:
             found.add("score files without an accessor")
         out += [f"{name}: {f}" for f in sorted(found)]

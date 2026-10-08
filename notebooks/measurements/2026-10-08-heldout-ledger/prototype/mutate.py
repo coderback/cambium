@@ -1,4 +1,4 @@
-"""Mutation check for the ledger prototype v3: each edit breaks one property; some test must fail.
+"""Mutation check for the ledger prototype v4: each edit breaks one property; some test must fail.
 
     python mutate.py > mutation-output.txt
 """
@@ -15,12 +15,14 @@ HERE = Path(__file__).resolve().parent
 SRC = (HERE / "ledger_proto.py").read_text(encoding="utf-8")
 REPO = os.environ.get("CAMBIUM_REPO") or str(HERE.parents[3])
 
-WINDOW_RECORD = '    record_look(ledger, held_out_set="dgf1-temporal-test-482-821", tier=tier, what=what, by=by,\n'
-OPEN_MASK = ('    record_look(ledger, held_out_set="dgraph-official-test", tier=tier, what=what, by=by, via=via,\n'
-             '                authority=authority, git_commit=git_commit, repo_root=repo_root, now=now)\n'
-             '    return load_raw()["test_mask"]')
 HIDE = '    data["y"] = [HIDDEN if t > config["val_max"] else y for y, t in zip(raw["y"], raw["node_time"])]'
 EXEMPT = '                or re.match(r"notebooks/measurements/[^/]+/prototype/", name)):   # ADR evidence'
+WINDOW_OPEN = ('    _open(ledger, "dgf1-temporal-test-482-821", tier=tier, authority=authority, by=by, what=what,\n'
+               '          batch=batch, repo_root=repo_root, git_commit=git_commit, now=now)\n')
+OFFICIAL_OPEN = ('    _open(ledger, "dgraph-official-test", tier=tier, authority=authority, by=by, what=what,\n'
+                 '          batch=batch, repo_root=repo_root, git_commit=git_commit, now=now)\n'
+                 '    raw = load_raw()\n')
+FIGURE = '_FIGURE = re.compile(r"(?<![\\w-])\\d+(?:[.,]\\d+)*%?(?![\\w-])")'
 
 MUTANTS = [
     # the ledger file
@@ -31,11 +33,10 @@ MUTANTS = [
     ("unknown held-out set accepted", "    if held_out_set not in HELD_OUT_SETS:\n        raise", "    if False:\n        raise"),
     ("unknown tier accepted", "    if tier not in TIERS:\n        raise", "    if False:\n        raise"),
     ("empty fields accepted", "        if not value.strip():\n            raise", "        if False:\n            raise"),
+    ("an empty batch accepted", '("authority", authority),\n                        ("batch", batch)):', '("authority", authority)):'),
     ("figure check removed", "    if _FIGURE.search(what):", "    if False:"),
-    ("figure check back to draft 1's pattern", '_FIGURE = re.compile(r"(?<![\\w-])\\d+(?:[.,]\\d+)*%?(?![\\w-])")',
-     '_FIGURE = re.compile(r"\\d\\.\\d|\\d{3,}")'),
-    ("figure check flags digits inside names", '_FIGURE = re.compile(r"(?<![\\w-])\\d+(?:[.,]\\d+)*%?(?![\\w-])")',
-     '_FIGURE = re.compile(r"\\d")'),
+    ("figure check back to draft 1's pattern", FIGURE, '_FIGURE = re.compile(r"\\d\\.\\d|\\d{3,}")'),
+    ("figure check flags digits inside names", FIGURE, '_FIGURE = re.compile(r"\\d")'),
     # authority
     ("authority never checked", "    if not backfill:      # a backfill row", "    if False:      # a backfill row"),
     ("a document not in HEAD authorises", "    if head.returncode != 0:\n        raise", "    if False:\n        raise"),
@@ -45,10 +46,17 @@ MUTANTS = [
     ("a document accepted after the look authorises", "date.fromisoformat(on.group(1)) >= when.date()", "False"),
     ("a document accepted the same day authorises", "date.fromisoformat(on.group(1)) >= when.date()",
      "date.fromisoformat(on.group(1)) > when.date()"),
-    ("via need not be a script", '    if not (via.endswith(".py") and (repo_root / via).is_file()):', "    if False:"),
-    ("a document that names nothing authorises", "    if via not in text:\n        raise", "    if False:\n        raise"),
-    ("labels need no document", '    if tier == "structure":\n        return\n', '    if tier != "scores":\n        return\n'),
+    ("a caller's via is trusted", "    if via != current_script(repo_root):\n        raise", "    if False:\n        raise"),
+    ("a prose mention authorises", "    if not any((held_out_set, t, via) in named for t in allowed):",
+     "    if via not in text:"),
+    ("the set is not matched", "    if not any((held_out_set, t, via) in named for t in allowed):",
+     "    if not any(t2 in allowed and v == via for _, t2, v in named):"),
+    ("a scores line does not cover labels", '    allowed = {tier} | ({"scores"} if tier == "labels" else set())',
+     "    allowed = {tier}"),
+    ("labels need no document", '    if tier == "structure":\n        return\n    head', '    if tier != "scores":\n        return\n    head'),
     ("an incidental look may claim authority", '        if not authority.startswith("none"):\n            raise', "        if False:\n            raise"),
+    ("an interactive session may look", '    if not f:\n        raise LedgerError("a look must be made by a script',
+     '    if False:\n        raise LedgerError("a look must be made by a script'),
     # backfill
     ("backfill accepts looks after the cutoff", "    if backfill and when >= BACKFILL_BEFORE:", "    if False:"),
     ("backfill skips the figure filter", "    if _FIGURE.search(what):", "    if _FIGURE.search(what) and not backfill:"),
@@ -57,29 +65,40 @@ MUTANTS = [
     ("append-only check always passes", "    return working.startswith(committed)", "    return True"),
     ("append-only check only compares lengths", "    return working.startswith(committed)", "    return len(working) >= len(committed)"),
     ("dirty check ignores HEAD", '    committed = head.stdout if head.returncode == 0 else ""', '    committed = ""'),
-    # the chokepoint
-    ("ordinary splits hand out the test window", '    return {"val": Window(config["val_min"], config["val_max"])}',
+    # the default paths
+    ("default splits hand out the test window", '    return {"val": Window(config["val_min"], config["val_max"])}',
      '    return {"val": Window(config["val_min"], config["val_max"]), "test": Window(config["test_min"], config["test_max"])}'),
-    ("ordinary load keeps the official test mask", '    data = {k: v for k, v in raw.items() if k != "test_mask"}', "    data = dict(raw)"),
-    ("ordinary load keeps later labels", HIDE, '    data["y"] = list(raw["y"])'),
+    ("default load keeps the official masks", "    data = {k: v for k, v in raw.items() if k not in OFFICIAL_MASKS}", "    data = dict(raw)"),
+    ("default load keeps the train and val masks", 'OFFICIAL_MASKS = ("train_mask", "val_mask", "test_mask")',
+     'OFFICIAL_MASKS = ("test_mask",)'),
+    ("default load keeps later labels", HIDE, '    data["y"] = list(raw["y"])'),
     ("labels hidden only after the test window", HIDE, HIDE.replace('config["val_max"]', 'config["test_max"]')),
-    ("opening the window records nothing", WINDOW_RECORD, "    if False: record_look(ledger, held_out_set=\"dgf1-temporal-test-482-821\", tier=tier, what=what, by=by,\n"),
-    ("labels loaded before the look is recorded", WINDOW_RECORD, "    _y = load_raw()\n" + WINDOW_RECORD),
-    ("a structure open returns labels", '    if tier == "structure":\n        return window, None', "    if False:\n        return window, None"),
-    ("the mask is loaded before the look is recorded", OPEN_MASK,
-     '    m = load_raw()["test_mask"]\n'
-     '    record_look(ledger, held_out_set="dgraph-official-test", tier=tier, what=what, by=by, via=via,\n'
-     '                authority=authority, git_commit=git_commit, repo_root=repo_root, now=now)\n'
-     '    return m'),
+    ("the hidden value is a real label", "HIDDEN = -1 ", "HIDDEN = 2 "),
+    ("integrity check always passes", "    return all(sum(1 for v in y if v == k) == n for k, n in expected.items())", "    return True"),
+    # the accessors
+    ("opening the window records nothing", WINDOW_OPEN, ""),
+    ("window labels loaded before the look is recorded", WINDOW_OPEN, "    _y = load_raw()\n" + WINDOW_OPEN),
+    ("a structure open of the window returns labels", '    if tier == "structure":\n        return window, None', "    if False:\n        return window, None"),
+    ("the official track opens at structure", '    if tier == "structure":\n        raise LedgerError("the official masks', '    if False:\n        raise LedgerError("the official masks'),
+    ("the official track loads before recording", OFFICIAL_OPEN,
+     "    raw = load_raw()\n" + OFFICIAL_OPEN.replace("    raw = load_raw()\n", "")),
+    ("the official track returns hidden labels", '    return {"y": list(raw["y"]), **{m: raw[m] for m in OFFICIAL_MASKS}}',
+     '    return {"y": [HIDDEN] * len(raw["y"]), **{m: raw[m] for m in OFFICIAL_MASKS}}'),
+    ("an opener takes the caller's via", "                via=current_script(repo_root), authority=authority, batch=batch,",
+     '                via="scripts/run_gate3.py", authority=authority, batch=batch,'),
     # disclosure
     ("disclosure ignores overlapping sets", "    sets = {held_out_set} | HELD_OUT_SETS[held_out_set]", "    sets = {held_out_set}"),
     ("disclosure includes the batch's own row", 'and r["timestamp_utc"] < before]', 'and r["timestamp_utc"] <= before]'),
     ("disclosure keeps file order", '    seen.sort(key=lambda r: r["timestamp_utc"])\n', ""),
+    ("disclosure starts at the last batch row", "    before = min(starts)", "    before = max(starts)"),
+    ("disclosure of an unopened batch is empty", "    if not starts:\n        raise", "    if not starts:\n        return []\n        raise"),
     # the backstop
     ("backstop misses the PyG loader", '"DGraphFin": "PyG loader", ', ""),
     ("backstop misses hand-built windows", ', "TemporalSplit": "hand-built window"', ""),
-    ("backstop misses mask attributes", 'isinstance(node, ast.Attribute) and node.attr.endswith("test_mask")', "False"),
-    ("backstop misses mask subscripts", 'isinstance(node.slice.value, str) and node.slice.value.endswith("test_mask")', "False"),
+    ("backstop misses mask attributes", "isinstance(node, ast.Attribute) and _mask_name(node.attr)", "False"),
+    ("backstop misses mask subscripts", "isinstance(node.slice.value, str) and _mask_name(node.slice.value)", "False"),
+    ("backstop sees only the test mask", '    return s.endswith("_mask") and s not in', '    return s.endswith("test_mask") and s not in'),
+    ("backstop flags derived masks", 'and s not in ("labelled_mask", "train_seed_mask", "window_target_mask")', "and True"),
     ("backstop misses score files", "        if reads_scores and not opens:", "        if False:"),
     ("backstop misses incidental and backfill claims", 'any(k.arg in ("incidental", "backfill") for k in node.keywords)', "False"),
     ("backstop misses backfill claims", 'k.arg in ("incidental", "backfill")', 'k.arg == "incidental"'),
@@ -108,12 +127,13 @@ def main() -> None:
     print(f"unmutated: {'FAILS (harness broken)' if ok else 'passes'} — {last}")
     if ok:
         raise SystemExit(1)
+    for name, old, _ in MUTANTS:
+        assert SRC.count(old) == 1, f"mutant {name!r}: target found {SRC.count(old)}x"
     killed = 0
     for name, old, new in MUTANTS:
-        assert SRC.count(old) == 1, f"mutant {name!r}: target found {SRC.count(old)}x"
         dead, last = run(SRC.replace(old, new))
         killed += dead
-        print(f"{'KILLED  ' if dead else 'SURVIVED'} {name} — {last}")
+        print(f"{'KILLED  ' if dead else 'SURVIVED'} {name} — {last}", flush=True)
     print(f"\n{killed}/{len(MUTANTS)} mutants killed")
 
 
