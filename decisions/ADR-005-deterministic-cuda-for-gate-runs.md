@@ -1,6 +1,6 @@
 # ADR-005 — Runs are deterministic by default (CUDA scatter nondeterminism exceeded our effect sizes)
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-07-24
 **Deciders:** coderback
 **Docs affected:** `CLAUDE.md` (integrity rule "≥3 seeds with variance on every gate number");
@@ -124,7 +124,7 @@ A model hits an op with no deterministic CUDA implementation (decide: CPU fallba
 different formulation); or determinism's wall-clock cost rises materially above the ~5% measured
 here at ELL-1's scale.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; findings A2 E-B1, E-B2, E-S2 and E-S3).
@@ -138,9 +138,11 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
     is a re-run, and that evidence differs by gate:
     - **ELL-1's Gate-0 and Gate-3 rows** were reproduced bit-for-bit by ADR-008's batches (49/49
       at `d614671` and again at `8060cf2`);
-    - **DGF-1:** one validation pilot row was reproduced bit-for-bit (ADR-013's
-      re-certification, `dgf1-20260915T151348Z-0d390b65`). The 24 Gate-1 test rows were never
-      re-run, and ADR-016 has closed their window;
+    - **DGF-1:** one validation pilot row was reproduced bit-for-bit by the amended gated path
+      (ADR-013's re-certification, `dgf1-20260915T151348Z-0d390b65`), on a stack matching
+      ADR-008's pin, which says nothing of the pilot's own stack. Two pre-echo validation rows
+      also match same-config runs on every float (GATE-DGF1-0:58-59). The 24 Gate-1 test rows
+      were never re-run, and ADR-016 has closed their window;
     - **ELL-1's Gate-1 rows** predate this ADR and ran without determinism, so no re-run can
       reproduce them (ADR-008:93-95).
   - **Since:** the field is true only when strict determinism held both at entry and at exit

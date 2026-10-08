@@ -1,6 +1,6 @@
 # ADR-003 — ELL-1 HPO winning config, frozen (the program's one sweep)
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-07-24
 **Deciders:** coderback
 **Docs affected:** none (freezes an HPO outcome; inherited by DGF-1/EDR-1 per doc-00 §6.4)
@@ -94,7 +94,7 @@ is capacity- and compute-matched (doc-00 §8).
 Switching to Elliptic++ (different feature schema); or if the transfer to DGF-1 (lr + fan-out
 retune only) clearly underperforms, indicating the region did not transfer.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; finding A2 E-S1), and its review.

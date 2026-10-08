@@ -1,6 +1,6 @@
 # ADR-015 — DGF-1's official-split positioning batch
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** first proposed 2026-09-15 · **accepted 2026-10-07 by coderback**, as the fifteenth draft.
 It folds the fourteenth (`7118b1a`) review's non-blocking items in, under the review's stopping
 rule. It replaces `5f7f388`, `30fbf92`, an uncommitted third, `8296f4b`, `f769880`, `a029413`,
@@ -1276,7 +1276,7 @@ ADR-011 was (`ADR-011:28-29`).
   pass condition to any number this batch produces; never to move an official-split figure into a
   gate table.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; finding A S5).

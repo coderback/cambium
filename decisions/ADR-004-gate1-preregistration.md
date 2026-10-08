@@ -1,6 +1,6 @@
 # ADR-004 — Gate 1 pass criterion, pre-registered before any 35–49 run
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-07-24
 **Deciders:** coderback
 **Docs affected:** none (operationalises an existing gate; recorded in `gates/GATE-ELL1-1.md`)
@@ -61,7 +61,7 @@ comparison is capacity- and compute-matched (doc-00 §8). Seeds: 0, 1, 2.
 Never for ELL-1 Gate 1 once dated (the criterion is sacred once the gate is assembled).
 Later models pre-register their own gate criteria in their own ADRs.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; findings B-S2 and A2 E-S1).
@@ -88,7 +88,7 @@ Maganti 2026, arXiv:2604.19514v1, read as a PDF (`notebooks/audit/2026-10-07/lit
 and on Elliptic it drops nothing: zero edges cross the cutoff (GATE-ELL1-3:166-167).
 
 **Where else the figure appears.**
-- **Governing docs** that repeat it are corrected in place when this erratum is accepted.
+- **Governing docs** that repeat it are corrected in place on acceptance, 2026-10-08.
 - **Code comments** at `gbe/gnn/backbone.py:10` and `adapters/ell1/train_gnn.py:12` are left as
   they are. Editing either path requires ADR-008's re-run, so each is corrected with the next change
   there.

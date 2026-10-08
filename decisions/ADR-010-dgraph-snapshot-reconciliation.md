@@ -1,6 +1,6 @@
 # ADR-010 — DGraph snapshot reconciliation: the official split is random, and two shape corrections
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-07-27 · **accepted** 2026-07-27
 **Deciders:** coderback
 **Data snapshot:** `DGraphFin.zip` (150,476,320 bytes) from dgraph.xinye.com, loaded via
@@ -166,7 +166,7 @@ label" is true of the *task* and false of the *tensor*; §2.1 gains a parentheti
 - **The official leaderboard adopts a temporal split.** Clause 1's two-track reporting would
   collapse into one, and the gated/reported division could be revisited.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; the literature re-check of GADBench).

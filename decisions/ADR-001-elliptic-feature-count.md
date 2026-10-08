@@ -1,6 +1,6 @@
 # ADR-001 — Elliptic feature count is 165 (time_step excluded from node features)
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-07-21
 **Deciders:** coderback
 **Docs affected:** `docs/01-elliptic-embedding-model-BUILD.md` §2.1 (and §2.2)
@@ -63,7 +63,7 @@ paper's "166" counts `time_step` among the local features, and set the feature c
 Switching to Elliptic++ (different feature schema) or if a future re-download shows a
 different column count — in which case re-verify against this ADR before trusting any run.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; finding A2 E-S1).
@@ -78,10 +78,10 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
     against the data, though ADR-001's own layout (`:17`) is consistent with it.
   - **Local-94** (`x[:, :94]`, `scripts/run_ell1_local94.py:45`, `:69`) therefore held the 93 local
     features plus the first aggregate.
-- **The same slip recurs as "features 94–164"**, a range of 71 columns:
+- **The same slip recurs,** as "features 94–164" (a range of 71 columns) or as "94 local":
   - ADR-003:61 and ADR-004:55, each with an erratum of its own;
   - GATE-ELL1-1:70, and GATE-ELL1-3:28 and :176, each with an erratum beside it;
-  - doc-01 and `docs/document-amendments-v0.2.md`, corrected in place when this erratum is accepted;
+  - doc-01 and `docs/document-amendments-v0.2.md`, corrected in place on acceptance, 2026-10-08;
   - code comments at `gbe/eval/ablations.py:112` and `scripts/run_ell1_local94.py:5`, `:10`, `:19`
     and `:45`, left as they are. Editing `gbe/` requires ADR-008's re-run, so each is corrected with
     the next change to its file;

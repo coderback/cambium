@@ -1,6 +1,6 @@
 # ADR-013 — DGF-1's reported sensitivity views: the defect recorded, the numbers withdrawn, the question given its own pre-registration
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-09-14 · **accepted** 2026-09-15
 **Deciders:** coderback
 **Replaces the first draft of this ADR** (commits `70f61a4`, `4667dfe`), withdrawn before acceptance.
@@ -444,7 +444,7 @@ The real-data re-certification is clause 3's.
 - **Never, to re-admit the withdrawn numbers.** They broke a clause accepted blind. A valid row is a
   new row.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; finding A S4).

@@ -1,6 +1,6 @@
 # ADR-014 — Withdrawn: the DGF-1 re-certification's environment rule
 
-**Status:** withdrawn · erratum proposed 2026-10-08, at the end of this file
+**Status:** withdrawn · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** proposed 2026-09-15 · **withdrawn 2026-09-15**, undecided, before any acceptance
 **Deciders:** coderback
 **Decides nothing.** No clause of this ADR is in force, and no run, number, gate or document depends
@@ -89,7 +89,7 @@ These were measured, not argued, and are recorded so the next attempt starts fro
 - **Never** by reviving any of the four drafts' routes. Each was rejected on its merits, and the
   reasons are in the table above.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; finding A S5).

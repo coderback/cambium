@@ -1,6 +1,6 @@
 # ERRATUM-ELL1-3 — GATE-ELL1-3's feature range, and its determinism line
 
-**Dated:** 2026-10-08 (proposed)
+**Dated:** 2026-10-08 · **accepted 2026-10-08 (15:30) by coderback**
 **Source:** research audit 2026-10-07, §2 (`notebooks/audit/2026-10-07/README.md`; findings A2 E-S1
 and E-B1), and its review
 **Concerns:** `gates/GATE-ELL1-3.md`, signed PASSED 2026-07-25. That file is **not edited**.

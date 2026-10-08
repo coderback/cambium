@@ -243,5 +243,5 @@ written on 2026-10-07):
 - **§1 says doc-01's risk row "Transductive leakage inflates GNN gains" is not what this experiment
   shows.** That holds for the paired GraphSAGE experiment (Table 10, p.17). The hybrid's fall (p.17)
   goes the risk's way, so the paper shows both directions.
-- **§3's "plain trees sit about one point below the GNNs"** holds against the leading GNNs (GCN,
-  GraphSAGE, GAT and BWGNN), not against all of them (above).
+- **§3's "plain trees sit about one point below the GNNs"** holds against GCN, GraphSAGE, GAT and BWGNN,
+  not against every GNN (above).

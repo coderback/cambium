@@ -34,7 +34,7 @@ append-only.
 That holds until the matched-time pre-registration in ADR-013 clause 5 produces rows. Any write-up
 drawing on GATE-DGF1-1 reads this notice with it.
 
-## Addendum, 2026-10-08 (proposed): how GATE-DGF1-1 describes its own assembly
+## Addendum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback): how GATE-DGF1-1 describes its own assembly
 
 **Source:** research audit 2026-10-07, §2 (`notebooks/audit/2026-10-07/README.md`; findings A S1–S3
 and N4), and its review. Nothing above changes, and no verdict changes: every gated number, the
@@ -42,11 +42,11 @@ clause-6 check, the paired bootstrap and the PASS stand.
 
 | GATE-DGF1-1 passage | lines | status |
 |---|---|---|
-| "all rows `deterministic=true` … bit-for-bit reproducible on the recorded environment" | 6 | **the field proves less than it says.** Before `ca8181d` every row recorded `true` by construction (ADR-005's erratum). Determinism was switched on at the start of every run, and no code in `adapters/`, `gbe/` or `scripts/` at `09c6e72` switches it off. The same trainer later reproduced a validation pilot row bit-for-bit (ADR-013's re-certification, `dgf1-20260915T151348Z-0d390b65`). The 24 test rows were never re-run, and ADR-016 has closed their window. |
+| "all rows `deterministic=true` … bit-for-bit reproducible on the recorded environment" | 6 | **the field proves less than it says.** Before `ca8181d` every row recorded `true` by construction (ADR-005's erratum). Determinism was switched on at the start of every run, and no code in `adapters/`, `gbe/` or `scripts/` at `09c6e72` switches it off. The gated path, as amended by ADR-013 (`399dd7f`), later reproduced a validation pilot row bit-for-bit (ADR-013's re-certification, `dgf1-20260915T151348Z-0d390b65`), on a stack matching ADR-008's pin; that says nothing of the pilot's own stack, which no row records. The 24 test rows were never re-run, and ADR-016 has closed their window. |
 | the ordering sentence: "this assembly refuses to run if that ever stops being true" | 8 | **overstated.** The check compares the first test row with the commit those rows themselves record (`scripts/assemble_gate_dgf1_1.py:166`, `:209-216`). A row cannot predate its own commit, and nothing checks that this commit introduced the seed line. **The ordering itself is true,** shown by git: `09c6e72^` carries the placeholder; `09c6e72`, committed 00:37:15Z, is the only commit that introduced `**Stage-1 seeds:** 8` (`git log -S`); the first test-window row started at 00:37:47Z. |
 | the disclosure of what had been seen before the batch | 11 | **incomplete.** The full list is below. |
 | the clause-7 facts: the validation prevalence, the age ranges, edge type 8's count and dates, the sentinel's share | 145–148 | **typed, not computed.** They are string literals in the assembler (`scripts/assemble_gate_dgf1_1.py:386-395`), taken from ADR-011's window table and lab 2026-09-11 Sessions 14–15. Only line 145's test-window prevalence and counts are computed from the rows. |
-| edge type 8's histogram column "reads 0 for **both** arms" (copied from ADR-012 clause 7) | 147 | **true of the GNN only.** The GNN's inputs are standardised, and a column constant in training maps to 0. The gated XGBoost floor is not standardised (`adapters/dgf1/baselines_tabular.py:91`, unchanged since `09c6e72`). It reads the raw count, which is constant in training, so no tree splits on it and it cannot move a score. |
+| edge type 8's histogram column "reads 0 for **both** arms" (copied from ADR-012 clause 7, ADR-012:318, which carries the same claim and is corrected by this row) | 147 | **true of the GNN only.** The GNN's inputs are standardised, and a column constant in training maps to 0. The gated XGBoost floor is not standardised (`adapters/dgf1/baselines_tabular.py:91`, unchanged since `09c6e72`). It reads the raw count, which is constant in training, so no tree splits on it and it cannot move a score. |
 | the sentinel "lies strictly below every observed value" | 148 | **profiled on training-window users only** (lab 2026-09-11:64-65), and stated here for all users. |
 | "Scoring-view sensitivity … reported above" | 149 | **points at withdrawn rows** (this notice, above). The paired bootstrap it also points at stands. |
 | "All numbers computed by `scripts/assemble_gate_dgf1_1.py` from `experiments/registry.csv` …" | 180 | **not true of the typed facts** on lines 145–148. |
@@ -62,6 +62,10 @@ line 11 names only the first two:
    count and prevalence (`scripts/measure_dgf1_temporal_split.py`; disclosed at ADR-011:78-84). They
    are pinned and re-checked by `scripts/audit_dgf1_datasource.py`. ADR-011 records that prevalence
    was not an input to the cutoffs (:83-84).
+   - **And the window-only view's share of isolated labelled test users,** which ADR-011's clause 4
+     was chosen with in view (disclosed at ADR-011:85-86; repeated in ADR-011, ADR-013 and lab
+     2026-09-11). It argued for the as-of-window-end scoring view, and it is why the window-only
+     view was reported, not gated.
 4. **Label-free test-window facts that ADR-011 or ADR-012 disclose:**
    - the train view matched against the test view, for role-matching (lab 2026-09-11:13;
      ADR-011:111-112);
@@ -81,7 +85,9 @@ batch in `d5c2916`) repeat items 3 and 4; they record no further look.
 **None of these is a model score, and none set a threshold or a seed count.** ADR-012 fixed its
 criteria blind (ADR-012:68-70), and the seed count came from the validation pilots. One look changed
 code: item 5's first look led to the zero-variance column rule in `gbe/features/scaling.py`. That
-rule is label-free and reaches the GNN's inputs only, as line 147's row above explains. The
+rule is label-free and reaches only standardised inputs: in Gate 1, the GNN's, not the gated
+XGBoost floor's (line 147's row above). The LR floor takes the same transform, but Gate 1 did not
+run it. The
 test-window ledger (plan row 5a) is backfilled from this list.
 
 **Two passages in GATE-DGF1-0 rest on fields this notice corrects.**
@@ -93,5 +99,7 @@ test-window ledger (plan row 5a) is backfilled from this list.
   - **The function behind it,** `identical_twin` (`scripts/assemble_gate_dgf1_0.py:157-164`), still
     compares the withdrawn keys, which ADR-013 clause 2 forbids from 2026-09-15 on. Any re-assembly
     of GATE-DGF1-0 must exclude them first.
-- **Line 60's** "non-deterministic among the rows above: 0" counts a field that was `true` by
-  construction (ADR-005's erratum), so it shows nothing.
+- **Lines 60, 127 and 130** ("non-deterministic among the rows above: 0"; "all clean and
+  deterministic"; "clean, deterministic, none errored") read a field that was `true` by
+  construction (ADR-005's erratum), so their "deterministic" shows nothing. Line 127's batches
+  are bit-for-bit matches, which is the evidence that does count.

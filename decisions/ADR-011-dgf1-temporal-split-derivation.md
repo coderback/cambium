@@ -1,6 +1,6 @@
 # ADR-011 — DGF-1 temporal split: node time from the earliest edge, training graph by edge date
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-09-11 · **accepted** 2026-09-11
 **Deciders:** coderback
 **Data snapshot:** `DGraphFin.zip` (150,476,320 bytes), verified by `scripts/verify_dgraph_snapshot.py`
@@ -520,7 +520,7 @@ That is our own definition, not a claim about any third party's protocol. It is 
 - **Never for DGF-1 once any DGF-1 score exists on 370–481 or 482–821.** From that point, changing
   the split, the view or the floor is re-thresholding after seeing a result.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; finding B-S1).
@@ -535,7 +535,7 @@ containing one-hop aggregates".**
 
 So it is a lower bar than ELL-1's, though still strictly harder for the GNN than the raw-17 floor,
 as `:283` says. GADBench's XGB-Graph, which adds neighbour aggregation to a tree (two layers by
-default), matches the leading GNNs on DGraph-Fin (`notebooks/audit/2026-10-07/literature-recheck.md` §3 and §5).
+default), matches GCN, GraphSAGE, GAT and BWGNN on DGraph-Fin (`notebooks/audit/2026-10-07/literature-recheck.md` §3 and §5).
 
 GATE-DGF1-1 states its comparison correctly, as "a tree given the same node-level information". It
 carries the qualification that the gain is not yet attributable to message passing. Gate 3's

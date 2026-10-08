@@ -1,6 +1,6 @@
 # ADR-006 — Gate 3 pass criteria (the defending ablations)
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-07-24
 **Deciders:** coderback
 **Docs affected:** `docs/01-elliptic-embedding-model-BUILD.md` §4 (Phase 3) and §7 (Gate 3 row) —
@@ -198,7 +198,7 @@ Never for ELL-1 Gate 3 once the gate is assembled and dated. DGF-1/EDR-1 pre-reg
 ablation criteria in their own ADRs, inheriting the resolvability test but re-deriving seed
 counts from their own measured variance.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; finding A2 E-B4).

@@ -1,6 +1,6 @@
 # ADR-007 — DGF-1 gate metric: ROC-AUC and AUPRC jointly, neither alone
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-07-26 · **accepted** 2026-07-26
 **Deciders:** coderback
 **Docs affected — all amendments applied 2026-07-26 on acceptance:**
@@ -224,7 +224,7 @@ on the same arm.
   rather than hygienic, and the two AUPRC numbers strictly non-comparable.
 - **Not for DGF-1 Gate 1 once that gate is assembled and dated.**
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; findings A2 E-B4, E-S4 and E-S5).
@@ -241,8 +241,8 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
   - **The supported wording:** ROC-AUC and AUPRC can rank two models differently, although a curve
     that dominates in one space dominates in the other. That is the property this ADR's decision
     needs.
-  - **The same wording** is at doc-00:161 and doc-02:98, corrected in place when this erratum is
-    accepted, and at `gbe/eval/metrics.py:9-10`, corrected with the next change to `gbe/`.
+  - **The same wording** is at doc-00:161 and doc-02:98, corrected in place on acceptance,
+    2026-10-08, and at `gbe/eval/metrics.py:9-10`, corrected with the next change to `gbe/`.
   - `:131-132`'s citation, that linear interpolation in PR space is wrong, is correct.
 - **`:163`, "AUPRC has no comparator", is false.** GADBench (Tang et al. 2023, arXiv:2306.12251v2)
   reports AUPRC on DGraph-Fin for every model in its Table 4 (p.8; `literature-recheck.md` §3).

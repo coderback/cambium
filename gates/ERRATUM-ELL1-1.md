@@ -1,6 +1,6 @@
 # ERRATUM-ELL1-1 — GATE-ELL1-1's stated cause, and its feature range
 
-**Dated:** 2026-10-08 (proposed)
+**Dated:** 2026-10-08 · **accepted 2026-10-08 (15:30) by coderback**
 **Source:** research audit 2026-10-07, §2 (`notebooks/audit/2026-10-07/README.md`; findings B-S3 and
 A2 E-S1)
 **Concerns:** `gates/GATE-ELL1-1.md`, signed FAILED 2026-07-24. That file is **not edited**; dated

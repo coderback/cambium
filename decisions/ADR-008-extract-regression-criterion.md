@@ -1,6 +1,6 @@
 # ADR-008 — What "ELL-1 still passes" means after EXTRACT: bit-for-bit reproduction, not re-passing
 
-**Status:** accepted · erratum proposed 2026-10-08, at the end of this file
+**Status:** accepted · erratum accepted 2026-10-08 (15:30) by coderback, at the end of this file
 **Date:** 2026-07-26 · **accepted** 2026-07-26
 **Deciders:** coderback
 **Docs affected — all amendments applied 2026-07-26 on acceptance:**
@@ -206,7 +206,7 @@ criterion in its own ADR** — the same principle (reproduce recorded numbers bi
 unchanged environment) but a different reference set, and EDR-1 will additionally have to decide
 how a *frozen text encoder's* outputs are pinned, which has no analogue here.
 
-## Erratum, 2026-10-08 (proposed)
+## Erratum, 2026-10-08 (accepted 2026-10-08 (15:30) by coderback)
 
 **Source:** research audit 2026-10-07, §2
 (`notebooks/audit/2026-10-07/README.md`; findings A2 E-B3, E-S3 and E-S9).
