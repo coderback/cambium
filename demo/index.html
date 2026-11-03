@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cambium: gates and holdout results</title>
+<meta name="description" content="Signed gates, temporal-holdout results and decisions from cambium, a graph-ML research codebase. One gate failed: a random forest beat the GNN on Elliptic.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#ledger">Skip to the gate ledger</a>
+<header class="mast wrap">
+  <p class="name">cambium</p>
+  <nav aria-label="Sections">
+    <a href="#ledger">Ledger</a><a href="#holdouts">Holdouts</a><a href="#elliptic">Elliptic</a><a href="#dgraph">DGraph-Fin</a><a href="#corrections">Corrections</a><a href="#decisions">Decisions</a>
+    <a href="https://github.com/coderback/cambium/tree/feat/extract-dgf1-phase0">GitHub</a>
+  </nav>
+</header>
+
+<main>
+<section class="hero wrap">
+  <h1>A graph-ML core held to pre-registered gates, including the one it failed.</h1>
+  <div class="hero-cols">
+    <p class="lede">cambium is a research codebase: a shared graph-embedding core (the <code>gbe</code> package) with one adapter per dataset. Before a held-out window is opened, the pass condition is written down. Once a gate is signed, its file is never edited, and corrections go in dated errata.</p>
+    <div class="hero-find">
+      <p><strong>On Elliptic, a random forest won.</strong> GraphSAGE reached illicit F1 0.679 against the forest's 0.806, so Gate 1 failed.</p>
+      <p><strong>On DGraph-Fin, the GNN won by a little.</strong> AUPRC 0.0388 against a tree's 0.0318, about 2.6× chance, and far from operationally useful.</p>
+    </div>
+  </div>
+  <p class="notice">Read-only record of committed results. No model runs on this page and no dataset is included. Every number comes from <code>gates/</code> and <code>experiments/registry.csv</code> at commit <code>f6c415d</code>, and the build fails if a registry row disagrees with its gate file.</p>
+</section>
+
+<section id="ledger" class="wrap sec" aria-labelledby="ledger-h">
+  <h2 id="ledger-h">The gate ledger</h2>
+  <p class="sub">Five signed gates: four passed, one failed. Read each verdict with its qualification.</p>
+  <div class="tscroll" tabindex="0" role="region" aria-label="Gate ledger table">
+  <table class="ledger">
+    <thead><tr><th scope="col">Gate</th><th scope="col">Signed</th><th scope="col">Question</th><th scope="col">Verdict</th><th scope="col">Result and qualification</th></tr></thead>
+    <tbody>
+      <tr><th scope="row"><a href="https://github.com/coderback/cambium/blob/f6c415d/gates/GATE-ELL1-0.md">ELL-1 Gate 0</a></th><td>2026-07-23</td><td>Is the pipeline standing, with a reproducible tabular floor?</td><td><span class="v pass">Passed</span></td><td>Random forest F1 0.8058 ± 0.0024, logistic regression 0.3023.</td></tr>
+      <tr class="fail-row"><th scope="row"><a href="https://github.com/coderback/cambium/blob/f6c415d/gates/GATE-ELL1-1.md">ELL-1 Gate 1</a></th><td>2026-07-24</td><td>Does the GNN convincingly beat the tabular floor on steps 35–49?</td><td><span class="v fail">Failed</span></td><td>GraphSAGE 0.679 ± 0.031 sits entirely below the floor. It does beat GCN (0.633). The stated cause was later corrected by erratum.</td></tr>
+      <tr><th scope="row"><a href="https://github.com/coderback/cambium/blob/f6c415d/gates/GATE-ELL1-3.md">ELL-1 Gate 3</a></th><td>2026-07-25</td><td>Is the GNN's score structural, or only from node features?</td><td><span class="v pass">Passed</span></td><td>3 of 3 ablations resolvable. This does not rescue Gate 1, and one clause was informed by an earlier look at the result.</td></tr>
+      <tr><th scope="row"><a href="https://github.com/coderback/cambium/blob/f6c415d/gates/GATE-DGF1-0.md">DGF-1 Gate 0</a></th><td>2026-09-14</td><td>Does it run at scale, on a core that still reproduces ELL-1?</td><td><span class="v pass">Passed</span></td><td>49 of 49 reference rows reproduce bit-for-bit. Recorded after Gate 1, though the evidence predates it. "No out-of-memory" rests on runs completing, not on a measured margin.</td></tr>
+      <tr><th scope="row"><a href="https://github.com/coderback/cambium/blob/f6c415d/gates/GATE-DGF1-1.md">DGF-1 Gate 1</a></th><td>2026-09-14</td><td>Does sampled GraphSAGE beat a tree given the same node-level information?</td><td><span class="v pass">Passed</span></td><td>+0.0251 ROC-AUC, +0.0070 AUPRC, both resolvable. Small, not yet attributable to message passing, and part of its report is withdrawn.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Not signed: ELL-1 Gate 2 is deferred by its build doc. DGF-1 Gates 2 and 3 are open. The EDR-1 and EDL-1 adapters are empty placeholders, so those programmes have no results.</p>
+</section>
+
+<section id="holdouts" class="wrap sec" aria-labelledby="holdouts-h">
+  <h2 id="holdouts-h">The temporal holdouts</h2>
+  <p class="sub">Both datasets are split by time, so the test window holds what came after training. Bars are to scale within each dataset.</p>
+  <div class="tl">
+    <h3>ELL-1 on Elliptic, time steps 1–49</h3>
+    <div class="bar" role="img" aria-label="Elliptic: train on steps 1 to 34, test on steps 35 to 49">
+      <span class="t-train" style="flex:34">Train 1–34</span><span class="t-test" style="flex:15">Test 35–49</span>
+    </div>
+    <p class="note">Train: 29,894 labelled nodes. Test: 16,670 labelled, 1,083 illicit. Strict inductive: message passing never crosses the cutoff, and 0 of 468,710 edges cross it anyway.</p>
+    <h3 class="mt2">DGF-1 on DGraph-Fin, time steps 1–821</h3>
+    <div class="bar" role="img" aria-label="DGraph-Fin: train on steps 1 to 369, validate on 370 to 481, test on 482 to 821">
+      <span class="t-train" style="flex:369">Train 1–369</span><span class="t-val" style="flex:112">Val</span><span class="t-test" style="flex:340">Test 482–821</span>
+    </div>
+    <p class="note">Train: 858,702 seeds, graph as of 369. Validation (370–481): 183,430 users. Test: 183,469 users scored on the graph as of 821, 2,717 fraud, prevalence 1.4809%. DGraph-Fin's official split is random, so this temporal split is the project's own (ADR-010, ADR-011).</p>
+  </div>
+</section>
+
+<section id="elliptic" class="wrap sec" aria-labelledby="elliptic-h">
+  <h2 id="elliptic-h">Elliptic: structure helps, and it is not enough</h2>
+  <div class="two">
+    <div>
+      <h3>Gate 1: illicit F1 on steps 35–49, by seed</h3>
+      <div id="c-g1" class="chart"></div>
+      <p class="note">Pre-registered in ADR-004: non-overlapping mean ± std bands against the forest, and GraphSAGE mean ≥ GCN mean. The first clause fails. Three seeds each. These early gates print the population std.</p>
+    </div>
+    <div>
+      <h3>Gate 3: what happens when the graph is damaged</h3>
+      <div id="c-g3" class="chart"></div>
+      <p class="note">GraphSAGE with all 165 features, 8 seeds per arm, re-run in one batch. <code>config</code> is reported, not gated.</p>
+    </div>
+  </div>
+  <div class="two mt">
+    <div class="tscroll" tabindex="0" role="region" aria-label="Gate 3 criterion check">
+      <table>
+        <caption class="cap">ADR-006 criterion check against the real-graph arm</caption>
+        <thead><tr><th scope="col">Arm</th><th scope="col">Role</th><th scope="col" class="n">Drop</th><th scope="col" class="n">2×SE</th><th scope="col" class="n">Welch p</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">scrambled</th><td>Gated, informed</td><td class="n">+0.1017</td><td class="n">0.0546</td><td class="n">0.0041</td></tr>
+          <tr><th scope="row">random</th><td>Gated, blind</td><td class="n">+0.0744</td><td class="n">0.0624</td><td class="n">0.0329</td></tr>
+          <tr><th scope="row">no_edges</th><td>Gated, blind</td><td class="n">+0.0700</td><td class="n">0.0577</td><td class="n">0.0329</td></tr>
+          <tr><th scope="row">config</th><td>Reported</td><td class="n">+0.0941</td><td class="n">0.0669</td><td class="n">0.0139</td></tr>
+        </tbody>
+      </table>
+      <p class="note">A provisional scramble batch had been seen before this bar was set, and the gate file says a reader may discount that clause. The three gated tests share one real arm, so they are correlated.</p>
+    </div>
+    <div>
+      <table>
+        <caption class="cap">Both are true at once</caption>
+        <thead><tr><th scope="col">Claim</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">The GNN's performance depends on graph structure</th><td><span class="v pass">Supported</span> +0.070 over no graph</td></tr>
+          <tr><th scope="row">Structure beats the tabular floor</th><td><span class="v fail">Failed</span> 0.663 vs 0.806</td></tr>
+        </tbody>
+      </table>
+      <p class="quote">Current statement of the cause, from ERRATUM-ELL1-1: trees beat neural nets on this tabular data, and the graph helps but not by enough. Without any edges the GNN already sits about 0.21 F1 below a tree on identical features.</p>
+    </div>
+  </div>
+  <h3 class="mt">Local-features diagnostic: where the gap shows up</h3>
+  <div class="tscroll" tabindex="0" role="region" aria-label="Local-94 diagnostic table">
+    <table id="t-local">
+      <thead><tr><th scope="col">Arm (8 seeds)</th><th scope="col" class="n">F1</th><th scope="col" class="n">Precision</th><th scope="col" class="n">Recall</th><th scope="col" class="n">ROC-AUC</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <p class="note">Reported, not gated, and run on a dirty tree. Dropping 71 of the 72 aggregates did not resolvably change the GNN's F1. The GNN on local features matches the forest's recall with far lower precision: it finds illicit transactions and also flags many licit ones. AUC looks close while precision does not, which is one reason DGF-1 gates on AUPRC too.</p>
+</section>
+
+<section id="dgraph" class="wrap sec" aria-labelledby="dgraph-h">
+  <h2 id="dgraph-h">DGraph-Fin: a resolvable gain, and a small one</h2>
+  <p class="sub">GATE-DGF1-1, pre-registered in ADR-012, 8 seeds per arm, on the test window 482–821. The seed count was committed 33 seconds before the first test-window row.</p>
+  <div class="two">
+    <div>
+      <h3>ROC-AUC by seed</h3>
+      <div id="c-auc" class="chart"></div>
+    </div>
+    <div>
+      <h3>AUPRC by seed, against chance</h3>
+      <div id="c-pr" class="chart"></div>
+    </div>
+  </div>
+  <div class="two mt">
+    <div>
+      <h3>Paired bootstrap over test users, GNN minus floor</h3>
+      <div id="c-boot" class="chart"></div>
+      <p class="note">95% intervals, 1,000 replicates per seed pair, ROC-AUC. Reported, not gated. No interval on either metric straddles zero (0 of 8). The two gated clauses share one floor arm, so they are not two independent confirmations.</p>
+    </div>
+    <div>
+      <table>
+        <caption class="cap">What this gate does and does not license</caption>
+        <thead><tr><th scope="col">Claim</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">GraphSAGE beats a tree given identical node-level information, on this holdout</th><td><span class="v pass">Supported</span></td></tr>
+          <tr><th scope="row">The gain comes from message passing rather than model class</th><td><span class="v open">Not established</span></td></tr>
+          <tr><th scope="row">The gain survives destroying the graph's wiring</th><td><span class="v open">Not established</span></td></tr>
+          <tr><th scope="row">The gain does not depend on activity after users appear</th><td><span class="v open">Not established</span></td></tr>
+          <tr><th scope="row">The model is operationally useful for fraud detection</th><td><span class="v open">Not established</span></td></tr>
+        </tbody>
+      </table>
+      <p class="note">At its own operating point DGF-1 flags about 34 licit users for every fraud case it catches.</p>
+      <p class="withdrawn"><strong>Withdrawn figures are not shown.</strong> The gate's window-only and first-appearance sensitivity rows were built from the wrong graph view. ERRATUM-DGF1-1 withdraws them, and their registry keys are left out of this site's data.</p>
+    </div>
+  </div>
+</section>
+
+<section id="repro" class="wrap sec" aria-labelledby="repro-h">
+  <h2 id="repro-h">Reproduction after refactoring</h2>
+  <div class="two">
+    <div>
+      <p>When the ELL-1 code moved onto the shared core, ADR-008 replaced "still passes" with a stricter bar: 49 frozen reference rows must reproduce with exact float equality, paired on arm and seed, never retried. A failed gate cannot be re-earned, only reproduced.</p>
+      <p class="note">Bit-for-bit holds on the recorded environment only. The DGF-1 test rows themselves were never re-run, and ADR-016 has closed their window.</p>
+    </div>
+    <div class="tscroll" tabindex="0" role="region" aria-label="Reproduction batches">
+      <table>
+        <thead><tr><th scope="col">Commit</th><th scope="col" class="n">Rows</th><th scope="col" class="n">Metrics</th><th scope="col" class="n">Mismatches</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><code>26774a0</code></th><td class="n">49</td><td class="n">199</td><td class="n">0</td></tr>
+          <tr><th scope="row"><code>d9787e9</code></th><td class="n">49</td><td class="n">199</td><td class="n">0</td></tr>
+          <tr><th scope="row"><code>d614671</code>, certificate</th><td class="n">49</td><td class="n">199</td><td class="n">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="corrections" class="wrap sec" aria-labelledby="corrections-h">
+  <h2 id="corrections-h">Corrections on the record</h2>
+  <div class="cols3">
+    <div><h3>Research audit, 2026-10-07</h3><p>Nothing found overturned a signed verdict or number. It also found that 15 edits breaking a guard left the test suite green, that the statistical rules needed fixing before DGF-1 Gate 3, and that effort after Gate 1 had gone into prose: 35 commits and one run since Gate 0 was signed.</p><p><a href="https://github.com/coderback/cambium/blob/f6c415d/notebooks/audit/2026-10-07/README.md">Read the audit</a></p></div>
+    <div><h3>ERRATUM-ELL1-1</h3><p>Gate 1's "because" blamed the hand-built aggregates. Gate 3 and the local-features diagnostic place the deficit in the neural feature path, so that clause is partly superseded, and the feature range was off by one. The FAILED verdict stands.</p><p><a href="https://github.com/coderback/cambium/blob/f6c415d/gates/ERRATUM-ELL1-1.md">Read the erratum</a></p></div>
+    <div><h3>ERRATUM-DGF1-1</h3><p>Withdraws the sensitivity figures, and later records that the "deterministic" field was true by construction, that some gate facts were typed rather than computed, and that the disclosure of prior looks was incomplete. The PASS and every gated number stand.</p><p><a href="https://github.com/coderback/cambium/blob/f6c415d/gates/ERRATUM-DGF1-1.md">Read the erratum</a></p></div>
+  </div>
+</section>
+
+<section id="decisions" class="wrap sec" aria-labelledby="decisions-h">
+  <h2 id="decisions-h">Decisions</h2>
+  <p class="sub">Each decision record links to its full text, draft history and any erratum. Registry: <span id="reg-count">354</span> append-only run rows.</p>
+  <label class="search" for="adr-q">Filter decisions</label>
+  <input id="adr-q" type="search" placeholder="For example: split, seeds, leakage" autocomplete="off">
+  <ol id="adrs" class="adrs"></ol>
+  <p class="note" id="adr-empty" hidden>No decision matches that filter.</p>
+</section>
+
+<section class="wrap sec" aria-labelledby="code-h">
+  <h2 id="code-h">What is in the code</h2>
+  <dl class="spec">
+    <div><dt><code>gbe/</code></dt><dd>Domain-agnostic core: GNN backbone and training, ablations, bootstrap, temporal evaluation, append-only registry. <code>serve</code> and <code>tag</code> are empty placeholders.</dd></div>
+    <div><dt><code>adapters/ell1</code>, <code>adapters/dgf1</code></dt><dd>Dataset adapters with results above. Elliptic and DGraph-Fin are not in the repo.</dd></div>
+    <div><dt><code>gates/</code>, <code>decisions/</code></dt><dd>Signed gate files, errata and decision records.</dd></div>
+  </dl>
+</section>
+</main>
+<footer class="wrap foot"><p>Saved results, read-only. Source: <a href="https://github.com/coderback/cambium/tree/feat/extract-dgf1-phase0">coderback/cambium</a>, branch <code>feat/extract-dgf1-phase0</code>. The default branch is behind this work.</p></footer>
+<div id="tip" class="tip" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

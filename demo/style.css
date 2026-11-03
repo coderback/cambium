@@ -1,0 +1,57 @@
+:root{--bg:#f3efe4;--bg2:#fbf8ef;--ink:#1e1c15;--ink2:#5c5748;--line:#cfc8b4;--pass:#28663a;--fail:#a4300f;--open:#7a5a00;--gnn:#28663a;--floor:#6b6657;--val:#b9b199;--train:#d9d2bd;
+--serif:"Newsreader",Georgia,serif;--mono:"IBM Plex Mono",ui-monospace,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#14130e;--bg2:#1c1b14;--ink:#ece7d8;--ink2:#a9a390;--line:#37342a;--pass:#79c48c;--fail:#f08a66;--open:#d9b45a;--gnn:#79c48c;--floor:#a9a390;--val:#55503f;--train:#37342a}}
+*{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 18px/1.5 var(--serif)}
+a{color:inherit;text-underline-offset:2px}code{font:400 .8em var(--mono)}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.skip{position:absolute;left:-999px;background:var(--ink);color:var(--bg);padding:8px 12px;z-index:9}.skip:focus{left:8px;top:8px}
+.wrap{max-width:1120px;margin:0 auto;padding-left:24px;padding-right:24px}
+.mast{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;padding-top:18px;padding-bottom:12px;border-bottom:3px double var(--ink)}
+.name{font:700 24px var(--serif);margin:0;letter-spacing:-.01em}
+nav{margin-left:auto;display:flex;flex-wrap:wrap;gap:4px 16px;font:400 13px var(--mono)}nav a{text-decoration:none;color:var(--ink2);padding:4px 0}nav a:hover{color:var(--ink);text-decoration:underline}
+.hero{padding-top:40px;padding-bottom:8px}
+h1{font-weight:500;font-size:clamp(34px,5.6vw,64px);line-height:1.02;letter-spacing:-.02em;margin:0 0 24px;max-width:16em}
+.hero-cols{display:grid;grid-template-columns:1fr 1fr;gap:36px}
+.lede{margin:0;color:var(--ink2)}
+.hero-find p{margin:0 0 12px;padding-left:12px;border-left:3px solid var(--ink)}
+.notice{font:400 13px/1.55 var(--mono);color:var(--ink2);margin:24px 0 0;max-width:80em}.notice code{font-size:1em}
+.sec{padding-top:44px;padding-bottom:4px}
+h2{font-weight:500;font-size:clamp(25px,3.2vw,36px);line-height:1.1;letter-spacing:-.012em;margin:0 0 10px;padding-top:12px;border-top:1px solid var(--ink)}
+h3{font:500 19px/1.25 var(--serif);margin:0 0 10px}.mt{margin-top:32px}.mt2{margin-top:24px}
+.sub{color:var(--ink2);margin:0 0 20px;max-width:46em}
+.note{font-size:15.5px;line-height:1.45;color:var(--ink2);margin:10px 0 0;max-width:46em}
+.tscroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:16px;line-height:1.35}
+th,td{text-align:left;vertical-align:top;padding:9px 10px 9px 0;border-bottom:1px solid var(--line);font-weight:400}
+thead th{font:400 12px var(--mono);color:var(--ink2);border-bottom:1px solid var(--ink)}
+tbody th a{font-weight:500}
+.n{text-align:right;font-family:var(--mono);font-size:13.5px;white-space:nowrap;padding-right:0;padding-left:10px}
+.cap{caption-side:top;text-align:left;font:500 19px/1.25 var(--serif);padding-bottom:8px}
+.ledger{min-width:760px}.ledger td:nth-child(2){font:400 12.5px var(--mono);white-space:nowrap;color:var(--ink2)}
+.fail-row{background:color-mix(in srgb,var(--fail) 10%,transparent)}
+.v{display:inline-block;font:500 12px var(--mono);white-space:nowrap;padding:1px 6px;border:1.5px solid currentColor;border-radius:2px;text-transform:uppercase;letter-spacing:.03em}
+.v::before{margin-right:5px}.pass{color:var(--pass)}.pass::before{content:"✓"}.fail{color:var(--fail)}.fail::before{content:"✕"}.open{color:var(--open)}.open::before{content:"?"}
+.bar{display:flex;height:40px;font:400 12.5px var(--mono);margin-bottom:4px}
+.bar span{display:flex;align-items:center;padding:0 8px;white-space:nowrap;overflow:hidden;min-width:0}
+.t-train{background:var(--train)}.t-val{background:var(--val)}.t-test{background:var(--ink);color:var(--bg)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:start}
+.cols3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px}.cols3 p{font-size:16.5px;margin:0 0 8px}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.axis text{fill:var(--ink2);font:400 11.5px var(--mono)}.grid line{stroke:var(--line)}
+.rl{fill:var(--ink);font:500 14.5px var(--serif)}.rs{fill:var(--ink2);font:400 11.5px var(--mono)}
+.hit{fill:transparent}.hit:focus-visible{outline:none;stroke:var(--ink);stroke-width:1.5}
+details.dt{margin-top:8px;font-size:14.5px}details.dt summary{cursor:pointer;font:400 12.5px var(--mono);color:var(--ink2);padding:6px 0}details.dt table{font-size:13.5px;font-family:var(--mono)}
+.quote{margin:14px 0 0;padding-left:12px;border-left:3px solid var(--ink);max-width:40em}
+.withdrawn{margin:14px 0 0;padding:10px 12px;border:1.5px dashed var(--fail);font-size:15.5px;line-height:1.45}
+.search{display:block;font:400 12.5px var(--mono);color:var(--ink2);margin-bottom:4px}
+input[type=search]{width:100%;max-width:420px;font:400 16px var(--serif);padding:9px 10px;background:var(--bg2);border:1px solid var(--ink2);color:var(--ink);border-radius:2px;min-height:44px}
+.adrs{list-style:none;margin:16px 0 0;padding:0;columns:2;column-gap:40px}
+.adrs li{break-inside:avoid;padding:8px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:64px 1fr;gap:4px 10px;font-size:16px;line-height:1.3}
+.adrs .id{font:400 12.5px var(--mono);color:var(--ink2);padding-top:3px}.adrs .m{grid-column:2;font:400 11.5px var(--mono);color:var(--ink2)}
+.spec{margin:0}.spec div{display:grid;grid-template-columns:minmax(120px,240px) 1fr;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.spec dd{margin:0}.spec dt code{font-size:.82em}
+.foot{padding-top:40px;padding-bottom:36px;font-size:15px;color:var(--ink2)}
+.tip{position:fixed;z-index:20;max-width:300px;background:var(--ink);color:var(--bg);padding:6px 9px;font:400 12.5px/1.35 var(--mono);border-radius:2px;pointer-events:none}
+@media (max-width:860px){.hero-cols,.two{grid-template-columns:1fr;gap:24px}.cols3{grid-template-columns:1fr;gap:20px}.adrs{columns:1}}
+@media (max-width:560px){body{font-size:17px}.wrap{padding-left:16px;padding-right:16px}nav{margin-left:0}.spec div{grid-template-columns:1fr;gap:2px}.bar{height:34px;font-size:11px}.bar span{padding:0 4px}table{font-size:15px}}
