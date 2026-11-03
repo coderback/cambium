@@ -41,7 +41,7 @@ function bootChart(host,boot){
     el('circle',{cx:x(m),cy:y,r:4.5,fill:'var(--gnn)',stroke:'var(--bg)','stroke-width':1.5},s);
     focusable(el('rect',{x:0,y:y-rowH/2,width:W,height:rowH},s),`Seed ${b.seed}: ROC-AUC difference +${m.toFixed(4)}, 95% CI +${lo.toFixed(4)} to +${hi.toFixed(4)}. AUPRC difference +${b.auprc[0].toFixed(4)}, 95% CI +${b.auprc[1].toFixed(4)} to +${b.auprc[2].toFixed(4)}`)})}
 
-fetch('data/results.json').then(r=>r.json()).then(d=>{
+fetch('site-data/results.json').then(r=>r.json()).then(d=>{
   const rf=d.ell1g0.rf,g1=d.ell1g1,g3=d.ell1g3,dg=d.dgf1g1;
   strip($('c-g1'),{title:'Illicit F1 by seed for random forest, GraphSAGE and GCN',key:'illicit_f1',dom:[.5,.85],ticks:[.5,.6,.7,.8],fmt:v=>v.toFixed(1),rows:[
     {label:'Random forest',sub:'tabular floor',arm:rf,color:'--floor'},{label:'GraphSAGE',sub:'frozen config',arm:g1.sage},{label:'GCN',sub:'comparator',arm:g1.gcn,color:'--gnn'}]});

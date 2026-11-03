@@ -1,4 +1,4 @@
-"""Build demo/data/results.json from committed files only.
+"""Build demo/site-data/results.json from committed files only.
 
 Reads experiments/registry.csv, gates/ and decisions/. Every arm is matched to registry rows by
 the run ids its gate file lists, and each mean and std is checked against the printed gate row, so
@@ -118,7 +118,7 @@ data["adrs"] = adrs
 groups = Counter(f'{r["model"]}/{r["phase"]}' for r in REG.values())
 data["registry"] = {"rows": len(REG), "groups": dict(sorted(groups.items()))}
 
-out = ROOT / "demo" / "data"
+out = ROOT / "demo" / "site-data"
 out.mkdir(parents=True, exist_ok=True)
 (out / "results.json").write_text(json.dumps(data, separators=(",", ":")), encoding="utf8")
 print("registry rows", len(REG), "adrs", len(adrs), "local94", json.dumps(data["local94"], indent=0))
