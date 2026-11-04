@@ -1,7 +1,7 @@
 """The label-free cost of one matched-time training epoch, owed before ADR-023 is accepted.
 
 What it measures, on steps up to 369 only:
-  A. how many edges and two-hop neighbours users have at their own node time;
+  A. how many edges, and neighbours within two and three hops, users have at their own node time;
   B. which input columns a transform fitted at each user's own time would zero;
   C. one full training epoch under ADR-023 clause 2's rule: time, GPU memory and process memory.
 
@@ -11,7 +11,7 @@ it is an upper bound on a real epoch. Its targets are random, from a fixed gener
 nothing and is never reported.
 
 The statistics come from a binary search over each node's dated edges, so a batch shuffled across
-times costs no per-time view. Part B of the run checks them against `view_node_features` before any
+times costs no per-time view. The run's Check section compares them with `view_node_features` before any
 timing is trusted. This is a measurement, not row 6b's builder.
 
     python notebooks/measurements/2026-11-04-matched-time/measure_matched_epoch.py
@@ -54,7 +54,7 @@ from gbe.gnn import GNNHParams, build_model  # noqa: E402
 from gbe.gnn.train import fan_out_for  # noqa: E402
 
 TRAIN_MAX = 369
-TWO_HOP_SAMPLE = 50_000
+NEIGHBOUR_SAMPLE = 50_000
 CHECK_CUTOFFS = (50, 200, TRAIN_MAX)
 GATE1_LR, GATE1_BATCH_SIZE = 3.318335548548489e-4, 2048  # the GNN's Gate-1 configuration (ADR-012:210-211)
 
@@ -153,16 +153,17 @@ def main() -> None:
     view = GraphView(t_max=TRAIN_MAX, edge_index=both, edge_time=torch.cat([et, et]),
                      edge_type=torch.cat([ety, ety]), node_features=empty, in_view=empty)
     g = torch.Generator().manual_seed(0)
-    sample = users[torch.randperm(users.numel(), generator=g)[:TWO_HOP_SAMPLE]]
-    t0 = time.perf_counter()
-    counts = []
-    for batch in first_appearance_loader(x, view, node_time, sample, [-1, -1], 1024):
-        assert_temporal_batch(batch)
-        pairs = torch.unique(torch.stack([batch.batch, batch.n_id]), dim=1)
-        counts.append(torch.bincount(pairs[0], minlength=batch.batch_size)[: batch.batch_size] - 1)
-    two_hop = torch.cat(counts).numpy()
-    say(f"  other users within two hops, {sample.numel():,} sampled users, {time.perf_counter() - t0:.1f} s: {quantiles(two_hop)}")
-    say(f"  sampled users with nobody beyond their own edge's endpoint: {(two_hop <= 1).mean():.4f}")
+    sample = users[torch.randperm(users.numel(), generator=g)[:NEIGHBOUR_SAMPLE]]
+    for hops, word in ((2, "two"), (3, "three")):   # the model has three layers (config.yaml, gnn.num_layers)
+        t0 = time.perf_counter()
+        counts = []
+        for batch in first_appearance_loader(x, view, node_time, sample, [-1] * hops, 1024):
+            assert_temporal_batch(batch)
+            pairs = torch.unique(torch.stack([batch.batch, batch.n_id]), dim=1)
+            counts.append(torch.bincount(pairs[0], minlength=batch.batch_size)[: batch.batch_size] - 1)
+        within = torch.cat(counts).numpy()
+        say(f"  other users within {word} hops, {sample.numel():,} sampled users, {time.perf_counter() - t0:.1f} s: {quantiles(within)}")
+        say(f"  sampled users with at most one other user within {word} hops: {(within <= 1).mean():.4f}")
 
     say("\nB. Which input columns each transform would zero (Standardizer zeroes a constant column)")
     own = torch.cat([torch.cat([x[c], stats(c.to(device), node_time[c].to(device)).cpu()], dim=1)
