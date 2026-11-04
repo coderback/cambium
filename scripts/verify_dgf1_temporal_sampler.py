@@ -65,7 +65,7 @@ def main() -> int:
     ap.add_argument("--batch-size", type=int, default=1024)
     args = ap.parse_args()
 
-    data = load_dgraph(REPO_ROOT / "data" / "dgraph", strict=True)
+    data = load_dgraph(strict=True)
     val = dgf1_splits()["val"]
     view = graph_view(data, val.test_max)
     targets = window_target_mask(data, val).nonzero().view(-1)

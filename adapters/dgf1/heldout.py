@@ -43,6 +43,7 @@ from gbe.run.config import git_commit
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEDGER = REPO_ROOT / "experiments" / "heldout_ledger.csv"
+SCORES_DIR = REPO_ROOT / "experiments" / "scores"
 
 COLUMNS = ("timestamp_utc", "held_out_set", "tier", "what", "by", "via", "authority", "batch", "git_commit")
 TIERS = ("structure", "labels", "scores")

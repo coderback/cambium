@@ -38,7 +38,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from preregistration import require_clean_tree, require_gated_preregistration  # noqa: E402
 
 
-SCORES_DIR = REPO_ROOT / "experiments" / "scores"
 PILOT_SEEDS = 5          # ADR-012 clause 4; the floor runs 3 when its winner is deterministic
 MODES = ("retune", "pilot", "gate")
 
@@ -74,6 +73,21 @@ def resolve_floor_batch(mode: str, args) -> tuple[list[dict], list[int], str, st
     raise SystemExit(f"refusing --mode {mode!r}: not one of {', '.join(MODES)} (ADR-016 clause 4).")
 
 
+def open_window(window: str, mode: str, preregistration: str | None):
+    """``(split, true labels or None)``. Validation is the default path, and records nothing.
+
+    A test-window mode reaches the second branch only after the shared guard, and opens the window
+    through the accessor, which records the look first (ADR-021 clause 8). Gate mode stays closed.
+    """
+    from adapters.dgf1.eval import dgf1_splits
+    from adapters.dgf1.heldout import open_test_window
+
+    if window == "val":
+        return dgf1_splits()["val"], None
+    return open_test_window(tier="scores", what=f"{mode} batch scores", by="researcher",
+                            authority=preregistration, batch=mode)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--mode", choices=MODES, required=True)
@@ -89,11 +103,14 @@ def main() -> None:
     require_clean_tree(args.allow_dirty)
 
     from adapters.dgf1.baselines_tabular import run_floor
-    from adapters.dgf1.datasource_dgraph import load_dgraph
-    from adapters.dgf1.eval import dgf1_base_config, dgf1_splits
+    from adapters.dgf1.datasource_dgraph import load_dgraph, with_labels
+    from adapters.dgf1.eval import dgf1_base_config
+    from adapters.dgf1.heldout import SCORES_DIR
 
-    data = load_dgraph(REPO_ROOT / "data" / "dgraph", strict=True)
-    split = dgf1_splits()[window]
+    split, labels = open_window(window, args.mode, args.preregistration)
+    data = load_dgraph(strict=True)
+    if labels is not None:
+        data = with_labels(data, labels)
     base = {**dgf1_base_config(), "experiment": tag}
     # Retune runs are selection runs, not results: no score vectors (clause 10 asks for them on
     # pilot and gate runs).

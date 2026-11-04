@@ -45,7 +45,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from preregistration import require_clean_tree, require_gated_preregistration  # noqa: E402
 
-SCORES_DIR = REPO_ROOT / "experiments" / "scores"
 PIN_PATH = REPO_ROOT / "experiments" / "extract_reference_env.txt"   # ADR-008 clause 4
 PILOT_SEEDS = 5   # ADR-012 clause 4
 MODES = ("retune", "pilot", "gate", "repro-check")
@@ -266,6 +265,21 @@ def repro_check_verdict(reference: dict[str, Any], observed: dict[str, Any]) -> 
     return compare_repro(reference, observed) + score_file_problems(observed)
 
 
+def open_window(window: str, mode: str, preregistration: str | None):
+    """``(split, true labels or None)``. Validation is the default path, and records nothing.
+
+    A test-window mode reaches the second branch only after the shared guard, and opens the window
+    through the accessor, which records the look first (ADR-021 clause 8). Gate mode stays closed.
+    """
+    from adapters.dgf1.eval import dgf1_splits
+    from adapters.dgf1.heldout import open_test_window
+
+    if window == "val":
+        return dgf1_splits()["val"], None
+    return open_test_window(tier="scores", what=f"{mode} batch scores", by="researcher",
+                            authority=preregistration, batch=mode)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--mode", choices=MODES, required=True)
@@ -281,12 +295,13 @@ def main() -> None:
 
     from gbe.gnn import GNNHParams
     from gbe.run.registry import default_registry_path
-    from adapters.dgf1.datasource_dgraph import load_dgraph
-    from adapters.dgf1.eval import dgf1_base_config, dgf1_hparams, dgf1_splits
+    from adapters.dgf1.datasource_dgraph import load_dgraph, with_labels
+    from adapters.dgf1.eval import dgf1_base_config, dgf1_hparams
+    from adapters.dgf1.heldout import SCORES_DIR
     from adapters.dgf1.train_gnn import run_dgf1
 
     base_hp, cfg_device = dgf1_hparams()
-    split = dgf1_splits()[window]
+    split, labels = open_window(window, args.mode, args.preregistration)
     base_cfg = {**dgf1_base_config(), "phase": "P1", "experiment": tag}
     registry_path = default_registry_path(REPO_ROOT)
 
@@ -312,7 +327,9 @@ def main() -> None:
         reference = repro_check_reference(registry_path, rebuilt)
         print(f"[dgf1] repro-check: configuration rebuilds reference hash {rebuilt[:12]}")
 
-    data = load_dgraph(REPO_ROOT / "data" / "dgraph", strict=True)
+    data = load_dgraph(strict=True)
+    if labels is not None:
+        data = with_labels(data, labels)
     # Retune runs are selection runs, not results: they persist no score vectors (clause 10 asks
     # for them on pilot and gate runs).
     scores_dir = None if args.mode == "retune" else SCORES_DIR

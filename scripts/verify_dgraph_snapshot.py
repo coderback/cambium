@@ -1,10 +1,10 @@
 """Verify the DGraph-Fin snapshot against doc-02 §2.1 — before any DGF-1 code is written.
 
-    python scripts/verify_dgraph_snapshot.py [--data-root data/dgraph]
+    python scripts/verify_dgraph_snapshot.py
 
 **Obtaining the data (manual, cannot be automated).** PyG's `DGraphFin` loader does not download:
 it raises and tells you to fetch `DGraphFin.zip` yourself from https://dgraph.xinye.com, which is
-registration-gated. Place it at ``<data-root>/raw/DGraphFin.zip``; PyG extracts ``dgraphfin.npz``
+registration-gated. Place it under the adapter's ``DGRAPH_ROOT``, at ``raw/DGraphFin.zip``; PyG extracts ``dgraphfin.npz``
 and caches ``processed/data.pt`` on first access. ``data/`` is gitignored, so nothing is committed.
 
 **Scope: verification only.** This script defines no `DataSource`, writes no adapter config, touches
@@ -24,25 +24,23 @@ and names the doc section to reconcile. Do not edit a constant to make this pass
 2. **Labels.** `DGraphFin.num_classes` returns 2, yet doc-02 §2.1 describes 15,509 fraud +
    1,210,092 normal + **2,474,949 background**. Background nodes therefore carry distinct label
    values that a binary reading would silently swallow. doc-02 §2.2.2 requires keeping them for
-   message passing and masking them from the loss — the ELL-1 ``labelled_mask`` pattern. Report the
-   actual distribution of ``y``.
-3. **Is the official split temporal?** doc-02 §2.3 makes this an explicit verification task ("do not
-   assume"). The loader exposes ``train_mask``/``val_mask``/``test_mask``, but **timestamps live on
-   edges (``edge_time``), not nodes** — while `gbe.eval.temporal.split_masks` takes a *per-node*
-   time tensor. So this script derives a node-time proxy from incident edge times and compares its
-   distribution across the three masks. That is evidence, not proof, and it is also the first
-   concrete input to a real EXTRACT design decision: DGF-1 needs either a node-time derivation or a
-   harness extension.
+   message passing and masking them from the loss — the ELL-1 ``labelled_mask`` pattern. The totals
+   are checked as pass or fail only (ADR-021 I9), through the adapter.
+3. **Is the official split temporal?** ADR-010 answered this once from this script. Its comparison
+   across the official masks is retired, because it read them (ADR-021 clause 8), and it is in the
+   repository's history at ``cb3ace6``.
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import torch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 # Pinned from doc-02 §2.1 + the PyG loader docstring. Treat as the doc's claim, not as truth:
 # a mismatch is a doc-vs-data discrepancy to reconcile, never a constant to edit.
@@ -98,29 +96,15 @@ def _node_time_proxy(edge_index: torch.Tensor, edge_time: torch.Tensor, n: int) 
     return out
 
 
-def _describe(name: str, values: torch.Tensor) -> None:
-    if values.numel() == 0:
-        print(f"    {name:<8} (empty)")
-        return
-    v = values.to(torch.float)
-    q = torch.quantile(v, torch.tensor([0.0, 0.25, 0.5, 0.75, 1.0]))
-    print(f"    {name:<8} n={values.numel():>9,}  min={q[0]:>6.0f}  p25={q[1]:>6.0f}  "
-          f"median={q[2]:>6.0f}  p75={q[3]:>6.0f}  max={q[4]:>6.0f}  mean={v.mean():>7.1f}")
-
-
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--data-root", default=str(REPO_ROOT / "data" / "dgraph"))
-    args = ap.parse_args()
+    argparse.ArgumentParser(description=__doc__).parse_args()
 
-    root = Path(args.data_root)
-    _require_data(root)
+    from adapters.dgf1.datasource_dgraph import DGRAPH_ROOT, load_dgraph
+    from adapters.dgf1.heldout import integrity_ok
 
-    from torch_geometric.datasets import DGraphFin   # imported late: only needed on the happy path
-
-    print(f"[verify] loading DGraph-Fin from {root} (first run extracts + caches, ~minutes)")
-    data = DGraphFin(root=str(root))[0]
-    print(f"[verify] loaded: {data}\n")
+    _require_data(DGRAPH_ROOT)
+    print(f"[verify] loading DGraph-Fin through the adapter, from {DGRAPH_ROOT} (first run extracts + caches, ~minutes)")
+    data = load_dgraph(strict=False)   # this script's own checks below carry its doc-first message
 
     # --- 1. shape -----------------------------------------------------------------------
     n_nodes, n_features = data.x.shape
@@ -135,75 +119,25 @@ def main() -> int:
     # Report BOTH conventions explicitly. doc-02 §0/§2.1's "avg degree ~1.16" is E/N — mean
     # *out*-degree on the directed graph. But §2.2.4 makes reverse edges the default ("doubles
     # usable connectivity"), so the graph the GNN actually samples has mean *total* degree 2E/N.
-    # Printing only the latter next to the doc's 1.16 reads as a contradiction when it is a
-    # definitional difference; printing only the former understates what message passing sees.
     print(f"      mean out-degree  E/N  = {n_edges / n_nodes:.3f}   (doc-02 §0/§2.1 'avg degree ~1.16')")
     print(f"      mean total degree 2E/N = {2 * n_edges / n_nodes:.3f}   "
           "(what reverse-edges-ON gives — the graph actually sampled)")
 
-    # --- 2. labels ----------------------------------------------------------------------
-    labels, counts = data.y.unique(return_counts=True)
-    print(f"\n[2/3] label distribution ({labels.numel()} distinct values in y):")
-    for value, count in zip(labels.tolist(), counts.tolist()):
-        print(f"      y={value}: {count:>9,} ({100 * count / n_nodes:5.2f}%)")
+    # --- 2. labels: pass or fail only (ADR-021 I9, not a look) ----------------------------
+    if not integrity_ok():
+        _escalate("whole-snapshot label totals", "a different total", "the published totals", "doc-02 §2.1")
+    print("\n[2/3] label totals match the published ones (pass or fail only; ADR-021 I9)")
 
-    by_value = dict(zip(labels.tolist(), counts.tolist()))
-    n_fraud = by_value.get(1, 0)
-    n_normal = by_value.get(0, 0)
-    n_background = n_nodes - n_fraud - n_normal
-    if n_fraud != EXPECTED_FRAUD:
-        _escalate("fraud count (y==1)", n_fraud, EXPECTED_FRAUD, "doc-02 §2.1")
-    if n_normal != EXPECTED_NORMAL:
-        _escalate("normal count (y==0)", n_normal, EXPECTED_NORMAL, "doc-02 §2.1")
-    if n_background != EXPECTED_BACKGROUND:
-        _escalate("background count", n_background, EXPECTED_BACKGROUND, "doc-02 §2.1")
-
-    prevalence = n_fraud / (n_fraud + n_normal)
-    print(f"      labelled prevalence = {prevalence:.4%} "
-          f"(ADR-007 assumed 1.27% when fixing the metric pair)")
-    if labels.numel() > 2:
-        print(f"      NOTE: y carries {labels.numel()} values but DGraphFin.num_classes == 2. "
-              "Background nodes need\n            the ELL-1 labelled_mask treatment "
-              "(doc-02 §2.2.2: keep in graph, mask from loss).")
-
-    # --- 3. edge metadata + is the official split temporal? -----------------------------
+    # --- 3. edge metadata -----------------------------------------------------------------
     t_lo, t_hi = int(data.edge_time.min()), int(data.edge_time.max())
     n_types = int(data.edge_type.unique().numel())
     if (t_lo, t_hi) != EXPECTED_EDGE_TIME:
         _escalate("edge_time range", (t_lo, t_hi), EXPECTED_EDGE_TIME, "doc-02 §2.1")
     if n_types != EXPECTED_EDGE_TYPES:
         _escalate("edge_type count", n_types, EXPECTED_EDGE_TYPES, "doc-02 §2.1")
-
     print(f"\n[3/3] edge metadata OK — time {t_lo}..{t_hi} · {n_types} contact subtypes")
-    print("      official split sizes: "
-          f"train={int(data.train_mask.sum()):,} "
-          f"val={int(data.val_mask.sum()):,} "
-          f"test={int(data.test_mask.sum()):,}")
 
-    node_time = _node_time_proxy(data.edge_index, data.edge_time, n_nodes)
-    isolated = int((node_time == -1).sum())
-    print(f"\n      node-time proxy = earliest incident edge time ({isolated:,} nodes have no "
-          "edges and are excluded):")
-    for name, mask in (("train", data.train_mask), ("val", data.val_mask), ("test", data.test_mask)):
-        _describe(name, node_time[mask & (node_time >= 0)])
-
-    medians = [
-        float(node_time[m & (node_time >= 0)].to(torch.float).median())
-        for m in (data.train_mask, data.val_mask, data.test_mask)
-    ]
-    spread = max(medians) - min(medians)
-    ordered = medians[0] <= medians[1] <= medians[2]
-    print(f"\n      medians train/val/test = {medians[0]:.0f} / {medians[1]:.0f} / {medians[2]:.0f}"
-          f"  (spread {spread:.0f} of {t_hi - t_lo} steps, monotonic={ordered})")
-    print("\n      READ THIS AS EVIDENCE, NOT PROOF (doc-02 §2.3 'do not assume'):")
-    print("        · near-identical distributions  -> official split is a RANDOM mask, so the")
-    print("          leaderboard number is NOT a temporal holdout; doc-02 requires reporting our")
-    print("          own temporal split separately and labelled as such.")
-    print("        · ordered, well-separated       -> consistent with a temporal split.")
-    print("      Either way, EXTRACT must decide how a per-node time reaches")
-    print("      gbe.eval.temporal.split_masks, which takes node times while DGraph dates edges.")
-
-    print("\n[verify] all pinned expectations from doc-02 §2.1 hold. No registry row written.")
+    print("\n[verify] all pinned expectations from doc-02 §2.1 hold. No held-out set opened; no registry row written.")
     return 0
 
 

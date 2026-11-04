@@ -381,7 +381,8 @@ def _fake_repro_run(monkeypatch, tmp_path, *, metrics_override=None, reference_h
     registry = tmp_path / "registry.csv"
     scores_dir = tmp_path / "scores"
     monkeypatch.setattr(registry_mod, "default_registry_path", lambda *a, **k: registry)
-    monkeypatch.setattr(run_dgf1_gnn, "SCORES_DIR", scores_dir)
+    from adapters.dgf1 import heldout
+    monkeypatch.setattr(heldout, "SCORES_DIR", scores_dir)
     monkeypatch.setattr(preregistration, "git_dirty", lambda *a, **k: False)
 
     digest = save_scores(scores_dir / "ref.npz", node_ids=np.arange(4),

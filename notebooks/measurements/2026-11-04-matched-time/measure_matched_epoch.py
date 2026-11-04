@@ -110,7 +110,7 @@ def main() -> None:
     say(f"commit {commit} | torch {torch.__version__} | device {torch.cuda.get_device_name(0) if device.type == 'cuda' else 'cpu'}")
 
     t0 = time.perf_counter()
-    data = load_dgraph(REPO_ROOT / "data" / "dgraph")
+    data = load_dgraph()
     x, node_time = data.x, data.node_time
     keep = data.edge_time <= TRAIN_MAX
     fwd, et, ety = data.edge_index[:, keep], data.edge_time[keep], data.edge_type[keep]
