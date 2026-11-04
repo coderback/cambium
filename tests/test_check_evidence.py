@@ -60,6 +60,17 @@ def _kinds(findings) -> list[str]:
     return [f.check for f in findings]
 
 
+def _short_head(repo: Path) -> str:
+    """HEAD's short hash, re-committed until it has a letter: the checker skips an all-digit token."""
+    sha = _git(repo, "rev-parse", "--short=7", "HEAD").strip()
+    tries = 0
+    while sha.isdigit():  # a random 7-character hash is all digits about 3.7% of the time
+        tries += 1
+        _git(repo, "commit", "-q", "--amend", "-m", f"init {tries}")
+        sha = _git(repo, "rev-parse", "--short=7", "HEAD").strip()
+    return sha
+
+
 # -- citations -----------------------------------------------------------------------------------
 def test_a_citation_inside_the_file_passes(repo):
     assert _check(repo, "See `notes/source.md:2-3`.\n", checks=["citations"]) == []
@@ -127,7 +138,7 @@ def test_a_misquote_is_flagged(repo):
 
 # -- commits -------------------------------------------------------------------------------------
 def test_a_real_commit_passes_and_an_invented_one_is_flagged(repo):
-    head = _git(repo, "rev-parse", "--short=7", "HEAD").strip()
+    head = _short_head(repo)
     assert _check(repo, f"Committed at `{head}`.\n", checks=["commits"]) == []
     (f,) = _check(repo, "Committed at `abc1234`.\n", checks=["commits"])
     assert "`abc1234`" in f.reason
@@ -144,10 +155,16 @@ def test_a_commit_in_another_repository_passes_with_extra_git_dir(repo, tmp_path
     _git(other, "init", "-q")
     _git(other, "add", ".")
     _git(other, "commit", "-q", "-m", "x")
-    sha = _git(other, "rev-parse", "--short=7", "HEAD").strip()
+    sha = _short_head(other)
     _write(repo, "notes/new.md", f"Baseline `{sha}`.\n")
     assert _kinds(Checker(repo).check("notes/new.md", ("commits",))) == ["commits"]
     assert Checker(repo, (str(other / ".git"),)).check("notes/new.md", ("commits",)) == []
+
+
+def test_an_all_digit_token_is_not_read_as_a_commit(repo):
+    # A known limit: it cannot be told from an ordinary number, so an all-digit short hash goes unchecked.
+    _write(repo, "notes/new.md", "Baseline `1234567`.\n")
+    assert Checker(repo).check("notes/new.md", ("commits",)) == []
 
 
 # -- verified ------------------------------------------------------------------------------------
@@ -160,7 +177,7 @@ def test_the_adr015_pattern_a_verified_claim_with_no_commit_is_flagged(repo):
 
 
 def test_a_verified_claim_with_a_commit_run_id_or_measurement_passes(repo):
-    head = _git(repo, "rev-parse", "--short=7", "HEAD").strip()
+    head = _short_head(repo)
     for evidence in (f"`{head}`", RUN_ID, "`notebooks/measurements/timing.txt`"):
         assert _check(repo, f"The hash was verified at {evidence}.\n", checks=["verified"]) == []
 
@@ -172,7 +189,7 @@ def test_obligations_progressives_and_names_are_not_claims(repo):
 
 
 def test_an_identifier_in_a_verified_claim_must_exist_in_committed_code(repo):
-    head = _git(repo, "rev-parse", "--short=7", "HEAD").strip()
+    head = _short_head(repo)
     assert _check(repo, f"Measured at `{head}`: `log_metrics` keeps it.\n", checks=["verified"]) == []
     (f,) = _check(repo, f"Measured at `{head}`: `extra_metrics` keeps it.\n", checks=["verified"])
     assert "`extra_metrics`" in f.reason
