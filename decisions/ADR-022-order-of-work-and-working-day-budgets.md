@@ -1,7 +1,7 @@
 # ADR-022 — An order of work and working-day budgets, in place of calendar deadlines
 
-**Status:** proposed
-**Date:** proposed 2026-11-04 · draft 3 2026-11-04
+**Status:** accepted
+**Date:** proposed 2026-11-04 · **accepted 2026-11-04 (16:21) by coderback**, at draft 3, after two review rounds
 **Tier:** A, re-tiered from B by its round-1 review (ADR-017). The plan's dates also hold held-out looks
 in order, and this ADR sets that order for rows 7, 8 and 11. It sets no gate criterion, split or metric,
 and changes no tier rule or review budget.
@@ -213,3 +213,5 @@ This ADR authorises no look, and no choice here uses a held-out label or score.
   - `CLAUDE.md:79` and `:89` added;
   - nits: the separator row, row 6d's wider decline, row 11's status wording, row 17's `after`, the
     `:54` heading, and `docs/03-edgar-risk-embedding-model-BUILD.md:5` left alone as a changelog.
+- **Accepted** 2026-11-04 (16:21) by coderback, at draft 3. Draft 2 was reviewed from the working tree
+  against `eb0204a` and was never committed on its own.
