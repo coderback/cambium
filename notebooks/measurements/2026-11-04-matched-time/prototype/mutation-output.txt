@@ -1,0 +1,33 @@
+unmutated: passes - 42 passed in 3.48s
+KILLED   the rule receives the arms' means - 1 error in 3.30s
+KILLED   the bar reads the lower mean - 1 failed, 9 passed in 2.67s
+KILLED   the bar reads DGF-1's mean only, so it sees direction - 1 failed, 9 passed in 2.88s
+KILLED   the bar is strict - 1 failed, 8 passed in 2.73s
+KILLED   the bar is lower - 1 failed, 7 passed in 2.75s
+KILLED   the bar is ignored - 1 failed, 7 passed in 3.03s
+KILLED   precision is ignored - 1 failed, 12 passed in 3.31s
+KILLED   both metrics must be informative - 1 failed, 12 passed in 3.14s
+KILLED   the power bar is lower - 1 failed, 12 passed in 3.76s
+KILLED   the power uses the single-look level - 1 failed, 11 passed in 3.13s
+KILLED   the power is at fewer seeds - 1 failed, 11 passed in 4.73s
+KILLED   the margin is the whole gap - 1 failed, 11 passed in 5.04s
+KILLED   no gated gain still has a margin - 1 failed, 17 passed in 3.45s
+KILLED   a negative gated gain has a margin - 1 failed, 18 passed in 3.20s
+KILLED   neither arm varying crashes - 1 failed, 19 passed in 3.11s
+KILLED   one arm not varying fails precision - 1 failed, 20 passed in 2.84s
+KILLED   the spreads are swapped with the wrong metric - 1 failed, 1 passed in 3.11s
+KILLED   extra seeds are read - 1 failed, 22 passed in 3.05s
+KILLED   missing seeds are read - 1 failed, 21 passed in 3.03s
+KILLED   a missing metric is not refused - 1 failed, 24 passed in 3.07s
+KILLED   non-finite values are read - 1 failed, 25 passed in 2.81s
+KILLED   only one arm is checked - 1 failed, 21 passed in 2.79s
+KILLED   the margin clause does not shift - 1 failed, 26 passed in 3.19s
+KILLED   the margin clause shifts the wrong way - 1 failed, 26 passed in 3.10s
+KILLED   the margin clause does not swap the arms - 1 failed, 26 passed in 3.16s
+KILLED   a refused gain clause still reads - 1 failed, 36 passed in 3.04s
+KILLED   a refused margin clause counts - 1 failed, 40 passed in 3.00s
+KILLED   a resolvable gain hides the margin - 1 failed, 34 passed in 2.88s
+KILLED   below the margin reads as nothing - 1 failed, 33 passed in 3.09s
+KILLED   a second look is never triggered - 1 failed, 31 passed in 2.71s
+
+30/30 mutants killed
