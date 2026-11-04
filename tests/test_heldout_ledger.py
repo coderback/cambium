@@ -1,12 +1,15 @@
 """The held-out ledger (ADR-021 invariants I1 to I5 and I10, plan row 5a step 2).
 
 Runs against a temporary git repository with committed authorising documents, and never writes the
-real ledger. The one exception is read-only: ADR-015's accepted lines are parsed from this repository's
-HEAD, so a format change that would silently refuse them fails here.
+real ledger. Two exceptions are read-only: ADR-015's accepted lines are parsed from this repository's
+HEAD, so a format change that would silently refuse them fails here; and the real ledger's rows are
+checked, because the backfill is now the only record of DGF-1's earlier looks.
 """
 
 from __future__ import annotations
 
+import csv
+import inspect
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -230,9 +233,9 @@ def test_the_authority_line_must_name_the_batch(root):
 
 
 def test_via_comes_from_the_process_not_the_caller(root, monkeypatch):
-    with pytest.raises(H.LedgerError, match="only a backfill"):
+    with pytest.raises(TypeError):
         H.record_look(**look(via=ASSEMBLER))
-    with pytest.raises(H.LedgerError, match="only a backfill"):
+    with pytest.raises(TypeError):
         H.record_look(**look(commit="abc1234"))
     run_as(ASSEMBLER, monkeypatch)
     assert H.record_look(**look())["via"] == ASSEMBLER
@@ -282,7 +285,7 @@ def test_adr_015_s_accepted_lines_authorise_its_runner_and_only_after_the_wait()
                       datetime(2026, 10, 9, 7, 38, tzinfo=H.LOCAL_TZ))
 
 
-# ------------------------------------------------------------------ I4: incidental and backfill
+# ------------------------------------------------------------------ I4: incidental looks
 
 
 def test_an_incidental_look_is_recorded_and_says_it_had_no_authority(root):
@@ -295,32 +298,94 @@ def test_an_incidental_look_cannot_claim_an_authority(root):
         H.record_look(**look(), incidental=True)
 
 
-def test_a_backfill_row_keeps_its_source_commit_and_unchecked_authority(root):
-    row = H.record_look(**look(authority="ADR-012", now=at(1)), backfill=True, via="backfill: gate batch",
-                        commit="09c6e72")
-    assert (row["authority"], row["via"], row["git_commit"]) == ("ADR-012", "backfill: gate batch", "09c6e72")
+# ------------------------------------------------------------------ the backfill is in, and its flag is gone
 
 
-def test_a_backfill_row_names_its_source(root):
-    with pytest.raises(H.LedgerError, match="names its source"):
-        H.record_look(**look(authority="ADR-012", now=at(1)), backfill=True)
+LEDGER_IN_THIS_REPO = REPO_ROOT / "experiments" / "heldout_ledger.csv"
+ADR_012 = "decisions/ADR-012-dgf1-gate1-preregistration.md"
+ADR_021_ACCEPTED = datetime(2026, 10, 8, 19, 37, tzinfo=H.LOCAL_TZ)
+# ADR-021 clause 9's sources, one batch label for each look they name.
+BACKFILL_BATCHES = {"snapshot-verification", "adr011-measurement", "adr011-review", "datasource-audit",
+                    "feature-profiling", "timing-projection", "gate1", "audit-2026-10-07", "score-backup",
+                    "reviews-2026-10-08"}
 
 
-def test_a_backfill_row_still_refuses_a_figure(root):
-    with pytest.raises(H.LedgerError, match="figure"):
-        H.record_look(**look(what="prevalence 1.48%", now=at(1)), backfill=True, via="backfill: x")
+def _rows_in_this_repo() -> list[dict]:
+    with LEDGER_IN_THIS_REPO.open(newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
 
 
-@pytest.mark.parametrize("now", [H.BACKFILL_BEFORE, None])
-def test_a_backfill_row_cannot_record_a_look_from_after_the_cutoff(root, now):
-    with pytest.raises(H.LedgerError, match="before ADR-021"):
-        H.record_look(**look(authority="ADR-012", now=now), backfill=True, via="backfill: x")
+def _unknown_commits(rows: list[dict]) -> set[str]:
+    asked = "".join(f"{r['git_commit']}^{{commit}}\n" for r in rows)
+    out = subprocess.run(["git", "cat-file", "--batch-check"], cwd=REPO_ROOT, input=asked, capture_output=True,
+                         text=True, check=True).stdout
+    return {line.split()[0].removesuffix("^{commit}") for line in out.splitlines() if line.endswith("missing")}
 
 
-def test_the_backfill_cutoff_is_adr_021_s_acceptance(root):
-    just_before = H.BACKFILL_BEFORE - timedelta(minutes=1)
-    assert just_before.astimezone(timezone.utc) == datetime(2026, 10, 8, 18, 36, tzinfo=timezone.utc)
-    H.record_look(**look(authority="ADR-012", now=just_before), backfill=True, via="backfill: x")
+def ledger_problems(rows: list[dict]) -> list[str]:
+    """What I2 and I10 refuse at the door, asked of rows already written, plus the time and the commit."""
+    problems, owner = [], {}
+    for n, r in enumerate(rows, 2):
+        if set(r) != set(H.COLUMNS) or not all((r.get(c) or "").strip() for c in H.COLUMNS):
+            problems.append(f"line {n}: a column is missing or empty")
+            continue
+        if r["held_out_set"] not in H.HELD_OUT_SETS:
+            problems.append(f"line {n}: unknown set")
+        if r["tier"] not in H.TIERS:
+            problems.append(f"line {n}: unknown tier")
+        if H._FIGURE.search(r["what"]):
+            problems.append(f"line {n}: a figure in what")
+        try:
+            if datetime.fromisoformat(r["timestamp_utc"]).utcoffset() is None:
+                problems.append(f"line {n}: a time with no offset")
+        except ValueError:
+            problems.append(f"line {n}: a time that does not parse")
+        if owner.setdefault(r["batch"], r["authority"]) != r["authority"]:
+            problems.append(f"line {n}: batch {r['batch']} under two authorities")
+    problems += [f"unknown commit {c}" for c in _unknown_commits([r for r in rows if (r.get("git_commit") or "").strip()])]
+    return problems
+
+
+GOOD_ROW = {"timestamp_utc": "2026-09-11T00:00:00+00:00", "held_out_set": TEST, "tier": "labels", "what": "a look",
+            "by": "researcher", "via": "a source", "authority": "none: x", "batch": "b"}
+
+
+def test_the_ledger_in_this_repository_is_well_formed():
+    assert ledger_problems(_rows_in_this_repo()) == []
+
+
+@pytest.mark.parametrize("change,why", [({"held_out_set": "elliptic"}, "unknown set"), ({"tier": "peek"}, "unknown tier"),
+                                        ({"what": "prevalence 1.48%"}, "a figure"), ({"by": " "}, "missing or empty"),
+                                        ({"timestamp_utc": "2026-09-11T00:00:00"}, "no offset"),
+                                        ({"timestamp_utc": "yesterday"}, "does not parse"),
+                                        ({"git_commit": "0" * 40}, "unknown commit"),
+                                        ({"authority": "none: y"}, "two authorities")])
+def test_the_well_formed_check_finds_each_defect(change, why):
+    good = {**GOOD_ROW, "git_commit": _rows_in_this_repo()[0]["git_commit"]}
+    assert ledger_problems([good]) == []
+    assert any(why in p for p in ledger_problems([good, {**good, **change}]))
+
+
+def test_the_backfill_holds_every_source_and_only_earlier_looks():
+    backfill = [r for r in _rows_in_this_repo() if r["batch"] in BACKFILL_BATCHES]
+    assert {r["batch"] for r in backfill} == BACKFILL_BATCHES
+    assert all(datetime.fromisoformat(r["timestamp_utc"]) < ADR_021_ACCEPTED for r in backfill)
+    assert {r["held_out_set"] for r in backfill} == {TEST, OFFICIAL}
+
+
+def test_the_gate1_rows_are_the_scores_batch_adr_012_ran():
+    gate1 = [r for r in _rows_in_this_repo() if r["batch"] == "gate1"]
+    assert {(r["held_out_set"], r["tier"], r["authority"]) for r in gate1} == {(TEST, "scores", ADR_012)}
+    assert min(r["timestamp_utc"] for r in gate1) == "2026-09-14T00:37:47+00:00"   # ERRATUM-DGF1-1:46
+    assert {r["git_commit"][:7] for r in gate1} == {"09c6e72", "681a969"}
+
+
+def test_what_was_seen_before_gate1_comes_from_both_sets_and_stops_at_the_batch():
+    seen = H.disclosure(_rows_in_this_repo(), TEST, "gate1")
+    assert seen == sorted(seen, key=lambda line: line[:25])
+    assert any(OFFICIAL in line for line in seen) and any(TEST in line for line in seen)
+    assert not any("Gate-1" in line for line in seen)
+    assert all(line[:25] < "2026-09-14T00:37:47+00:00" for line in seen)
 
 
 # ------------------------------------------------------------------ I5: git_dirty, with the real writer
@@ -417,12 +482,15 @@ def test_the_hand_path_records_an_incidental_look(root, monkeypatch, capsys):
     assert "recorded" in capsys.readouterr().out
 
 
-def test_the_hand_path_writes_a_backfill_row(root, monkeypatch):
+def test_the_backfill_flag_is_gone(root, monkeypatch):
+    """ADR-021 clause 9. From here, an earlier look is recorded as incidental, with its authority as "none"."""
+    assert not {"backfill", "via", "commit"} & set(inspect.signature(H.record_look).parameters)
+    assert not hasattr(H, "BACKFILL_BEFORE")
     run_as(HAND, monkeypatch)
-    assert cli.main([*BASE, "--what", "the split's measurement", "--authority", "none: before any document",
-                     "--batch", "split", "--backfill", "--via", "backfill: ADR-011's script", "--commit", "abc1234",
-                     "--when", "2026-09-11T00:00:00+00:00"]) == 0
-    assert H.read_ledger()[0]["git_commit"] == "abc1234"
+    for flags in (["--backfill"], ["--via", "a source"], ["--commit", "abc1234"]):
+        with pytest.raises(SystemExit):
+            cli.main([*BASE, "--what", "a look", "--authority", "none: x", "--batch", "x", "--incidental", *flags])
+    assert not H.LEDGER.exists()
 
 
 def test_the_hand_path_refuses_what_record_look_refuses(root, monkeypatch, capsys):

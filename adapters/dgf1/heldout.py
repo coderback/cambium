@@ -7,8 +7,8 @@ a line naming the set, the tier, the script and the batch:
 
 The script is the running ``__main__`` and the time is the clock's, so a caller supplies neither.
 The ledger's path and the repository root are module constants: no argument, environment variable or
-command-line option redirects the ledger. Only ``scripts/heldout_ledger.py`` passes ``incidental``,
-``backfill`` or ``now``.
+command-line option redirects the ledger. Only ``scripts/heldout_ledger.py`` passes ``incidental`` or
+``now``.
 
 The ledger names what was seen, never its value, because it is committed to a public repository.
 
@@ -59,8 +59,6 @@ PUBLISHED_TOTALS = {"normal": 1_210_092, "fraud": 15_509, "background": 2_474_94
 # The researcher's calendar: the wait is "not the same calendar day" there (ADR-021 clause 3).
 LOCAL_TZ = ZoneInfo("Europe/London")
 WAIT = timedelta(hours=12)
-# A backfill row records a look from before ADR-021's acceptance.
-BACKFILL_BEFORE = datetime(2026, 10, 8, 19, 37, tzinfo=LOCAL_TZ)
 
 _STATUS = re.compile(r"^\*\*Status:\*\*\s*(\w+)", re.MULTILINE)
 _STATUS_LINE = re.compile(r"^\*\*Status:\*\*.*$", re.MULTILINE)
@@ -151,25 +149,17 @@ def read_ledger() -> list[dict]:
 
 
 def record_look(held_out_set: str, tier: str, what: str, by: str, authority: str, batch: str, *,
-                incidental: bool = False, backfill: bool = False, now: datetime | None = None,
-                via: str | None = None, commit: str | None = None) -> dict:
+                incidental: bool = False, now: datetime | None = None) -> dict:
     """Append one row and sync it to disk before returning. Never rewrites an existing row.
 
-    Refuses, and writes nothing, on anything but a look it may record. ``incidental``, ``now``,
-    ``via`` and ``commit`` belong to the hand path; the last two only to a backfill row, which names
-    its source and the commit its look ran at.
+    Refuses, and writes nothing, on anything but a look it may record. ``incidental`` and ``now``
+    belong to the hand path.
     """
     clock = _clock()
     if now is not None and now > clock:
         raise LedgerError("a look's time may not be later than the clock")
     when = now or clock
-    if backfill and when >= BACKFILL_BEFORE:
-        raise LedgerError("a backfill row records a look from before ADR-021, not after")
-    if not backfill and (via is not None or commit is not None):
-        raise LedgerError("only a backfill row names its own via or commit")
-    if backfill and not via:
-        raise LedgerError("a backfill row names its source in via")
-    via = via if backfill else current_script()
+    via = current_script()
     _require_known(held_out_set)
     if tier not in TIERS:
         raise LedgerError(f"tier must be one of {TIERS}, not {tier!r}")
@@ -178,13 +168,12 @@ def record_look(held_out_set: str, tier: str, what: str, by: str, authority: str
             raise LedgerError(f"{name} is empty")
     if _FIGURE.search(what):
         raise LedgerError("'what' must describe the look, not carry a figure")
-    if not backfill:      # a backfill row keeps the authority its look ran under; nothing else is skipped
-        check_authority(held_out_set, tier, authority, via, batch, when, incidental)
+    check_authority(held_out_set, tier, authority, via, batch, when, incidental)
     if any(r["batch"] == batch and r["authority"] != authority for r in read_ledger()):
         raise LedgerError(f"batch {batch!r} already belongs to another authority")
     row = {"timestamp_utc": when.astimezone(timezone.utc).isoformat(timespec="seconds"),
            "held_out_set": held_out_set, "tier": tier, "what": what, "by": by, "via": via,
-           "authority": authority, "batch": batch, "git_commit": commit or git_commit(REPO_ROOT)}
+           "authority": authority, "batch": batch, "git_commit": git_commit(REPO_ROOT)}
     new_file = not LEDGER.exists() or LEDGER.stat().st_size == 0
     with LEDGER.open("a", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS, lineterminator="\n")
