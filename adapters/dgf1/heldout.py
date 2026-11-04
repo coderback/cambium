@@ -11,6 +11,15 @@ command-line option redirects the ledger. Only ``scripts/heldout_ledger.py`` pas
 ``backfill`` or ``now``.
 
 The ledger names what was seen, never its value, because it is committed to a public repository.
+
+The default paths (``load_dgraph``, ``dgf1_splits``) carry no held-out label and nothing derived from
+one. The held-out parts come only from the accessors here, and each records the look before it reads
+anything:
+
+- ``open_test_window`` returns the test window, with the true labels at the labels or scores tier;
+- ``open_official_track`` returns every label and the three official masks, for ADR-015's track;
+- ``integrity_ok`` compares whole-snapshot totals with the published ones. It returns pass or fail
+  only, and it is not a look (ADR-021 clause 2).
 """
 
 from __future__ import annotations
@@ -24,6 +33,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import torch
+from torch import Tensor
+
+from adapters.dgf1.datasource_dgraph import BACKGROUND, FRAUD, NORMAL, _load_raw
+from adapters.dgf1.eval import dgf1_window_bounds
+from gbe.eval import TemporalSplit
 from gbe.run.config import git_commit
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -31,12 +46,15 @@ LEDGER = REPO_ROOT / "experiments" / "heldout_ledger.csv"
 
 COLUMNS = ("timestamp_utc", "held_out_set", "tier", "what", "by", "via", "authority", "batch", "git_commit")
 TIERS = ("structure", "labels", "scores")
+TEMPORAL_TEST, OFFICIAL_TEST = "dgf1-temporal-test-482-821", "dgraph-official-test"
 # Each held-out set, with the sets it shares users with (ADR-015:234). Disclosure and the post-look
 # rule cover the overlapping sets too (ADR-021 clause 1).
 HELD_OUT_SETS: dict[str, frozenset[str]] = {
-    "dgf1-temporal-test-482-821": frozenset({"dgraph-official-test"}),
-    "dgraph-official-test": frozenset({"dgf1-temporal-test-482-821"}),
+    TEMPORAL_TEST: frozenset({OFFICIAL_TEST}),
+    OFFICIAL_TEST: frozenset({TEMPORAL_TEST}),
 }
+# The dataset's published whole-snapshot class totals (ADR-010:24).
+PUBLISHED_TOTALS = {"normal": 1_210_092, "fraud": 15_509, "background": 2_474_949}
 # The researcher's calendar: the wait is "not the same calendar day" there (ADR-021 clause 3).
 LOCAL_TZ = ZoneInfo("Europe/London")
 WAIT = timedelta(hours=12)
@@ -198,3 +216,34 @@ def disclosure(rows: list[dict], held_out_set: str, batch: str) -> list[str]:
         raise LedgerError(f"batch {batch!r} has no opener row in the ledger")
     before = min(starts)
     return seen_so_far([r for r in rows if r["timestamp_utc"] < before], held_out_set)
+
+
+def open_test_window(*, tier: str, what: str, by: str, authority: str, batch: str
+                     ) -> tuple[TemporalSplit, Tensor | None]:
+    """Record the look, then return the test window, plus the true labels unless it is a structure look.
+
+    ``adapters.dgf1.datasource_dgraph.with_labels`` puts the labels back for scoring.
+    """
+    record_look(TEMPORAL_TEST, tier, what, by, authority, batch)
+    s = dgf1_window_bounds()
+    window = TemporalSplit(train_max=int(s["train_max"]), test_min=int(s["test_min"]),
+                           test_max=int(s["test_max"]), time_attr=str(s.get("time_attr", "node_time")))
+    return window, (None if tier == "structure" else _load_raw().y)
+
+
+def open_official_track(*, tier: str, what: str, by: str, authority: str, batch: str) -> dict[str, Tensor]:
+    """Record the look, then return every label and the three official masks (ADR-015's track)."""
+    if tier == "structure":
+        raise LedgerError("the official masks are label-derived; open them at the labels or scores tier")
+    record_look(OFFICIAL_TEST, tier, what, by, authority, batch)
+    raw = _load_raw()
+    return {"y": raw.y, "official_train_mask": raw.train_mask, "official_val_mask": raw.val_mask,
+            "official_test_mask": raw.test_mask}
+
+
+def integrity_ok() -> bool:
+    """Whole-snapshot label totals against the published ones: pass or fail, and nothing else."""
+    y = _load_raw().y
+    return (int((y == NORMAL).sum()) == PUBLISHED_TOTALS["normal"]
+            and int((y == FRAUD).sum()) == PUBLISHED_TOTALS["fraud"]
+            and int(torch.isin(y, torch.tensor(BACKGROUND)).sum()) == PUBLISHED_TOTALS["background"])

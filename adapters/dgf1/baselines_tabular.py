@@ -119,7 +119,7 @@ def floor_design(
 ) -> FloorDesign:
     """Build the floor's matrices from the same inputs, views and node sets as the GNN.
 
-    ``split`` is a DGF-1 window (``dgf1_splits()["val"]`` or ``["test"]``): training rows use the
+    ``split`` is a DGF-1 window (``dgf1_splits()["val"]``, or what ``open_test_window`` returns): training rows use the
     view as of ``split.train_max``, scoring rows the view as of ``split.test_max``.
     """
     if feature_set not in FEATURE_SETS:

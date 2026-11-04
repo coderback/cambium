@@ -196,15 +196,19 @@ def test_the_preflight_refuses_a_configuration_that_does_not_rebuild_the_referen
 
 def test_the_hash_rebuild_depends_on_the_configuration_it_is_given():
     """A rebuild that ignored its arguments would accept any drifted configuration."""
+    from gbe.eval import TemporalSplit
     from gbe.gnn import GNNHParams
-    from adapters.dgf1.eval import dgf1_splits
+    from adapters.dgf1.eval import dgf1_splits, dgf1_window_bounds
 
     splits = dgf1_splits()
+    bounds = dgf1_window_bounds()
+    other_window = TemporalSplit(train_max=bounds["train_max"], test_min=bounds["test_min"],
+                                 test_max=bounds["test_max"], time_attr="node_time")
     base = rebuilt_reference_hash(splits["val"], _repro_hp(), _repro_base_cfg())
     other_lr = GNNHParams(**{**_repro_hp().as_dict(), "lr": REPRO_LR * 2,
                              "fan_out": tuple(_repro_hp().fan_out)})
     assert rebuilt_reference_hash(splits["val"], other_lr, _repro_base_cfg()) != base
-    assert rebuilt_reference_hash(splits["test"], _repro_hp(), _repro_base_cfg()) != base
+    assert rebuilt_reference_hash(other_window, _repro_hp(), _repro_base_cfg()) != base
     assert rebuilt_reference_hash(splits["val"], _repro_hp(),
                                   {**_repro_base_cfg(), "phase": "P9"}) != base
 

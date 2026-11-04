@@ -30,7 +30,7 @@ from adapters.dgf1.datasource_dgraph import (
     view_node_features,
     window_target_mask,
 )
-from adapters.dgf1.eval import CONFIG_PATH, dgf1_splits
+from adapters.dgf1.eval import CONFIG_PATH, dgf1_splits, dgf1_window_bounds
 
 T = 3  # fixture train_max
 SPLIT_VAL = TemporalSplit(train_max=T, test_min=4, test_max=5)
@@ -198,7 +198,8 @@ def test_recency_is_measured_from_the_views_own_cutoff():
 def test_windows_come_from_the_config_and_share_one_train_max():
     s = dgf1_splits()
     assert (s["val"].train_max, s["val"].test_min, s["val"].test_max) == (369, 370, 481)
-    assert (s["test"].train_max, s["test"].test_min, s["test"].test_max) == (369, 482, 821)
+    bounds = dgf1_window_bounds()
+    assert (bounds["train_max"], bounds["test_min"], bounds["test_max"]) == (369, 482, 821)
 
 
 def test_non_contiguous_windows_are_rejected(tmp_path):

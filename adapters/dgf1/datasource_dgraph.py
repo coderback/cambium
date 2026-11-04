@@ -23,6 +23,7 @@ problem, and a fit over all users would leak test-window statistics into it.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,6 +32,9 @@ from torch import Tensor
 from torch_geometric.data import Data
 
 from gbe.eval import TemporalSplit, edges_as_of
+from adapters.dgf1.eval import dgf1_window_bounds
+
+DGRAPH_ROOT = Path(__file__).resolve().parents[2] / "data" / "dgraph"
 
 # Pinned from doc-02 §2.1 as amended by ADR-010; verified by scripts/verify_dgraph_snapshot.py.
 EXPECTED_NODES = 3_700_550
@@ -41,6 +45,7 @@ NUM_EDGE_TYPES = EDGE_TYPE_MAX - EDGE_TYPE_MIN + 1
 
 NORMAL, FRAUD = 0, 1
 BACKGROUND = (2, 3)
+HIDDEN = -1   # every user after the validation window until an accessor opens them; no real label
 
 RECENCY_FEATURES = ("steps_since_last_edge", "steps_since_first_edge")
 VIEW_FEATURE_NAMES: tuple[str, ...] = tuple(
@@ -75,7 +80,6 @@ def prepare_dgraph(
     y: Tensor,
     *,
     reverse_edges: bool = True,
-    official_masks: dict[str, Tensor] | None = None,
     strict: bool = False,
 ) -> Data:
     """Assemble the DGF-1 graph from raw tensors (the testable core of :func:`load_dgraph`).
@@ -119,31 +123,52 @@ def prepare_dgraph(
     data.node_time = node_time
     data.labelled_mask = labelled_mask(y)
     data.reverse_edges = bool(reverse_edges)
-    for name, mask in (official_masks or {}).items():
-        data[name] = mask  # the official RANDOM split: reported track only, never gated (ADR-010)
     return data
 
 
-def load_dgraph(
-    root: str | Path = "data/dgraph", reverse_edges: bool = True, strict: bool = True
-) -> Data:
-    """Load the DGraph-Fin snapshot (PyG ``DGraphFin``) into the DGF-1 graph.
+def _load_raw(root: str | Path = DGRAPH_ROOT) -> Data:
+    """The snapshot as shipped, held-out labels and official masks included.
 
-    PyG does not download it (registration-gated); see ``scripts/verify_dgraph_snapshot.py``.
+    PyG does not download it (registration-gated); see ``scripts/verify_dgraph_snapshot.py``. Only
+    this module and ``adapters.dgf1.heldout`` call it, and the second records the look first.
     """
     from torch_geometric.datasets import DGraphFin  # adapter-only import (gbe/ never sees it)
 
-    raw = DGraphFin(root=str(root))[0]
-    return prepare_dgraph(
-        raw.x, raw.edge_index, raw.edge_time, raw.edge_type, raw.y,
-        reverse_edges=reverse_edges,
-        official_masks={
-            "official_train_mask": raw.train_mask,
-            "official_val_mask": raw.val_mask,
-            "official_test_mask": raw.test_mask,
-        },
-        strict=strict,
-    )
+    return DGraphFin(root=str(root))[0]
+
+
+def hide_later_labels(y: Tensor, node_time: Tensor, val_max: int) -> Tensor:
+    """``y`` with every user after the validation window carrying :data:`HIDDEN`."""
+    return torch.where(node_time > val_max, torch.full_like(y, HIDDEN), y)
+
+
+def load_dgraph(
+    root: str | Path = DGRAPH_ROOT, reverse_edges: bool = True, strict: bool = True
+) -> Data:
+    """The DGF-1 graph, carrying no held-out label and nothing derived from one (ADR-021 I6).
+
+    Every label after the validation window is hidden **before** :func:`prepare_dgraph` runs,
+    because it builds ``labelled_mask`` from the labels it is given. All three official masks are
+    dropped, because together they mark exactly the labelled users. Held-out parts come only from
+    ``adapters.dgf1.heldout``.
+    """
+    raw = _load_raw(root)
+    node_time = node_time_earliest_edge(raw.edge_index, raw.edge_time, raw.x.size(0))
+    y = hide_later_labels(raw.y, node_time, int(dgf1_window_bounds()["val_max"]))
+    return prepare_dgraph(raw.x, raw.edge_index, raw.edge_time, raw.edge_type, y,
+                          reverse_edges=reverse_edges, strict=strict)
+
+
+def with_labels(data: Data, y: Tensor) -> Data:
+    """``data`` with an accessor's labels put back, and ``labelled_mask`` rebuilt from them (I7).
+
+    Scoring needs both: it picks its targets from ``labelled_mask`` and reads ``y``. The graph it is
+    given keeps its hidden labels.
+    """
+    out = copy.copy(data)
+    out.y = y
+    out.labelled_mask = labelled_mask(y)
+    return out
 
 
 def _assert_canonical(x: Tensor, edge_index: Tensor) -> None:
