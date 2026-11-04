@@ -57,6 +57,10 @@ def git_commit(repo_root: Path | None = None) -> str:
 # in a batch as dirty for a non-reason. dirty must mean uncommitted *code/config* (ADR-002).
 IGNORED_DIRTY_PATHS: frozenset[str] = frozenset({"experiments/registry.csv"})
 
+# Run outputs that count as clean only while they grow: a batch's opener row lands in the held-out
+# ledger before its runs start, but a rewritten row must still mark the tree dirty (ADR-021 I5).
+APPEND_ONLY_PATHS: frozenset[str] = frozenset({"experiments/heldout_ledger.csv"})
+
 
 def _dirty_paths(porcelain: str, ignore: frozenset[str]) -> list[str]:
     """Paths from ``git status --porcelain`` output, minus ignored run-output artifacts."""
@@ -73,25 +77,53 @@ def _dirty_paths(porcelain: str, ignore: frozenset[str]) -> list[str]:
     return paths
 
 
+def _only_appended(committed: bytes, working: bytes) -> bool:
+    """The working copy keeps every committed line, in order, and only adds lines after them.
+
+    Line endings are normalised first: on a checkout with ``core.autocrlf`` git stores LF and the
+    working copy holds CRLF. A committed file with no final newline cannot be appended to, since
+    extending its last line would rewrite a row.
+    """
+    committed, working = committed.replace(b"\r\n", b"\n"), working.replace(b"\r\n", b"\n")
+    return working.startswith(committed) and (not committed or committed.endswith(b"\n"))
+
+
+def _change_is_append(path: str, repo_root: Path | None) -> bool:
+    """True if ``path`` (repo-relative, from git status) only grew from what HEAD holds."""
+
+    def git(*args: str) -> bytes:
+        return subprocess.run(["git", *args], cwd=repo_root, capture_output=True, check=True).stdout
+
+    in_head = git("ls-tree", "--full-tree", "HEAD", "--", path)
+    committed = git("show", f"HEAD:{path}") if in_head else b""
+    top = git("rev-parse", "--show-toplevel").decode().strip()
+    return _only_appended(committed, (Path(top) / path).read_bytes())
+
+
 def git_dirty(
     repo_root: Path | None = None,
     ignore: frozenset[str] = IGNORED_DIRTY_PATHS,
+    append_only: frozenset[str] = APPEND_ONLY_PATHS,
 ) -> bool:
     """True if the working tree has uncommitted code/config (or git state is unknown).
 
     Run-output artifacts (``ignore``, default the append-only registry) are excluded so a
     run's ``dirty`` flag reflects whether its *inputs* were committed, not that it appended
-    its own row to a tracked registry (ADR-002).
+    its own row to a tracked registry (ADR-002). Paths in ``append_only``, default the held-out
+    ledger, are excluded only while the change is an append to what HEAD holds (ADR-021).
     """
     try:
         out = subprocess.run(
-            ["git", "status", "--porcelain"],
+            ["git", "status", "--porcelain", "--no-renames"],
             cwd=repo_root,
             capture_output=True,
             text=True,
             check=True,
         )
-        return bool(_dirty_paths(out.stdout, ignore))
+        return any(
+            path not in append_only or not _change_is_append(path, repo_root)
+            for path in _dirty_paths(out.stdout, ignore)
+        )
     except (subprocess.CalledProcessError, FileNotFoundError):
         return True
 
