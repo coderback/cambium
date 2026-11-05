@@ -456,3 +456,23 @@ The text above is not edited, so citations of its lines stay valid. **No clause 
   environment, and no pending document changes that.
 - **`:299-301`'s note is labelled "Corrected 2026-09-15"** but was committed on 2026-10-06
   (`8296f4b`), three weeks after the date it carries.
+
+## Note on five departures, 2026-11-05 (ADR-023, accepted 2026-11-05 (15:22) by coderback)
+
+**Source:** `decisions/ADR-023-matched-time-sensitivity-preregistration.md`, which `:442-443` requires to record
+in both ADRs why one of clause 5's conditions does not apply. The text above is not edited, so citations of its
+lines stay valid. **No clause changes** except as these say, and the reasons are ADR-023's.
+
+- **`:330-331`, "as of each user's own node time".** ADR-023 clause 2's shared scaling constants are fitted on
+  the training view as of 369, so they summarise activity later than some training seeds. A fit at each user's own
+  time zeroes both recency columns, because they are constant there. The batch's report says so.
+- **Clause 5.5, `:349-351`, the same edge sets as the temporal sampler.** Only a first-appearance builder can meet
+  that. ADR-023 clause 4 compares window-only's edges with `window_only_edges` instead.
+- **`:339`, "ADR-011's literal rows run in the same batch".** Under ADR-023 clause 4 a failed reproduction, or an
+  exploratory row that errors or is not clean, drops those rows with a dated reason, and the matched batch goes on.
+  These rows never decide anything, so they cannot stop it.
+- **`:355`, "No row from weights that fail reproduction".** A pilot row exists before its reproduction can run. So
+  under ADR-023 clause 5 a mismatch voids the attempt: root cause, no further row from those weights, and no rule.
+- **`:327`, the guard's "dated decline".** A test batch ended as broken under ADR-023 clause 7 records its dated
+  reason in both documents like a decline after a go, with a `**Closed:**` line, and this guard reads it. A batch
+  broken after a look also prints that look's reading and gaps, labelled as supporting no claim.

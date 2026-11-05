@@ -1,10 +1,12 @@
 # ADR-023 — Matched-time sensitivity pre-registration (reported, not gated)
 
-**Status:** proposed
-**Date:** proposed 2026-11-04 · draft 2 2026-11-04 · draft 3 2026-11-04 · draft 4 2026-11-05 · draft 5 2026-11-05
+**Status:** accepted
+**Date:** proposed 2026-11-04 · draft 2 2026-11-04 · draft 3 2026-11-04 · draft 4 2026-11-05 · draft 5 2026-11-05 ·
+**accepted 2026-11-05 (15:22) by coderback**, at draft 5, after four review rounds
 **Tier:** A. It exercises access to a held-out set, as a reported-only batch, and it narrowly amends
 ADR-021 (CLAUDE.md *Process*).
-**Review rounds:** 4/4
+**Review rounds:** 4/4, spent. Round 4's two blocking findings were escalated, and the researcher moved both
+into tests (2026-11-05). Their tests and mutants are in the prototype (clause 8).
 **Deciders:** coderback
 **Implemented by:** plan rows 6b, 6c and 7, after the one-night wait. Row 5a's backfill landed first
 (`a462ef2`, ADR-021 clause 9).
@@ -36,7 +38,7 @@ second look extends the first's arms, and each look's ledger row carries its own
 ## Disclosure — what had been seen when this was written
 
 **Generated, not typed:** `python scripts/heldout_ledger.py disclose --set dgf1-temporal-test-482-821`,
-pasted here at acceptance, with the validation runs this ADR uses (ADR-021 clauses 4 and 6, and clause 9).
+pasted below at acceptance, with the validation runs this ADR uses (ADR-021 clauses 4 and 6, and clause 9).
 The post-look rule applies: every choice here uses no held-out label or score, or only removes claims, or,
 since this batch is reported only, is disclosed as informed.
 
@@ -55,6 +57,63 @@ since this batch is reported only, is disclosed as informed.
   `incidental-2026-11-05-structure`) and in the preamble. Clause 4's definition of window-only's inputs was
   written straight after. It follows from ADR-011:286-287's "recomputed from that view", but one of those lines
   concerns users a view isolates, and clause 4 rules on them, so it is disclosed as informed.
+
+**The ledger, every look so far, at `04aea43`'s 35 rows** (the command above, unedited):
+
+```text
+2026-07-27T00:00:00+00:00 · dgraph-official-test · labels · official masks' sizes, labelled counts and node-time profile, from the snapshot verifier (researcher and main session, via ADR-010 and lab 2026-07-27, running scripts/verify_dgraph_snapshot.py; date only, written at midnight UTC; git_commit added the script; re-runs not recorded; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgraph-official-test · labels · official masks' statistics, from ADR-011's measurement script (researcher and main session, via ADR-015's Disclosure and ADR-011, running scripts/measure_dgf1_temporal_split.py; date from lab 2026-09-11 Session 12, written at midnight UTC; git_commit is ADR-011's first draft; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgf1-temporal-test-482-821 · labels · test window's support, fraud count and prevalence, from ADR-011's measurement script (researcher and main session, via gates/ERRATUM-DGF1-1.md item 3 and ADR-011:78-84, running scripts/measure_dgf1_temporal_split.py; date from lab 2026-09-11 Session 12, written at midnight UTC; git_commit is ADR-011's first draft; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgf1-temporal-test-482-821 · labels · window-only view's share of isolated labelled test users, from ADR-011's measurement (researcher and main session, via gates/ERRATUM-DGF1-1.md item 3 and ADR-011:85-86; date from lab 2026-09-11 Session 12, written at midnight UTC; git_commit is ADR-011's first draft; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgf1-temporal-test-482-821 · structure · training view matched against the test view, for role-matching (researcher and main session, via gates/ERRATUM-DGF1-1.md item 4, lab 2026-09-11:13 and ADR-011:111-112; date from that lab's Session 12, written at midnight UTC; git_commit is ADR-011's first draft; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgf1-temporal-test-482-821 · structure · count of later edges between training users, which reaches test-window dates (researcher and main session, via not in the erratum's list, found writing this backfill; ADR-011:137 and lab 2026-09-11:51; date from that lab's Session 12, written at midnight UTC; git_commit is ADR-011's first draft; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgf1-temporal-test-482-821 · labels · fraud-vs-normal degree in the test window (review agent, ADR-011 red team, via gates/ERRATUM-DGF1-1.md item 2 and ADR-012:75-79; date from lab 2026-09-11 Session 12, written at midnight UTC; git_commit is the draft under review; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgf1-temporal-test-482-821 · labels · test window's support, fraud count and prevalence, pinned and re-checked by the datasource audit (researcher and main session, via gates/ERRATUM-DGF1-1.md item 3, running scripts/audit_dgf1_datasource.py; date from lab 2026-09-11 Session 14, written at midnight UTC; git_commit added the script; re-runs not recorded; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgf1-temporal-test-482-821 · structure · age ranges of training, validation and test users at scoring (researcher and main session, via gates/ERRATUM-DGF1-1.md item 4 and lab 2026-09-11:57; date from that lab's Session 14, written at midnight UTC; git_commit added the audit script; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgf1-temporal-test-482-821 · structure · an edge type found only in the test window, with its count and dates (researcher and main session, via gates/ERRATUM-DGF1-1.md item 4, lab 2026-09-11:68 and ADR-012:72-73; date from that lab's Session 15, written at midnight UTC; git_commit added the features module; authority: none: before any authorising document)
+2026-09-11T00:00:00+00:00 · dgf1-temporal-test-482-821 · structure · largest standardised input over test targets, under the inherited clamp and the fix, and how many test targets carry that edge type (researcher and main session, via gates/ERRATUM-DGF1-1.md item 5 and lab 2026-09-11:69; date from that lab's Session 15, written at midnight UTC; git_commit added the features module; authority: none: before any authorising document)
+2026-09-12T00:00:00+00:00 · dgf1-temporal-test-482-821 · structure · test window's edge volume relative to validation, for a timing projection (researcher and main session, via gates/ERRATUM-DGF1-1.md item 5 and lab 2026-09-11:272; date from that lab's Session 27, written at midnight UTC; git_commit records the session; authority: none: before any authorising document)
+2026-09-14T00:37:47+00:00 · dgf1-temporal-test-482-821 · scores · Gate-1 parity floor scored on the test window, every stage-1 seed (researcher, via scripts/run_dgf1_floor.py, registry rows dgf1-20260914T003747Z-1b2af0e8 to dgf1-20260914T004017Z-ce0dc211; time from the first run id; authority: decisions/ADR-012-dgf1-gate1-preregistration.md)
+2026-09-14T00:40:39+00:00 · dgf1-temporal-test-482-821 · scores · Gate-1 raw17 floor scored on the test window, every stage-1 seed (researcher, via scripts/run_dgf1_floor.py, registry rows dgf1-20260914T004039Z-d7c96ee4 to dgf1-20260914T004253Z-bbe7459f; time from the first run id; authority: decisions/ADR-012-dgf1-gate1-preregistration.md)
+2026-09-14T00:47:14+00:00 · dgf1-temporal-test-482-821 · scores · Gate-1 GNN scored on the test window, every stage-1 seed (researcher, via scripts/run_dgf1_gnn.py, registry rows dgf1-20260914T004714Z-a0861f53 to dgf1-20260914T015504Z-927aca45; time from the first run id; authority: decisions/ADR-012-dgf1-gate1-preregistration.md)
+2026-09-14T03:42:50+00:00 · dgf1-temporal-test-482-821 · scores · Gate-1 assembly: registry rows and score files read for the gate file's tables, checks and paired bootstrap (main session, for the researcher, via scripts/assemble_gate_dgf1_1.py and lab 2026-09-11 Session 32; time is the commit carrying the assembled file, earlier runs that night not timed; authority: decisions/ADR-012-dgf1-gate1-preregistration.md)
+2026-10-07T00:00:00+00:00 · dgraph-official-test · labels · official test mask's node-time quantiles and sizes, read in doc-02 (audit agent B, via notebooks/audit/2026-10-07/README.md section 6; date only, written at midnight UTC; git_commit is the audit's; authority: none: before any authorising document)
+2026-10-07T00:00:00+00:00 · dgraph-official-test · labels · official test mask's size-match percentage in doc-02, and labelled counts per mask in ADR-015 (audit agent A, via notebooks/audit/2026-10-07/README.md section 6; date only, written at midnight UTC; git_commit is the audit's; authority: none: before any authorising document)
+2026-10-07T00:00:00+00:00 · dgraph-official-test · labels · official masks' node-time medians, read in lab 2026-07-27 (audit agent C, via notebooks/audit/2026-10-07/README.md section 6; date only, written at midnight UTC; git_commit is the audit's; authority: none: before any authorising document)
+2026-10-07T00:00:00+00:00 · dgf1-temporal-test-482-821 · labels · a test-window label statistic written into audit report A (audit agent A, via docs/subagent-preamble.md, notebooks/audit/2026-10-07/A-dgf1-integrity.md:103; date only, written at midnight UTC; git_commit is the audit's; authority: none: before any authorising document)
+2026-10-07T00:00:00+00:00 · dgf1-temporal-test-482-821 · structure · count of later edges between training users, cited in audit report D (audit agent D, via found writing this backfill, notebooks/audit/2026-10-07/D-governing-docs.md:77; date only, written at midnight UTC; git_commit is the audit's; authority: none: before any authorising document)
+2026-10-07T00:00:00+00:00 · dgf1-temporal-test-482-821 · scores · content hashes of the Gate-1 score files, taken to verify their backup; no score was read (researcher and main session, via lab 2026-10-07:8 and ADR-016:213; date only, written at midnight UTC; git_commit is ADR-016's acceptance; authority: decisions/ADR-016-close-gate1-test-window.md)
+2026-10-07T23:27:57+00:00 · dgf1-temporal-test-482-821 · labels · test-window label statistics and label-free facts, as repeated in ADR-012's clause on the window and its power planning (review agent, ADR-018 first round, via docs/subagent-preamble.md, governance commit f650ec5, ADR-012:248, :304 and :313-318; time is that commit's; git_commit is the public HEAD then; authority: none: before any authorising document)
+2026-10-08T13:30:05+00:00 · dgf1-temporal-test-482-821 · labels · test-window statistics in ADR-011, ADR-012, lab 2026-09-11 and the audit script, read drafting the row-5b errata (main session, row-5b errata, via docs/subagent-preamble.md, governance commit 9b2646f; time is that commit's; git_commit is the public HEAD then; authority: none: before any authorising document)
+2026-10-08T14:09:03+00:00 · dgf1-temporal-test-482-821 · labels · a test-window label statistic in audit report A (review agent, row-5b errata, via docs/subagent-preamble.md, governance commit fdcfbb8, A-dgf1-integrity.md:103; time is that commit's; git_commit is the public HEAD then; authority: none: before any authorising document)
+2026-10-08T14:31:54+00:00 · dgf1-temporal-test-482-821 · labels · window-only view's share of isolated labelled test users, in ADR-013 and lab 2026-09-11 (review agent, row-5b errata's diff pass, via docs/subagent-preamble.md, governance commit ff5a658; time is that commit's; git_commit is the public HEAD then; authority: none: before any authorising document)
+2026-10-08T15:25:51+00:00 · dgf1-temporal-test-482-821 · labels · test-window label statistics in ADR-011, met drafting ADR-021 (main session, ADR-021 drafts, via docs/subagent-preamble.md, governance commit 294eac7, ADR-011:96-99; time is that commit's; git_commit is the public HEAD then; authority: none: before any authorising document)
+2026-10-08T17:33:48+00:00 · dgraph-official-test · labels · an official-mask statistic quoted from ADR-010, read in ADR-015 (review agent, ADR-021 third round, via docs/subagent-preamble.md, governance commit adcace1, ADR-015:208-209; time is that commit's; git_commit is the public HEAD then; authority: none: before any authorising document)
+2026-11-04T17:06:48+00:00 · dgf1-temporal-test-482-821 · labels · isolated-user share of labelled test users, read in ADR-011 and past a skip range in ADR-013 (review agent, ADR-023 first round, via scripts/heldout_ledger.py; authority: none: met while reviewing documents)
+2026-11-04T17:07:06+00:00 · dgf1-temporal-test-482-821 · labels · test-window label prevalence in a per-window series, read in ADR-011 (review agent, ADR-023 first round, via scripts/heldout_ledger.py; authority: none: met while reviewing documents)
+2026-11-04T17:07:29+00:00 · dgf1-temporal-test-482-821 · structure · test view's edge count relative to the validation view's, read in ADR-012 (review agent, ADR-023 first round, via scripts/heldout_ledger.py; authority: none: met while reviewing documents)
+2026-11-04T17:07:47+00:00 · dgf1-temporal-test-482-821 · structure · count and date range of one edge type, read in the scaler's and the features module's docstrings (review agent and main session, via scripts/heldout_ledger.py; authority: none: met while reviewing documents)
+2026-11-04T21:26:42+00:00 · dgf1-temporal-test-482-821 · structure · count of later edges between training users, which reaches test-window dates, read in lab 2026-09-11 (main session, writing the backfill, via scripts/heldout_ledger.py; authority: none: met while reviewing documents)
+2026-11-05T01:12:46+00:00 · dgf1-temporal-test-482-821 · labels · labelled test users isolated by the window-only view, count and share, printed from ADR-011 (main session, reading ADR-023's round 3, via scripts/heldout_ledger.py; authority: none: a whole-file search of ADR-011 printed :153 and :454, not on the skip list)
+2026-11-05T01:13:27+00:00 · dgf1-temporal-test-482-821 · structure · edge-incidence shares and test-window neighbour counts at first appearance, printed from ADR-011 (main session, reading ADR-023's round 3, via scripts/heldout_ledger.py; authority: none: a whole-file search of ADR-011 printed :156 and :165, not on the skip list)
+```
+
+**The validation runs this ADR uses:** ADR-012's validation pilot, from the registry by
+`scripts/matched_margin.py`'s filter (tag `pilot`, window 370-481, seeds 0 to 4 per arm, at `2c8f4843`). Clause 5's
+margins and spreads come from these rows alone. Clause 4's reproduction compares against the same rows.
+
+```text
+dgf1-parity     seed 0  dgf1-20260913T232506Z-1acd5067
+dgf1-parity     seed 1  dgf1-20260913T233439Z-388ea9b8
+dgf1-parity     seed 2  dgf1-20260913T234459Z-05cf9e3f
+dgf1-parity     seed 3  dgf1-20260913T235530Z-26af2632
+dgf1-parity     seed 4  dgf1-20260914T000520Z-ed807866
+xgboost-parity  seed 0  dgf1-20260913T232205Z-c2af9760
+xgboost-parity  seed 1  dgf1-20260913T232228Z-7d7c21ad
+xgboost-parity  seed 2  dgf1-20260913T232250Z-8cde556f
+xgboost-parity  seed 3  dgf1-20260913T232310Z-85857ccf
+xgboost-parity  seed 4  dgf1-20260913T232331Z-856b67ab
+```
 
 ## Context
 
@@ -620,3 +679,7 @@ wait too, and only this ADR's own rows implement its clause 5. ADR-020 is Tier B
   Writing the tests, 4 mutants survived the first two runs: a missing test, a guard that let a retry through once
   a metric was seen, and two pieces of redundant code, since removed. No reviewer has read this draft's fold-in,
   because the budget is spent. What stays open is stated in clause 5, *What this cannot stop*.
+
+- **Acceptance** (2026-11-05 (15:22), on draft 5 at `bb63859`). The researcher accepted draft 5 as it stands. Since
+  that commit only the header, the generated disclosure and this line have changed: no clause, rule or test.
+  The dated notes this ADR's *Docs affected* lists went in with it.

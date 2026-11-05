@@ -68,7 +68,7 @@ This ADR authorises no look, and no choice here uses a held-out label or score.
      drafted, is day 1. Its required items cannot shrink (ADR-013:321). When the budget runs out, it is
      declined with a dated reason recorded as ADR-013:324-325 requires. Once all its validation pilot's
      rows exist, its go/no-go rule decides, and running out of budget cannot decline it. The day the
-     rule runs still gets its line, even if n passes N.
+     rule runs still gets its line, even if n passes N. *Note 2026-11-05 (ADR-023 clause 5): a void attempt's rows are not "the pilot's rows" here. Only ten clean rows are, whether their reproduction has passed or is still owed, so the budget can still run out while no attempt has reproduced.*
    - **EDR-1's Phase 0 for its initial universe (`docs/03-edgar-risk-embedding-model-BUILD.md:43`): 30
      working days,** six five-day weeks, which the dated plan did not stretch (`docs/timeline.md:58`).
      It counts every day of Phase-0 work from row 13's acceptance: ingestion, baselines and leakage

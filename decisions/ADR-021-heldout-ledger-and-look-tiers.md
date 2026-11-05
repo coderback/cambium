@@ -137,7 +137,7 @@ it. ELL-1's test steps are out of scope. ELL-1 is closed, and its window is neve
   a held-out row of `experiments/registry.csv`, whose metrics are scores.
 
 **Not looks:**
-- re-reading a signed gate file, or a figure it prints;
+- re-reading a signed gate file or a signed `gates/REPORT-DGF1-matched-time.md`, which counts as one throughout this ADR, or a figure either prints; *Amended (ADR-023) 2026-11-05, taking effect when that report is signed; was "re-reading a signed gate file, or a figure it prints".*
 - reading the dataset's own publication, including its whole-snapshot class totals (ADR-010:24);
 - the adapter's whole-snapshot integrity check (invariant I9), which compares totals with that
   publication and returns only pass or fail.

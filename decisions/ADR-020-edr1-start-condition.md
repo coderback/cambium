@@ -72,7 +72,7 @@ N1, `notebooks/audit/2026-10-07/B-route-review.md:59`), and this ADR does not su
    - it is declined with a dated reason, at any point before its stage-2 test batch runs (plan row 6d
      included);
    - a stage-1 no-go is recorded (row 6c);
-   - a go is recorded, and its stage-2 test batch is reported (row 7).
+   - a go is recorded, and its stage-2 test batch is reported (row 7). *Note 2026-11-05 (ADR-023 clause 7): a batch ended as broken under that clause counts as reported.*
 4. **DGF-1's exit decision is accepted** as an ADR, tiered under ADR-017 by its review (plan row 10).
    Deciding ADR-015's official-split batch makes it Tier A (`CLAUDE.md:201`). For each remaining DGF-1 item
    (Phase 2 and Gate 2, ADR-015's positioning batch) it states whether that item is closed, deferred
