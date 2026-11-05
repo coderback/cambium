@@ -1,0 +1,9 @@
+ADR-023 clause 5: the margin, from ADR-012's validation pilot (tag `pilot`, window 370-481, seeds 0 to 4 per arm).
+The rule's power is at 20 seeds per arm and level 0.011375.
+
+fraud_auc: Δ_gated +0.036935, m 0.018467
+  the pilot's spreads: DGF-1 0.007872, floor 0.002422; power at them 1.0000 at a true gain of 0, 0.9926 at a true gain of m/2
+  the rule starts to fail at: DGF-1's spread 0.024556, with the floor's as above; or both spreads at 0.018078
+fraud_auprc: Δ_gated +0.008036, m 0.004018
+  the pilot's spreads: DGF-1 0.001755, floor 0.000318; power at them 1.0000 at a true gain of 0, 0.9923 at a true gain of m/2
+  the rule starts to fail at: DGF-1's spread 0.005354, with the floor's as above; or both spreads at 0.003933
