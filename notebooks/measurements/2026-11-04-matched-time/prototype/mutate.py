@@ -75,7 +75,12 @@ _GO_SRC = r'_GO = re.compile(r"\*\*Go/no-go:\*\* go · \d{4}-\d{2}-\d{2} · \S")
 _GATE = "    if not go_earned(adr_text, rows, delta_gated):\n"
 _BUDGET = 'return all(status(rows, k) == "void" for k in attempts_in(rows))'
 _LIVE = 'live = [k for k in found if status(rows, k) != "void"]'
-_PATHS = 'CODE_PATHS = ("adapters/", "gbe/", "scripts/", "configs/")'
+_ALLOWED = 'return all(p in BETWEEN_LOOKS_FILES or p.startswith(BETWEEN_LOOKS_DIRS) for p in changed_paths)'
+_LOOK = 'return f"{text}\\n{first_look_line(rows, design)}" if look_read(ledger_rows) else text'
+_LOOK_BY = 'return any(r["batch"] == "matched-time" and r["tier"] == "scores" and r["by"] == ASSEMBLER for r in ledger_rows)'
+_RETRY = 'if head in {r["git_commit"] for r in pilot_rows(rows, k)} and (k not in excused or _mismatched(rows, k)):'
+_ONE_COMMIT = 'commits = {r["git_commit"] for r in (*pilot_rows(rows, k), *finished, *stopped)}'
+_FILES = 'BETWEEN_LOOKS_FILES = frozenset({"experiments/heldout_ledger.csv", "experiments/registry.csv", "gates/REPORT-DGF1-matched-time.md"})'
 _REPRO_LOOP = "    owed = []\n    for arm in ARMS:\n"
 _BATCH_REPRO_LOOP = "    pilot, own = pilot_rows(rows, k), tagged(rows, BATCH_REPRO_TAG)\n    for arm in ARMS:\n"
 _REFUSAL_LOOP = "        for arm in ARMS:\n            for metric in METRICS:\n"
@@ -102,19 +107,35 @@ GUARD_MUTANTS = [
     ("the rule reads the last clean attempt", 'return next((k for k in attempts_in(rows) if status(rows, k) == "clean"), None)', 'return next((k for k in reversed(attempts_in(rows)) if status(rows, k) == "clean"), None)'),
     ("the opener runs before the check", _GATE, "    opener()\n" + _GATE),
     ("nothing is checked", _GATE, "    if False:\n"),
-    ("the batch's reproduction is not checked", "    check_batch_reproduced(rows, first_clean(rows), head)\n", ""),
-    ("the opener runs before the batch's reproduction", "    check_batch_reproduced(rows, first_clean(rows), head)\n    return opener()\n", "    result = opener()\n    check_batch_reproduced(rows, first_clean(rows), head)\n    return result\n"),
+    ("the batch's reproduction is not checked", "    check_batch_reproduced(rows, first_clean(rows), moved, run_causes_in(adr_text))\n", ""),
+    ("the opener runs before the batch's reproduction", "    check_batch_reproduced(rows, first_clean(rows), moved, run_causes_in(adr_text))\n    return opener()\n", "    result = opener()\n    check_batch_reproduced(rows, first_clean(rows), moved, run_causes_in(adr_text))\n    return result\n"),
+    ("a closed line shuts nothing", "    if _CLOSED.search(adr_text):\n", "    if False:\n"),
+    ("a closed line quoted in prose shuts the window", r'''_CLOSED = re.compile(r"^\*\*Closed:\*\*", re.MULTILINE)''', r'''_CLOSED = re.compile(r"\*\*Closed:\*\*", re.MULTILINE)'''),
     # one attempt's rows
     ("every attempt's rows are read", "    own = pilot_rows(rows, k)\n", "    own = rows\n"),
     ("reproduction rows are read as pilot rows", "    own = pilot_rows(rows, k)\n", "    own = pilot_rows(rows, k) + repro_rows(rows, k)\n"),
     ("the filter ignores the attempt", 'return [r for r in rows if _metrics(r).get("experiment") == tag]', 'return [r for r in rows if str(_metrics(r).get("experiment")).rsplit("_", 1)[0] == tag.rsplit("_", 1)[0]]'),
-    ("a missing metric is not a void attempt", "    except (ValueError, KeyError) as why:\n", "    except ValueError as why:\n"),
+    ("a missing metric is not a void attempt", "    except (ValueError, KeyError, TypeError) as why:\n", "    except (ValueError, TypeError) as why:\n"),
+    ("a null metric crashes a pilot", "    except (ValueError, KeyError, TypeError) as why:\n", "    except (ValueError, KeyError) as why:\n"),
     ("arms at two commits pass", "    _one_commit(rows, k)\n", ""),
-    ("a reproduction on another commit passes", 'commits = {r["git_commit"] for r in (*pilot_rows(rows, k), *repro_rows(rows, k))}', 'commits = {r["git_commit"] for r in pilot_rows(rows, k)}'),
-    ("a later pilot row changes the status", "return tagged(rows, pilot_tag(k))[:PILOT_ROWS]", "return tagged(rows, pilot_tag(k))"),
-    ("a later reproduction row changes the status", "return tagged(rows, repro_tag(k))[:REPRO_ROWS]", "return tagged(rows, repro_tag(k))"),
-    ("the last pilot rows count, not the first", "return tagged(rows, pilot_tag(k))[:PILOT_ROWS]", "return tagged(rows, pilot_tag(k))[-PILOT_ROWS:]"),
-    ("the last reproduction rows count, not the first", "return tagged(rows, repro_tag(k))[:REPRO_ROWS]", "return tagged(rows, repro_tag(k))[-REPRO_ROWS:]"),
+    ("a reproduction on another commit passes", _ONE_COMMIT, 'commits = {r["git_commit"] for r in pilot_rows(rows, k)}'),
+    ("a stopped row on another commit passes", _ONE_COMMIT, 'commits = {r["git_commit"] for r in (*pilot_rows(rows, k), *finished)}'),
+    ("a later pilot row changes the status", "return tagged(_until_closed(rows, k), pilot_tag(k))[:PILOT_ROWS]", "return tagged(_until_closed(rows, k), pilot_tag(k))"),
+    ("a later reproduction row changes the status", "            if len(finished) == REPRO_ROWS:\n                break\n", ""),
+    ("the last pilot rows count, not the first", "return tagged(_until_closed(rows, k), pilot_tag(k))[:PILOT_ROWS]", "return tagged(_until_closed(rows, k), pilot_tag(k))[-PILOT_ROWS:]"),
+    ("the last reproduction rows count, not the first", "    for r in tagged(_until_closed(rows, k), repro_tag(k)):\n", "    for r in reversed(tagged(_until_closed(rows, k), repro_tag(k))):\n"),
+    ("a later attempt does not close an earlier one", "        if later and int(later.group(1)) > k:\n            break\n", ""),
+    ("an attempt closes itself", "        if later and int(later.group(1)) > k:\n", "        if later and int(later.group(1)) >= k:\n"),
+    # a reproduction stopped short
+    ("a stop voids the attempt at once", "MAX_STOPS = 1\n", "MAX_STOPS = 0\n"),
+    ("a second stop stays owed for ever", "MAX_STOPS = 1\n", "MAX_STOPS = 99\n"),
+    ("an errored row holding a metric counts as a stop", "return _errored(row) and not any(key in _metrics(row) for key in METRICS)", "return _errored(row)"),
+    ("a stop is read as a finished row", "        if _stopped_short(r):\n            stopped.append(r)\n", "        if False:\n            stopped.append(r)\n"),
+    ("two stops read as still owed", "    if len(stopped) > MAX_STOPS:\n", "    if False:\n"),
+    ("two stops read as a failure", 'raise ReproductionStopped(f"attempt {k}: seed 0', 'raise ReproductionFailed(f"attempt {k}: seed 0'),
+    ("a not-clean reproduction row is called a failure", """        if not _clean_row(second[0]):
+            raise BrokenPilot(f"attempt {k}, arm {arm}: {second[0]['run_id']} is not a clean, deterministic row")
+""", ""),
     # reproduction
     ("reproduction is not checked", "    _check_reproduced(rows, k)\n", ""),
     ("reproduction checks only DGF-1", _REPRO_LOOP, "    owed = []\n    for arm in ARMS[:1]:\n"),
@@ -135,12 +156,29 @@ GUARD_MUTANTS = [
     ("a pilot may start with a reproduction owed", _LIVE, 'live = [k for k in found if status(rows, k) == "clean"]'),
     ("no root cause is needed", "    if missing:\n", "    if False:\n"),
     ("only the last attempt needs a root cause", "missing = [k for k in found if k not in root_causes]", "missing = [k for k in found[-1:] if k not in root_causes]"),
-    ("a retry on the same commit is allowed", 'if head in {r["git_commit"] for r in pilot_rows(rows, last)} and last not in set(environmental):', "if False:"),
-    ("an environmental cause does not help", " and last not in set(environmental):", ":"),
-    ("the next attempt reuses a number", "    return last + 1\n", "    return last\n"),
+    ("a retry on the same commit is allowed", _RETRY, "if False:"),
+    ("an environmental cause does not help", " and (k not in excused or _mismatched(rows, k)):", ":"),
+    ("an environmental label licenses a mismatch", " and (k not in excused or _mismatched(rows, k)):", " and k not in excused:"),
+    ("an environmental label licenses a retry once a metric was seen", "        if first and _matches(first[0], second, \"\"):\n", "        if first and _clean_row(second) and _matches(first[0], second, \"\"):\n"),
+    ("only the last attempt's commit is checked", "    for k in found:\n        if head in", "    for k in found[-1:]:\n        if head in"),
+    ("the next attempt reuses a number", "    return found[-1] + 1\n", "    return found[-1]\n"),
     ("the first attempt is misnumbered", "    if not found:\n        return 1\n", "    if not found:\n        return 0\n"),
     ("a reproduction may run on another commit", '    if head != pilot_rows(rows, k)[0]["git_commit"]:\n', "    if False:\n"),
     ("a reproduction may run when none is owed", '    if status(rows, k) != "owed":\n', "    if False:\n"),
+    ("a reproduction may run on a dirty tree", "    if tree_dirty:\n", "    if False:\n"),
+    ("a stopped reproduction needs no root cause", "    if _repro_scan(rows, k)[1] and k not in root_causes:\n", "    if False:\n"),
+    ("a finished arm may run again", '    if any(_metrics(r).get("arm") == arm for r in repro_rows(rows, k)):\n', "    if False:\n"),
+    # the header's lines
+    ("a pilot needs no real-data line", "    if len(checked) != 1:\n", "    if False:\n"),
+    ("two real-data lines pass", "    if len(checked) != 1:\n", "    if not checked:\n"),
+    ("a real-data line quoted in prose counts", r'''_REAL_DATA = re.compile(r"^\*\*Real-data''', r'''_REAL_DATA = re.compile(r"\*\*Real-data'''),
+    ("a failed real-data check counts", r'''check:\*\* passed · \d{4}''', r'''check:\*\* \w+ · \d{4}'''),
+    ("code may move after the real-data check", "    if not between_looks_ok(moved(checked[0])):\n", "    if False:\n"),
+    ("a root cause quoted in prose counts", r'''_ATTEMPT_CAUSE = re.compile(r"^\*\*Root''', r'''_ATTEMPT_CAUSE = re.compile(r"\*\*Root'''),
+    ("a run's cause quoted in prose counts", r'''_RUN_CAUSE = re.compile(r"^\*\*Root''', r'''_RUN_CAUSE = re.compile(r"\*\*Root'''),
+    ("every recorded cause is environmental", "for m in _ATTEMPT_CAUSE.finditer(adr_text) if m.group(2)}", "for m in _ATTEMPT_CAUSE.finditer(adr_text)}"),
+    ("the header's environmental cause is not read", "root_causes_in(adr_text), environmental_in(adr_text))", "root_causes_in(adr_text), ())"),
+    ("the label stays in the cause", "return {int(m.group(1)): m.group(3).strip() for m", "return {int(m.group(1)): m.group(0) for m"),
     # the budget, and what a decline prints
     ("the budget locks on a void attempt", _BUDGET, "return not attempts_in(rows)"),
     ("the budget never locks", _BUDGET, "return True"),
@@ -148,6 +186,13 @@ GUARD_MUTANTS = [
     ("the budget reads only the first attempt", _BUDGET, 'return all(status(rows, k) == "void" for k in attempts_in(rows)[:1])'),
     ("a void attempt reaches the rule in a decline", "result = decide(clean_attempt(rows, k), delta_gated)", "result = decide(rule_inputs(attempt_values(rows, k, DGF1_ARM), attempt_values(rows, k, FLOOR_ARM)), delta_gated)"),
     ("an owed reproduction prints as a failure", "        except ReproductionFailed as why:\n", "        except (ReproductionFailed, ReproductionOwed) as why:\n"),
+    ("a stop prints as a failure", 'rule not computed: reproduction did not complete; "', 'rule not computed: reproduction failed; "'),
+    ("a stop's line hides its gaps", 'f"attempt {k} (void): {_gaps(rows, k)}; rule not computed: reproduction did not complete; "', 'f"attempt {k} (void): rule not computed: reproduction did not complete; "'),
+    ("a stop's root cause is not printed", """lines.append(f"attempt {k} (void): {_gaps(rows, k)}; rule not computed: reproduction did not complete; "
+                         f"{why}; root cause: {root_causes.get(k, 'not found')}")""",
+     """lines.append(f"attempt {k} (void): {_gaps(rows, k)}; rule not computed: reproduction did not complete; "
+                         f"{why}")"""),
+    ("a clean attempt hides the stop it ran past", """else 'no-go'}{stops}")""", """else 'no-go'}")"""),
     ("a void attempt's line hides its gaps", 'f"attempt {k} (void): {_gaps(rows, k)}; rule not computed: reproduction failed; "', 'f"attempt {k} (void): rule not computed: reproduction failed; "'),
     ("a void attempt's line does not say why", 'rule not computed: reproduction failed; "', 'rule not computed; "'),
     ("a broken attempt reads as a failed reproduction", 'rule not computed: broken pilot; "', 'rule not computed: reproduction failed; "'),
@@ -157,21 +202,35 @@ GUARD_MUTANTS = [
                          f"{why}")"""),
     ("the gap has the wrong sign", "means[0] - means[1]", "means[1] - means[0]"),
     ("the gap reads rows that do not count", 'values = [_metrics(r)[m] for r in pilot_rows(rows, k) if', 'values = [_metrics(r)[m] for r in tagged(rows, pilot_tag(k)) if'),
-    ("a clean attempt's line hides the rule", """; rule: {'go' if result['go'] else 'no-go'}")""", '")'),
+    ("a clean attempt's line hides the rule", """; rule: {'go' if result['go'] else 'no-go'}{stops}")""", '{stops}")'),
+    ("a null value crashes a void attempt's gaps", '_metrics(r).get("arm") == arm and _number(_metrics(r).get(m))]', '_metrics(r).get("arm") == arm and m in _metrics(r)]'),
     ("attempts print out of order", "return sorted(found)", "return sorted(found, reverse=True)"),
     ("a decline with no rows prints nothing", 'return lines or ["no pilot rows exist; rule not computed"]', "return lines"),
     # the test batch
-    ("the batch's reproduction ignores the commit", ' and r["seed"] == "0" and r["git_commit"] == head]', ' and r["seed"] == "0"]'),
-    ("the batch's reproduction may be missing or doubled", "        if len(second) != 1:\n", "        if len(second) < 1:\n"),
-    ("the batch's reproduction is not compared", '        why = _matches(first[0], second[0], f"arm {arm}")\n        if why:\n            raise BrokenBatch(why)\n', ""),
+    ("the batch's reproduction ignores what moved", """        if not between_looks_ok(moved(done[-1]["git_commit"])):
+            raise BrokenBatch(f"arm {arm}: the code has moved since its reproduction at {done[-1]['git_commit']}")
+""", ""),
+    ("the batch's reproduction may be missing", "        if not done:\n", "        if False:\n"),
+    ("two reproduction rows on one commit pass", """        if len({r["git_commit"] for r in done}) != len(done):\n""", "        if False:\n"),
+    ("the batch's reproduction is not compared", """        why = _matches(first[0], done[-1], f"arm {arm}")\n        if why:\n            raise BrokenBatch(why)\n""", ""),
+    ("the first row is compared, not the last", """        why = _matches(first[0], done[-1], f"arm {arm}")""", """        why = _matches(first[0], done[0], f"arm {arm}")"""),
+    ("a mismatch needs no root cause before it is checked again", """            if _matches(first[0], earlier, "") and earlier["run_id"] not in causes:\n""", "            if False:\n"),
+    ("an earlier row needs a cause even when it matched", """            if _matches(first[0], earlier, "") and earlier["run_id"] not in causes:\n""", """            if earlier["run_id"] not in causes:\n"""),
+    ("a stopped batch reproduction counts as a row", """ and r["seed"] == "0" and not _stopped_short(r)]""", """ and r["seed"] == "0"]"""),
     ("the batch's reproduction checks only DGF-1", _BATCH_REPRO_LOOP, _BATCH_REPRO_LOOP.replace("in ARMS:", "in ARMS[:1]:")),
     ("the batch's reproduction checks only the floor", _BATCH_REPRO_LOOP, _BATCH_REPRO_LOOP.replace("in ARMS:", "in ARMS[1:]:")),
-    ("code may sit between the looks", "return not any(p.startswith(CODE_PATHS) for p in changed_paths)", "return True"),
-    ("one clean path excuses the code", "return not any(p.startswith(CODE_PATHS)", "return not all(p.startswith(CODE_PATHS)"),
-    ("adapters may change between the looks", _PATHS, 'CODE_PATHS = ("gbe/", "scripts/", "configs/")'),
-    ("gbe may change between the looks", _PATHS, 'CODE_PATHS = ("adapters/", "scripts/", "configs/")'),
-    ("scripts may change between the looks", _PATHS, 'CODE_PATHS = ("adapters/", "gbe/", "configs/")'),
-    ("configs may change between the looks", _PATHS, 'CODE_PATHS = ("adapters/", "gbe/", "scripts/")'),
+    ("anything may sit between the looks", _ALLOWED, "return True"),
+    ("one allowed path excuses the rest", _ALLOWED, _ALLOWED.replace("return all(", "return any(")),
+    ("the list is a blacklist of code", _ALLOWED, 'return not any(p.startswith(("adapters/", "gbe/", "scripts/", "configs/")) for p in changed_paths)'),
+    ("the ledger may not sit between the looks", _FILES, 'BETWEEN_LOOKS_FILES = frozenset({"experiments/registry.csv", "gates/REPORT-DGF1-matched-time.md"})'),
+    ("the registry may not sit between the looks", _FILES, 'BETWEEN_LOOKS_FILES = frozenset({"experiments/heldout_ledger.csv", "gates/REPORT-DGF1-matched-time.md"})'),
+    ("the report may not sit between the looks", _FILES, 'BETWEEN_LOOKS_FILES = frozenset({"experiments/heldout_ledger.csv", "experiments/registry.csv"})'),
+    ("the lab may not sit between the looks", 'BETWEEN_LOOKS_DIRS = ("notebooks/lab/",)', 'BETWEEN_LOOKS_DIRS = ("notebooks/nowhere/",)'),
+    ("the ADR's body may move", """        if path == ADR_PATH and _below_header(run("show", f"{commit}:{path}")) == _below_header(run("show", f"HEAD:{path}")):\n""", "        if path == ADR_PATH:\n"),
+    ("the ADR's header counts as moved", """        if path == ADR_PATH and _below_header(run("show", f"{commit}:{path}")) == _below_header(run("show", f"HEAD:{path}")):\n""", "        if False:\n"),
+    ("a row on moved code reads clean", """        if not between_looks_ok(moved(r["git_commit"])):
+            raise BrokenBatch(f"run {r['run_id']} ran on code that has moved since")
+""", ""),
     ("an errored row with a metric is skipped", """            if any(key in m for key in METRICS):
                 raise BrokenBatch(f"run {r['run_id']} errored after a metric was written")
 """, ""),
@@ -182,19 +241,44 @@ GUARD_MUTANTS = [
     ("a completed row may run twice", """        if int(r["seed"]) in values:
             raise BrokenBatch(f"arm {arm} has seed {r['seed']} twice; a completed row is never re-run")
 """, ""),
-    ("a row with no finite metric is read", "        if metric not in m or not math.isfinite(float(m[metric])):\n", "        if metric not in m:\n"),
-    ("a row with no metric crashes", "        if metric not in m or not math.isfinite(float(m[metric])):\n", "        if not math.isfinite(float(m[metric])):\n"),
-    ("a short arm passes", "    if set(values) != set(range(n)):\n", "    if not set(values) <= set(range(n)):\n"),
-    ("an extra seed passes", "    if set(values) != set(range(n)):\n", "    if not set(range(n)) <= set(values):\n"),
+    ("a row with no finite metric is read", "        if not _number(m.get(metric)):\n", "        if metric not in m:\n"),
+    ("a null metric crashes the batch", "        if not _number(m.get(metric)):\n", "        if metric not in m or not math.isfinite(float(m[metric])):\n"),
+    ("a NaN counts as a number", " and math.isfinite(value)", ""),
+    ("a short arm passes", "    if set(range(n)) - set(values):\n", "    if False:\n"),
+    ("an extra seed passes", "    if set(values) - set(range(n)):\n", "    if False:\n"),
+    ("a seed still missing breaks the batch", 'raise SeedsMissing(f"arm', 'raise BrokenBatch(f"arm'),
     ("another arm's rows are read", '        if m.get("arm") != arm:\n            continue\n        if _errored(r):', "        if _errored(r):"),
-    ("another tag's rows are read", "    for r in tagged(rows, BATCH_TAG):\n        m = _metrics(r)\n", "    for r in rows:\n        m = _metrics(r)\n"),
+    ("another tag's rows are read", '    for r in tagged(rows, BATCH_TAG):\n        m = _metrics(r)\n        if m.get("arm") != arm:', '    for r in rows:\n        m = _metrics(r)\n        if m.get("arm") != arm:'),
     ("a re-run is allowed beside a completed row", "    if not errored or len(errored) != len(own):\n", "    if not errored:\n"),
     ("a re-run needs no errored row", "    if not errored or len(errored) != len(own):\n", "    if len(errored) != len(own):\n"),
     ("a re-run is allowed after a metric", "    if any(key in _metrics(r) for r in errored for key in METRICS):\n", "    if False:\n"),
-    ("a re-run is allowed on another commit", '    if any(r["git_commit"] != head for r in errored):\n', "    if False:\n"),
+    ("a re-run is allowed on moved code", '    if any(not between_looks_ok(moved(r["git_commit"])) for r in errored):\n', "    if False:\n"),
+    ("a re-run needs no root cause", '    if any(r["run_id"] not in causes for r in errored):\n', "    if False:\n"),
     ("a re-run reads any seed", _RERUN_OWN, 'own = [r for r in tagged(rows, BATCH_TAG) if _metrics(r).get("arm") == arm]'),
     ("a re-run reads any arm", _RERUN_OWN, 'own = [r for r in tagged(rows, BATCH_TAG) if r["seed"] == str(seed)]'),
-    ("a broken batch prints a reading", '        return f"refused: broken batch: {why}"\n', "        return None\n"),
+    ("a broken batch prints a reading", "        reason = str(why)\n", "        return None\n"),
+    # a look already read prints with the refusal
+    ("a seed still missing ends the batch by itself", "        if ended is None:\n            raise\n", ""),
+    ("a reason does not end the batch", "        if ended is None:\n            raise\n", "        raise\n"),
+    ("the dated reason is not printed", 'reason = f"{ended}; {why}"', "reason = str(why)"),
+    ("a look already read is hidden", _LOOK, "return text"),
+    ("a gap prints with no look read", _LOOK, 'return f"{text}\\n{first_look_line(rows, design)}"'),
+    ("the runner's opener counts as a look read", _LOOK_BY, 'return any(r["batch"] == "matched-time" and r["tier"] == "scores" for r in ledger_rows)'),
+    ("another batch's look counts", _LOOK_BY, 'return any(r["tier"] == "scores" and r["by"] == ASSEMBLER for r in ledger_rows)'),
+    ("a labels look counts as read", _LOOK_BY, 'return any(r["batch"] == "matched-time" and r["by"] == ASSEMBLER for r in ledger_rows)'),
+    ("the first look reads a second look's seeds", "    return [values[s] for s in range(n1)]\n", "    return list(values.values())\n"),
+    ("the first look reads each seed's last row", """ and not _errored(r) and int(r["seed"]) not in values:""", """ and not _errored(r):"""),
+    ("the first look reads an errored row", """ and not _errored(r) and int(r["seed"]) not in values:""", """ and int(r["seed"]) not in values:"""),
+    ("the first look loses its label", "stage 1 only, stage 2 broken, supports no claim", "first look"),
+    ("the first look's gap has the wrong sign", "gap = sum(dgf1) / len(dgf1) - sum(floor) / len(floor)", "gap = sum(floor) / len(floor) - sum(dgf1) / len(dgf1)"),
+    ("the first look's reading is dropped", 'parts.append(f"{metric} gap {gap:+.4f}, {reading(gain, below)}")', 'parts.append(f"{metric} gap {gap:+.4f}")'),
+    ("the first look's arms are swapped", "        dgf1, floor = (_first_values(rows, arm, metric, design.n1) for arm in ARMS)\n", "        floor, dgf1 = (_first_values(rows, arm, metric, design.n1) for arm in ARMS)\n"),
+    ("the first look reads as stage 2", '"stage": 1, "pilot_s"', '"stage": 2, "pilot_s"'),
+    ("the first look reads one metric", "    parts = []\n    for metric in METRICS:\n        dgf1, floor", "    parts = []\n    for metric in METRICS[:1]:\n        dgf1, floor"),
+    # the signed report
+    ("a signed report may be assembled again", "    if report_text is not None and _SIGNED.search(report_text):\n", "    if False:\n"),
+    ("a signature quoted in prose refuses", r'''_SIGNED = re.compile(r"^\*\*Signed:\*\*", re.MULTILINE)''', r'''_SIGNED = re.compile(r"\*\*Signed:\*\*", re.MULTILINE)'''),
+    ("no report at all crashes", "    if report_text is not None and _SIGNED.search(report_text):\n", "    if _SIGNED.search(report_text):\n"),
     ("the refusal checks only DGF-1", _REFUSAL_LOOP, _REFUSAL_LOOP.replace("in ARMS:", "in ARMS[:1]:")),
     ("the refusal checks only the floor", _REFUSAL_LOOP, _REFUSAL_LOOP.replace("in ARMS:", "in ARMS[1:]:")),
     ("the refusal checks only ROC-AUC", _REFUSAL_LOOP, _REFUSAL_LOOP.replace("in METRICS:", "in METRICS[:1]:")),
@@ -204,6 +288,12 @@ GUARD_MUTANTS = [
     ("a dirty exploratory row keeps the rows", "if len(found) != 1 or not _clean_row(found[0]) or ", "if len(found) != 1 or "),
     ("the exploratory check reads only one arm", "for arm, expected in gated_pilot_hashes.items():", "for arm, expected in list(gated_pilot_hashes.items())[:1]:"),
     ("the exploratory check reads any tag", "    own = tagged(rows, EXPLORATORY_REPRO_TAG)\n", "    own = rows\n"),
+    ("an errored exploratory row keeps its view", 'if not _clean_row(r) or int(r["seed"]) in seeds or ', 'if int(r["seed"]) in seeds or '),
+    ("a doubled exploratory seed keeps its view", 'if not _clean_row(r) or int(r["seed"]) in seeds or ', "if not _clean_row(r) or "),
+    ("an exploratory row with no metric keeps its view", " or not all(_number(m.get(key)) for key in METRICS):", ":"),
+    ("a short exploratory arm keeps its view", "        if seeds != set(range(n)):\n", "        if not seeds:\n"),
+    ("the view check reads one arm", "    for arm in EXPLORATORY_ARMS:\n", "    for arm in EXPLORATORY_ARMS[:1]:\n"),
+    ("one view's error drops the other", ' or m.get("view") != view:', ":"),
 ]
 
 AT = "at = row_times(batch)"
@@ -258,8 +348,12 @@ VIEW_MUTANTS = [
     ("the model is handed flipped edges", TO_MODEL, "_, logits = model(transform.transform(raw), batch.edge_index.flip(0))"),
     ("the loss reads labels in the unshuffled order", "loss(logits[: batch.batch_size], g.y[own])", "loss(logits[: batch.batch_size], g.y[seeds[: batch.batch_size]])"),
     ("the loss reads every row, not the seeds", "loss(logits[: batch.batch_size], g.y[own])", "loss(logits, g.y[batch.n_id])"),
+    ("the statistics' raise is removed", """        if not bool((hi > lo).all()):
+            raise AssertionError("a node in a subgraph has no edge dated at or before its seed's time")
+""", ""),
     # the exploratory rows
     ("window-only statistics count reverse edges", WINDOW_FEATS, "    both = torch.cat([fwd, fwd.flip(0)], dim=1)\n    feats, _ = view_node_features(both, torch.cat([et, et]), torch.cat([ety, ety]), node_time_earliest_edge(fwd, et, g.x.size(0)), last)\n"),
+    ("window-only's age runs from a user's appearance in the whole graph", WINDOW_FEATS, "    feats, _ = view_node_features(fwd, et, ety, g.node_time, last)\n"),
     ("window-only keeps edges with one endpoint inside", "inside[g.fwd[0]] & inside[g.fwd[1]]", "(inside[g.fwd[0]] | inside[g.fwd[1]])"),
     ("window-only edges run past the window", "keep = (g.edge_time <= last) & inside", "keep = inside"),
     ("window-only drops reverse edges", "edge_index=torch.cat([fwd, fwd.flip(0)], dim=1), num_nodes", "edge_index=fwd, num_nodes"),

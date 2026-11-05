@@ -390,6 +390,24 @@ def window_door(monkeypatch):
     return gate, batches
 
 
+def test_the_statistics_refuse_a_node_with_no_edge_at_or_before_its_time():
+    """Clause 8 relies on this raise: a reverse edge dated early reaches a node before its first edge."""
+    u = int(TARGETS[0])
+    table = P.statistics_table(G, VAL_END)
+    table(torch.tensor([u]), G.node_time[u][None])
+    with pytest.raises(AssertionError, match="no edge dated at or before"):
+        table(torch.tensor([u]), G.node_time[u][None] - 1)
+
+
+def test_the_fixture_has_a_user_whose_first_edge_in_the_window_only_view_is_later_than_their_first_edge():
+    """Otherwise a window-only age read from the whole graph would pass the door tests."""
+    fwd, et, _ = oracle_window_forward(G, VAL_FIRST, VAL_END)
+    in_view = torch.zeros(G.x.size(0), dtype=torch.bool)
+    in_view[fwd.flatten()] = True
+    first_in_view = node_time_earliest_edge(fwd, et, G.x.size(0))
+    assert bool((first_in_view[in_view] > G.node_time[in_view]).any())
+
+
 def test_the_fixture_s_window_only_view_has_edges_and_isolates_a_user():
     stats = oracle_window_statistics(G, VAL_FIRST, VAL_END)
     assert oracle_window_forward(G, VAL_FIRST, VAL_END)[0].size(1) > 0
