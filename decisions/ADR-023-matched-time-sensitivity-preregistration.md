@@ -1,20 +1,23 @@
 # ADR-023 — Matched-time sensitivity pre-registration (reported, not gated)
 
 **Status:** proposed
-**Date:** proposed 2026-11-04 · draft 2 2026-11-04 · draft 3 2026-11-04 · draft 4 2026-11-05
+**Date:** proposed 2026-11-04 · draft 2 2026-11-04 · draft 3 2026-11-04 · draft 4 2026-11-05 · draft 5 2026-11-05
 **Tier:** A. It exercises access to a held-out set, as a reported-only batch, and it narrowly amends
 ADR-021 (CLAUDE.md *Process*).
-**Review rounds:** 3/4
+**Review rounds:** 4/4
 **Deciders:** coderback
 **Implemented by:** plan rows 6b, 6c and 7, after the one-night wait. Row 5a's backfill landed first
 (`a462ef2`, ADR-021 clause 9).
 **Docs affected:**
 - `docs/timeline.md`'s rows 6 to 7, and CLAUDE.md's *Next* item 6;
 - CLAUDE.md's post-appearance qualification, once the report is signed;
-- `decisions/ADR-013-dgf1-sensitivity-view-inputs.md`: a dated note on three departures, as ADR-013:442-443
-  requires: clause 4's from its clause 5.5; clause 5's from its "No row from weights that fail reproduction"
-  (ADR-013:355), since a pilot row exists before its reproduction can run; and clause 7's broken batch, which
-  its guard (ADR-013:327) reads as a dated decline;
+- `decisions/ADR-013-dgf1-sensitivity-view-inputs.md`: a dated note on five departures, as ADR-013:442-443
+  requires: clause 2's shared scaling constants, which summarise activity later than some training seeds, from
+  its "as of **each user's own node time**" (ADR-013:330-331); clause 4's from its clause 5.5; clause 4's dropped
+  rows on a mismatch from its "ADR-011's literal rows run in the same batch" (ADR-013:339); clause 5's from its
+  "No row from weights that fail reproduction" (ADR-013:355), since a pilot row exists before its reproduction
+  can run; and clause 7's broken batch, which its guard (ADR-013:327) reads as a dated decline;
+- `decisions/ADR-020-edr1-start-condition.md:75`: a dated note that a batch ended as broken counts as reported;
 - `decisions/ADR-022-order-of-work-and-working-day-budgets.md:69-70` and the wording ADR-022:109 gives
   `docs/timeline.md`: a dated note on clause 5's reading of "the pilot's rows";
 - clause 9's amendments: `decisions/ADR-021-heldout-ledger-and-look-tiers.md:140`, CLAUDE.md's "Re-reading
@@ -47,11 +50,11 @@ since this batch is reported only, is disclosed as informed.
   beside the gains GATE-DGF1-1 prints: `m` is 73.6% of ROC-AUC's +0.0251 and 57.4% of AUPRC's +0.0070,
   not half. It was used only to remove claims (ADR-021:191): clause 7's second reading, and the test rejected
   below. It set no number here.
-- On 2026-11-05, while folding in round 3, a whole-file search of ADR-011 for the views' definitions printed
+- On 2026-11-05, while reading round 3's report, a whole-file search of ADR-011 for the views' definitions printed
   test-window figures not then on the skip list. They are in the ledger (`incidental-2026-11-05` and
   `incidental-2026-11-05-structure`) and in the preamble. Clause 4's definition of window-only's inputs was
-  written straight after. It follows from ADR-011:286's "recomputed from that view", and no figure could
-  change it.
+  written straight after. It follows from ADR-011:286-287's "recomputed from that view", but one of those lines
+  concerns users a view isolates, and clause 4 rules on them, so it is disclosed as informed.
 
 ## Context
 
@@ -82,9 +85,9 @@ was lost.
   they are constant there. Fitted on the view as of 369, only `edge_type_8` is zeroed, as at Gate 1.
 
 **The rule and its guards were prototyped first (ADR-017 item 3):**
-`notebooks/measurements/2026-11-04-matched-time/prototype/` has 232 tests on synthetic data, and 204 of 204
+`notebooks/measurements/2026-11-04-matched-time/prototype/` has 330 tests on synthetic data, and 278 of 278
 mutants killed, each by a failing test. `mutation-output.txt` holds the results, and its attribution section
-says which tests catch the mutants clause 8 relies on. ADR-017 item 3 puts a prototype outside the
+shows which tests catch eight mutants a broader kill could hide. ADR-017 item 3 puts a prototype outside the
 repo. The researcher chose on 2026-11-04 to keep this one here, as ADR-018 and ADR-021 kept theirs, because
 scratch can be lost.
 
@@ -156,13 +159,14 @@ the gated view, and are labelled **exploratory**. They are never compared infere
 anything.
 - **Both arms, and the same seed count as the batch,** extended if it takes a second look.
 - **Rows have a fixed identity.** The arms are `dgf1-parity-exploratory` and `xgboost-parity-exploratory`,
-  so no row shares an arm with Gate 1's. Each row has a `view` key, `window_only` or `first_appearance`, and
-  the tag `matched_exploratory`.
+  so no row shares an arm with Gate 1's, and the reproduction rows below use them too. Each row has a `view`
+  key, `window_only` or `first_appearance`, and the tag `matched_exploratory`.
 - **Their models produce no gated test-window score** (ADR-016:28-29). They never run through `run_dgf1`,
   and the path refuses a gated view on the test window (clause 8).
 - **Their inputs.** First appearance's are clause 2's. Window-only's come from that view's own forward edges,
-  because ADR-011:286 has them "recomputed from that view": recency runs from the window's end, age from a
-  user's first edge in the view, and a user the view isolates gets zeros. The GNN's go through the frozen
+  because ADR-011:286-287 has the floor's "recomputed from that view", and ADR-011 clause 3 takes the GNN's from
+  the edge set that feeds them (ADR-013:332). Recency runs from the window's end, age from a user's first edge
+  in the view, and a user the view isolates gets zeros. The GNN's go through the frozen
   transform and the floor's do not. Each floor is trained on the gated view's rows.
 - **Before the test window:** each view's builder runs on validation, and its inputs pass clause 8's
   comparison. Window-only cannot match the temporal sampler, so its edges are compared with
@@ -173,13 +177,17 @@ anything.
   seed. A mismatch drops the exploratory rows, with a dated reason in the report, and the matched batch goes
   on: these rows never decide anything, so they cannot stop it. ADR-013 clause 5.7 allows no row from those
   weights, so there is no retry. Other seeds run from the same code.
+- **A row that errors:** an exploratory row that errors or is not clean drops that view's rows, with a dated
+  reason in the report, and the matched batch goes on, for the same reason.
 
 ### Clause 5 — The pilot and the go/no-go rule
 
 **Before the pilot,** DGF-1's repro-check has passed on code that includes row 5a step 3 (`c53f200`), and
 its run id is cited in row 6c's commit (ADR-013:280-281, ADR-021:248-251). It covers `run_dgf1`, and not the
 new loop, whose own reproduction is below. Clause 8's real-data check has also passed on the pilot's code, so
-a builder that fails it cannot leave a clean attempt with no outcome.
+a builder that fails it cannot leave a clean attempt with no outcome. Its result is a header line
+`**Real-data check:** passed · <date> · <commit>`. The runner reads it from HEAD, and refuses a pilot without
+it or once the code has moved since that commit.
 
 **The pilot** runs on validation only (370–481), with **exactly seeds 0 to 4 per arm**, deterministic, on
 one clean commit shared by both arms and the reproduction, through `gbe.run` (ADR-018 clause 4). One command
@@ -192,18 +200,27 @@ those weights, and no rule. A pilot row exists before its reproduction can run, 
 design comes to ADR-013:355's "No row".
 
 **A reproduction is owed once all ten rows are clean on one commit.** If the command stops after them, the
-reproduction is the only thing that may run next, on that commit and no other. No decline of any kind comes
-first, even past the budget's last day, which ADR-022:70-71 already allows. So a reproduction cannot be skipped
-to avoid the rule, and no line can say one failed when it never ran.
+reproduction is the only thing that may run next, on that commit and no other, and on a clean tree with no
+override. No decline of any kind comes first, even past the budget's last day, which ADR-022:70-71 already
+allows. So a reproduction cannot be skipped to avoid the rule, and no line can say one failed when it never ran.
 
-**An attempt's status is read once,** from its first ten pilot rows and first two reproduction rows in
-registry order, and the runner refuses any further row under its tags. A row added later changes nothing.
+**A reproduction stopped short did not fail.** A run that stops with no metric written, by Ctrl-C or low memory,
+leaves the reproduction owed. With its cause recorded, the arm still to finish runs once more on that commit.
+That is one re-run per attempt, across both arms, and a finished arm never runs again. A second stop voids the
+attempt, which prints `rule not computed: reproduction did not complete`. Only a finished, clean row that differs
+is a failed reproduction. An errored row holding a metric has been read, and a row that is not clean says nothing
+about the commit, so each voids the attempt as a broken pilot.
+
+**An attempt's status is read once,** from its first ten pilot rows and the reproduction rows that finish it, in
+registry order. The runner refuses any further row under its tags, the command only ever starts a new attempt,
+and a later attempt's first row closes an earlier one. A row added later changes nothing.
 
 **A void attempt.** Its rows stay, because the registry is append-only. The rule never reads them, and the
 report lists them with their root cause. The next attempt runs every seed again, on one commit, under its
-own tags. Its root cause is recorded first. It is refused on the void attempt's commit unless that cause is
-environmental, such as a run stopped for low memory: a mismatch is investigated, never retried (ADR-013:280,
-ADR-008 clause 2).
+own tags. Its root cause is recorded first, in a header line `**Root cause, attempt <k>:** <cause>`, which opens
+`environmental · ` if it is one, and the runner reads it from HEAD. A new attempt is refused on any void attempt's
+commit unless that attempt's cause is environmental, such as a run stopped for low memory, and no reproduction
+row of it differed: a mismatch is investigated, never retried (ADR-013:280, ADR-008 clause 2).
 
 **The first clean attempt is final.** The rule takes no attempt number and reads that attempt alone, and no
 pilot starts after it. So a no-go cannot be followed by another attempt.
@@ -213,11 +230,12 @@ reproduction has passed or is still owed, so the budget can still run out while 
 Otherwise, after a failed reproduction, the budget could never force an end: only a voluntary decline could,
 and attempts could go on past the last day for as long as the researcher chose, against ADR-022:65. No attempt
 starts after the last day. One already running may finish in that run. If it stops past the last day short of
-its ten rows it is void, and with all ten its reproduction is owed.
+its ten rows it is void, and with all ten its reproduction is owed. The last day is enforced by hand, as
+ADR-013:282-283's rule is: the lab's budget line is its record, and no runner reads it.
 
-**The rule is computed by a function that receives neither arm's mean and no gap from this pilot,** only the
-higher arm's mean validation ROC-AUC, without saying whose it is, each arm's standard deviation, and the fixed
-`Δ_gated`. Go requires both:
+**The rule is computed by a function that receives no mean labelled by arm and no gap from this pilot,** only the
+higher of the two mean validation ROC-AUCs, without saying whose it is, each arm's standard deviation, and the
+fixed `Δ_gated`. Go requires both:
 
 1. **Sanity.** The higher mean validation ROC-AUC is at least **0.55**. This checks the shared data path and
    that at least one arm learns. It does not check DGF-1's arm: a DGF-1 arm stuck near 0.5 gets a go if the
@@ -247,16 +265,21 @@ is enough. This is arithmetic, and it predicts nothing about the matched arms' s
 |---|---|
 | A missing or extra seed, a missing metric, a non-finite value, more than one commit, or `pilot_arm` raises | The attempt is void, as above. The rule is not computed |
 | Ten clean rows, and the reproduction has not run | It is owed, as above. Nothing else may happen first |
-| The reproduction ran and failed, errored, or was not clean | The attempt is void, as above. The rule is not computed |
-| The budget runs out with no clean attempt and no reproduction owed | It is declined. The decline prints each void attempt's gaps, labelled void, its root cause, and `rule not computed: reproduction failed` or `rule not computed: broken pilot` |
+| The reproduction stopped once with no metric written | It stays owed, as above |
+| It stopped a second time | The attempt is void, as above. It prints `rule not computed: reproduction did not complete` |
+| A finished, clean reproduction row differs | The attempt is void, as above. It prints `rule not computed: reproduction failed` |
+| An errored row holds a metric, or a reproduction row is not clean | The attempt is void, as above. It prints `rule not computed: broken pilot` |
+| The budget runs out with no clean attempt and no reproduction owed | It is declined. The decline prints each void attempt's gaps, labelled void, its root cause, and which of those lines applies |
 | Neither arm varies on a metric | That metric fails precision, and `n1` is planned on the other. At assembly `judge` decides that metric: refused if neither arm varies on the test rows, and otherwise it runs, labelled under-resolved |
 | The sanity bar fails, or neither metric is precise enough | A no-go |
 
 **Once the first clean attempt exists,** the rule is computed and its result recorded that day, before any
 decline. It is recorded in this ADR's header as a line
-`**Go/no-go:** <go or no-go> · <date> · <run ids>`, naming that attempt's twelve rows. On a go, `**Stage-1 seeds:**` joins it, and the table
-ADR-018 clause 6 prints is committed beside this ADR (ADR-018:253). All are mechanical output, not
-amendments (ADR-018:255-256), and none goes on the Status or Date line, so none restarts the wait.
+`**Go/no-go:** <go or no-go> · <date> · <run ids>`, naming that attempt's twelve rows. A stopped row is not one
+of them, and the report lists it. On a go, `**Stage-1 seeds:**` follows on a line of its own
+(`scripts/preregistration.py:31`), and the table ADR-018 clause 6 prints is committed beside this ADR
+(ADR-018:253). All are mechanical output, not amendments (ADR-018:255-256), and none goes on the Status or Date
+line, so none restarts the wait. The same holds for the root-cause, real-data and closing lines.
 
 **A no-go** ends matched-time. The dated reason is recorded here and in Gate 3's ADR. That is the decline
 ADR-013:327's guard reads, and it satisfies ADR-013 clause 5.1 and resolves it for EDR-1
@@ -268,6 +291,11 @@ has run, with a dated reason in both documents (ADR-013:324-325). If a clean att
 their gaps and the rule's result, so a reader can judge it, and any void attempt prints as in the table. After
 Gate 3's pre-registration is accepted, it also needs a Tier-A amendment to that ADR (ADR-022:177-179). If the
 budget runs out with no clean attempt and no reproduction owed, it is declined (ADR-022:68-70, read as above).
+A decline after a go adds a header line `**Closed:** <date> · <reason>`, and the runner refuses on it.
+
+**What this cannot stop.** Anyone at the keyboard can stop a reproduction twice or kill a pilot short of ten rows,
+with most of a gap in view, and the attempt is void. No code prevents that. It prints as `did not complete` or
+`broken pilot` beside the void attempt's gaps, and that record is the only defence.
 
 **A go** leads to the test batch. Pilot gaps may appear in the report, and they size `n1` as ADR-018
 clause 4 allows, but they never enter the rule.
@@ -296,14 +324,20 @@ could only be disclosed as informed, and it adds a third training per seed.
     (`decisions/ADR-023-margin.txt`, arithmetic). Neither predicts the matched arms' spreads.
 - **Design:** ADR-018's default `n1 → 20`, with `n1` from ADR-018 clause 4's rule on the pilot's gain
   clauses. Only a gain clause can trigger the second look. The table prints before the first test-window
-  run. The assembler needs each row in HEAD's ledger (ADR-021:264), so a ledger commit may separate a second
-  look's rows from the first's. Between the looks no commit may touch `adapters/`, `gbe/`, `scripts/` or
-  `configs/`, and a test reads the paths. The ledger, this ADR's header and the lab may change.
+  run. The assembler needs each row in HEAD's ledger (ADR-021:264), so a ledger commit always separates a second
+  look's rows from the first's. Between the looks only the ledger, the registry, the lab, the report and this
+  ADR's header may change. Each row's commit is compared with HEAD, so a row on moved code breaks the batch, and
+  reverting a stray commit restores the code.
+- **A triggered second look is owed,** as a reproduction is. Not running it ends nothing, and the only way out is
+  the broken batch below, which prints what the first look read.
 - **The batch's own reproduction, before the first look.** Commits will separate the pilot from the batch,
   because row 7 waits for Gate 3's pre-registration. So seed 0 of each arm runs on validation at the batch's
   commit, tagged `matched_batch_repro`, and its metrics and score-file SHA-256 must match the clean attempt's,
-  on a clean row. The runner refuses the test window without it. On a mismatch no test-window row exists: root
-  cause, restore what moved, and check again. If it cannot be restored, the batch ends as broken, below.
+  on a clean row. The runner refuses the test window without it, and it stands for both looks while nothing off
+  that list has moved. A run that stops with no metric may run again on its commit. On a mismatch no test-window
+  row exists: its root cause goes in a header line `**Root cause, run <run id>:** <cause>`, what moved is restored,
+  and the check runs again on a new commit, never the same one. If it cannot be restored, the batch ends as
+  broken, below.
 - **Stage 2's result is final for both clauses on both metrics** (ADR-018:148), so a margin resolved at
   stage 1 can un-resolve.
 - **Access:** a mode `matched-time` in `scripts/preregistration.py`'s map (ADR-016 clause 5), and
@@ -327,9 +361,10 @@ could only be disclosed as informed, and it adds a third training per seed.
 
 | Case | Outcome |
 |---|---|
-| A run errors or stops with no metric written | Root cause, then that seed again on the same commit. The report lists the errored row and its re-run, and the assembler reads only the completed row |
+| A run errors or stops with no metric written | Its root cause goes in a header line as above, then that seed runs again on the same code. The report lists the errored row and its re-run, and the assembler reads only the completed row |
 | A completed row | It never runs again |
-| Anything else: a fix that needs a code change, an errored row holding a metric, a seed twice, a row that is not clean, or a seed or metric still missing | The batch ends. The report prints `refused: broken batch: <why>` in place of any reading. It prints no gap, and the rows stay in the registry, unread. This counts as reported for ADR-020:75. Its dated reason is recorded in both documents like a decline after a go (ADR-022:177-179), so ADR-013:327's guard reads it. The claim stays "not established". Any later batch needs its own Tier-A amendment, disclosed as informed |
+| A seed or metric not yet run | It is owed, and prints nothing. It ends the batch only with a dated reason, as below |
+| Anything else: a fix that needs a code change, an errored row holding a metric, a seed twice, a row that is not clean, or a row on code that has moved | The batch ends. The report prints `refused: broken batch: <why>` in place of a final reading. If no look was read it prints no gap, and the rows stay unread. If one was, which the assembler's scores row in the ledger shows, it also prints that look's reading and gaps, labelled `stage 1 only, stage 2 broken, supports no claim`, so breaking a batch hides nothing. This counts as reported for ADR-020:75. Its dated reason is recorded in both documents like a decline after a go (ADR-022:177-179), with a `**Closed:**` line, so ADR-013:327's guard reads it. The claim stays "not established". Any later batch needs its own Tier-A amendment, disclosed as informed |
 
 **The report's reading, fixed now.** Each sentence names its metric. No sentence claims that at least one
 metric holds, which would need α/2 (ADR-018:81-84). A metric that failed clause 5's precision prints
@@ -352,13 +387,14 @@ The prototype's rule, guard and door tests and mutants move onto the real module
 - `adapters/dgf1/matched.py`, tested in `tests/test_dgf1_matched.py`: the view, the loop and the floor's rows;
 - `scripts/matched_rule.py`, tested in `tests/test_matched_rule.py`: the rule, the attempts and the budget;
 - `scripts/run_dgf1_matched.py`, tested in `tests/test_dgf1_matched_runner.py`: the go line and the paths;
-- `scripts/assemble_dgf1_matched.py`, tested in `tests/test_dgf1_matched_assembly.py`: the reading;
+- `scripts/assemble_dgf1_matched.py`, tested in `tests/test_dgf1_matched_assembly.py`: the reading, and a refusal
+  on a signed report before any row is read (as ADR-013:266-268);
 - `scripts/gate_stats.py`'s `pilot_arm` filter, tested in `tests/test_gate_stats.py`.
 
 **Every test below reads the property, not a symptom: ADR-013:232-233 records what checking that scores
 differ cost.**
 
-- **The rule never sees the gap:** its input holds neither arm's mean and no gap from this pilot. Swapping the
+- **The rule never sees the gap:** its input holds no mean labelled by arm and no gap from this pilot. Swapping the
   arms, or moving a mean while the higher one stays above the bar, leaves the decision unchanged.
 - **The GNN's door, in training and in scoring:** the tensor passed to `model(...)` equals the frozen 369
   transform applied to raw `x` plus `view_node_features` on independently filtered edges `≤ t_u`, row by row
@@ -388,12 +424,21 @@ differ cost.**
   because `pilot_arm` checks only one arm at a time, and a reproduction row must itself be clean. A row added
   after an attempt's first twelve changes nothing. A void attempt never reaches the rule. A clean attempt or an
   owed reproduction locks the budget, and a void attempt does not. With a reproduction owed, nothing prints, and
-  the runner refuses a reproduction on another commit. The rule takes no attempt number. No pilot starts after a
-  clean attempt, before a root cause is recorded, or on a void attempt's commit unless its cause is environmental.
-  A decline and the report print attempts through one function, as the table says.
-- **The test batch:** a run that errored with no metric may run again, on its commit only. A completed row never
-  may. Everything else in clause 7's table prints `refused: broken batch`. The batch's reproduction passes before
-  `open_test_window`. A commit between the looks that touches code is refused.
+  the runner refuses a reproduction on another commit or a dirty tree. A reproduction stopped once stays owed on
+  either arm, a second stop on either voids the attempt and prints `did not complete`, a re-run needs its recorded
+  cause, and a finished arm never runs again. The rule takes no attempt number. No pilot starts after a clean
+  attempt, before a root cause or the real-data line is recorded, once the code has moved since that line, or on
+  any void attempt's commit unless its cause is environmental and no reproduction row differed. A later attempt's
+  first row closes an earlier one. Those header lines count only as their own anchored lines. A decline and the
+  report print attempts through one function, as the table says.
+- **The test batch:** a run that errored with no metric may run again on the same code, with its recorded cause. A
+  completed row never may. A seed not yet run is owed and prints nothing, unless a dated reason ends the batch.
+  Everything else in clause 7's table prints `refused: broken batch`. After a look it also prints that look's
+  gaps, reading and label, from its own seeds' first rows; with no look read it prints no gap; and only the
+  assembler's scores row counts as a look read. The batch's reproduction passes before `open_test_window`, and a
+  mismatch is checked again only with its cause recorded. Anything off clause 7's list between the looks is
+  refused, this ADR's body included, and a row on moved code breaks the batch. A test on two real commits goes
+  through the opener, the re-run and the reading. A `**Closed:**` line shuts the window.
 - **The second look and the plan:** only a gain clause triggers a second look, and each result says which
   clause it is; `n1` is planned on the other metric where neither arm varies on one, since `plan` raises on
   such a pair; stage 2 is final for both clauses on both metrics; the commits between looks are limited; and
@@ -406,13 +451,16 @@ differ cost.**
 - **The exploratory path:** each view and each arm has its own door test. Window-only's reads its statistics
   against an independent filter and its edges against `window_only_edges`. First appearance's reads clause 2's
   oracle, and each floor trains on the gated view's rows. The path refuses a gated view on the test window. A
-  reproduction mismatch drops only the exploratory rows, and raises nothing.
+  reproduction mismatch, or a row that errors, drops only the exploratory rows concerned, and raises nothing.
 - **Each test has a mutant,** with its output cited in the implementing commit. They include: static inputs;
   window-end inputs at scoring only; window-end inputs at training only; each neighbour read at its own time;
   a transform refit on the scoring view; floor inputs static on each path; a misdated reverse edge; a read of
   a void attempt; a reproduction skipped, or run on another commit; a row added after a clean attempt; a retry
   on the same commit; a go line on a later attempt; labels out of step with a batch's seeds; a window-only
-  statistic counting reverse edges; and a loss with no class weights. The prototype's no-margin path is not
+  statistic counting reverse edges; a loss with no class weights; a stopped reproduction voiding an attempt; a
+  second look left unrun ending the batch; a look hidden by a broken batch; and a row on moved code reading clean.
+  Round 4's two blocking findings are moved into these tests (ADR-017), and they land before any batch runs. The
+  prototype's no-margin path is not
   moved, since `Δ_gated` is fixed and positive, and its four mutants go with it.
 
 ### Clause 9 — The signed report's status
@@ -433,7 +481,8 @@ on signature, each with a dated "*Amended (ADR-023), was …*" note, as ADR-019:
 **This restarts ADR-021's wait and, for clause 5's reading, ADR-022's, and that costs nothing.** ADR-019:271's
 narrower reading applies to its own amendment only, so it is not relied on here. Row 5a, which implements
 ADR-021, finished before this ADR can be accepted (ADR-022 clause 1's row 6a), and ADR-021 itself authorises no
-look. Clause 5's reading acts only on row 6c, which runs after this ADR's own wait.
+look. Clause 5's reading acts only on row 6c, which runs after this ADR's own wait. ADR-013's note restarts its
+wait too, and only this ADR's own rows implement its clause 5. ADR-020 is Tier B, which has no wait.
 
 ## Alternatives rejected
 
@@ -446,14 +495,19 @@ look. Clause 5's reading acts only on row 6c, which runs after this ADR's own wa
   on 2026-11-04 to keep the bar on the higher arm. The cost: a bug that passes clause 8's tests would spend a
   test-window look. The reported-only wording limits the damage, and a decline that prints the gaps stays open.
 - **On a reproduction failure at the budget's end, holding the lock with no limit.** Only a voluntary decline
-  could then end the item, so nothing would force Gate 3 and EDR-1 to stop waiting, against ADR-022:65. A
-  reproduction failure cannot be produced by disliking a gap: the runner gives no way to skip the run or move it
-  to another commit, and the decline prints the void gaps. The cost: a bug that would take a day to fix could end
-  matched-time. The researcher chose this on 2026-11-04 for a reason since found wrong, and kept it on
-  2026-11-05 for this one.
+  could then end the item, so nothing would force Gate 3 and EDR-1 to stop waiting, against ADR-022:65. A disliked
+  gap cannot reach this exit quietly: the runner gives no way to skip the run or move it to another commit, one
+  stop leaves it owed, and only a finished row that differs is called a failure. Stopping it twice still voids the
+  attempt (clause 5, *What this cannot stop*), and the decline prints the void gaps. The cost: a bug that would
+  take a day to fix could end matched-time. The researcher chose this on 2026-11-04 for a reason since found
+  wrong, kept it on 2026-11-05 for this one, and kept it again when round 4 corrected this sentence.
 - **A second batch after a broken one, under this ADR.** A fix made once test-window rows exist could be chosen
   with some of them in view, and nothing in the rows could show it was not. A Tier-A amendment is the honest
-  route, because it discloses that. The cost: a bug found mid-batch ends the batch unless that amendment is written.
+  route, because it discloses that. The cost: a bug found mid-batch ends the batch unless that amendment is
+  written, and if a first look was read, its gaps print with no second look to settle them.
+- **A broken batch that prints no gap even after a look.** The researcher chose this on 2026-11-05, before round 4
+  showed it was a way out with no numbers: not running a triggered second look would have ended the batch with
+  the first look's gaps unprinted. They changed it the same day.
 - **Testing the matched gain against Gate 1's.** The matched arms' spreads are unknown, but if they matched
   Gate 1's at 20 seeds, a drop of about 13% of the gain on ROC-AUC or 6% on AUPRC would resolve (twice the
   standard error, by arithmetic from GATE-DGF1-1's spreads). Seeds measure seed noise on one window, and this batch also
@@ -523,7 +577,8 @@ look. Clause 5's reading acts only on row 6c, which runs after this ADR's own wa
   - a reproduction could simply not be run, so a disliked gap could reach a decline that said it had failed, and
     a row added after a clean attempt could void it;
   - a broken test batch had no outcome, and an exploratory mismatch could stop the comparison it never decides.
-- **Draft 4** (2026-11-05). All of them are folded in. The guards were prototyped first (*Context*). Also
+- **Draft 4** (2026-11-05, committed as `3544966`). All of them are folded in. The guards were prototyped first
+  (*Context*). Also
   changed: a clean attempt is final and the go line is recomputed from its rows; no retry without a root cause;
   a reproduction at the batch's commit; the real-data check moved before the pilot; window-only's inputs defined
   and tested per arm; and the run-time recency check reads the tensor. The stated reason for draft 3's budget
@@ -535,3 +590,33 @@ look. Clause 5's reading acts only on row 6c, which runs after this ADR's own wa
     a fault on both paths, and a fault on one was missed about 13.5% of the time.
 
   Writing this draft, a whole-file search of ADR-011 printed test-window figures (*Disclosure*).
+- **Round 4, diff-only** (2026-11-05), the last in the budget. 2 blocking, 11 should-fix, 7 nits:
+  - a reproduction could still be voided on purpose, by stopping it, so the sentence the budget reading rested on
+    was false;
+  - a triggered second look could simply not be run, and the table turned that into an exit with no gap printed,
+    after test-window scores had been read.
+- **Draft 5** (2026-11-05). The budget being spent, both blocking findings came to the researcher, who moved both
+  into tests on 2026-11-05 (ADR-017). Their tests and mutants are in the prototype, and clause 8 carries them:
+  - a reproduction stopped once stays owed, a second stop voids it as `did not complete`, and only a finished,
+    clean row that differs is a failure;
+  - a triggered second look is owed, and a batch broken after a look prints that look's reading and gaps.
+
+  This changes "prints no gap", part of the broken-batch choice recorded under draft 4, and the budget reading now
+  rests on the corrected sentence. All 11 should-fix items and 7 nits are folded in with no further round:
+  - the second look's opening after a ledger commit, tested on two real commits, with the first reproduction
+    standing while only listed paths move;
+  - an allowlist between the looks, with this ADR's body counted;
+  - a mismatch checked again only with its cause recorded and on a new commit;
+  - the environmental exception limited, and checked on every void attempt's commit;
+  - a later attempt's first row closing an earlier one;
+  - the last day enforced by hand, and said so;
+  - a `**Closed:**` line that shuts the window;
+  - *Docs affected* completed, with ADR-013's two further departures and ADR-020's note;
+  - the reproduction rows' arm named;
+  - the assembler's refusal on a signed report;
+  - the statistics' raise tested, and the attribution sentence narrowed;
+  - root causes and the real-data result recorded in header lines the runner reads.
+
+  Writing the tests, 4 mutants survived the first two runs: a missing test, a guard that let a retry through once
+  a metric was seen, and two pieces of redundant code, since removed. No reviewer has read this draft's fold-in,
+  because the budget is spent. What stays open is stated in clause 5, *What this cannot stop*.
