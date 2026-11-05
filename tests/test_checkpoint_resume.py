@@ -7,6 +7,9 @@ test genuinely exercises checkpoint RNG-state restoration — not just weights.
 
 from __future__ import annotations
 
+import random
+
+import numpy as np
 import torch
 from torch import nn
 
@@ -73,4 +76,49 @@ def test_resume_is_bitwise_identical(tmp_path):
 
     assert len(got) == len(ref)
     for g, r in zip(got, ref):
+        assert torch.equal(g, r), "resumed weights differ from the uninterrupted run"
+
+
+def _build_adam():
+    model = nn.Linear(IN_DIM, OUT_DIM)
+    return model, torch.optim.Adam(model.parameters(), lr=0.05)
+
+
+def _train_steps_every_rng(model, opt, x, y, n_steps: int) -> None:
+    """Like `_train_steps`, but each step also draws from python's and numpy's RNGs."""
+    loss_fn = nn.MSELoss()
+    for _ in range(n_steps):
+        scale = 0.01 * (1.0 + random.random()) * (1.0 + float(np.random.rand()))
+        noise = torch.randn_like(x) * scale
+        opt.zero_grad()
+        loss = loss_fn(model(x + noise), y)
+        loss.backward()
+        opt.step()
+
+
+def test_resume_restores_optimizer_state_and_every_rng(tmp_path):
+    """The test above uses SGD without momentum, which keeps no state between steps, and draws only
+    from torch's RNG. So dropping the optimizer restore, or the python or numpy RNG restore, left
+    it green (audit of 2026-10-07, A2 E-N8). Adam carries moment estimates between steps, and this
+    loop draws from all three generators. A fresh process is simulated by re-seeding differently
+    before the resume."""
+    x, y = _fixed_data()
+
+    seed_everything(SEED)
+    model_a, opt_a = _build_adam()
+    _train_steps_every_rng(model_a, opt_a, x, y, N_TOTAL)
+    ref = _params(model_a)
+
+    seed_everything(SEED)
+    model_b, opt_b = _build_adam()
+    _train_steps_every_rng(model_b, opt_b, x, y, N_HALF)
+    ckpt = tmp_path / "adam.pt"
+    save_checkpoint(ckpt, model_b, opt_b, config_hash="h", seed=SEED, step=N_HALF)
+
+    seed_everything(SEED + 1)   # the resumed process starts from unrelated RNG states
+    model_r, opt_r = _build_adam()
+    load_checkpoint(ckpt, model_r, opt_r)
+    _train_steps_every_rng(model_r, opt_r, x, y, N_TOTAL - N_HALF)
+
+    for g, r in zip(_params(model_r), ref):
         assert torch.equal(g, r), "resumed weights differ from the uninterrupted run"

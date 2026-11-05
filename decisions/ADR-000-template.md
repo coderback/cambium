@@ -2,6 +2,8 @@
 
 **Status:** template
 **Date:** <YYYY-MM-DD>
+**Tier:** <A | B> (CLAUDE.md *Process*, ADR-017)
+**Review rounds:** <n>/4 (Tier A only)
 **Deciders:** <name>
 **Docs affected:** <e.g. docs/00-shared-core-…-GUIDE.md §3.2>
 

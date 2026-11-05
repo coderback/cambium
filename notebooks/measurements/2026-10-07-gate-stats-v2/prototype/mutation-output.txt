@@ -1,0 +1,22 @@
+unmutated: PASS (exit 0)
+M1 population variance (ddof=0): killed
+M2 z critical value, not Welch t: killed
+M3 pooled df, not Welch df: killed
+M4 two-sided level inside the test: killed
+M5 no split across looks: killed
+M6 split applied to a single look too: killed
+M7 seed floor 3: killed
+M8 no zero-variance refusal: killed
+M9 direction ignored: killed
+M10 plans power at the full validation gap: killed
+M11 power target 0.5: killed
+M12 any clause suffices: killed
+M13 power from a z approximation: killed
+M14 plans at the single-look level: killed
+M15 Welch df numerator va^2 + vb^2: killed
+M16 'varies' judged by computed variance: killed
+M17 unequal seed counts accepted: killed
+M18 pilot not checked before planning: killed
+M19 joint power as a product: killed
+M20 two-sided p-value: killed
+20 mutants, 0 problem(s)

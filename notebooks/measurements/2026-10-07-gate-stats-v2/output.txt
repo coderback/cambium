@@ -1,0 +1,121 @@
+python 3.13.5, numpy 2.5.1, scipy 1.18.0
+alpha (one-sided level of 'diff > 2 SE' under a normal statistic) = 0.02275
+Monte Carlo: 400,000 draws per cell, seed 20261007; SE of an alpha estimate near 0.0228 is 0.00024
+
+A. Known-variance (z) arithmetic, exact by quadrature
+  single look, z > 2:                         alpha = 0.0228
+  two looks (8 then 20 seeds), z > 2 at both: alpha = 0.0394
+  common boundary, looks at  5 and 20 seeds (rho = 0.500): c = 2.2498; per-look level 0.01223
+  common boundary, looks at  8 and 20 seeds (rho = 0.632): c = 2.2315; per-look level 0.01282
+  common boundary, looks at 12 and 20 seeds (rho = 0.775): c = 2.1993; per-look level 0.01393
+  common boundary, looks at 16 and 20 seeds (rho = 0.894): c = 2.1508; per-look level 0.01575
+  Bonferroni alternative (per-look level alpha / 2): c = 2.2776
+  check against Pocock's K=2 constant (equal spacing, one-sided 0.025): c = 2.1783 (published 2.178)
+
+B. Per-look one-sided Welch critical values t_crit(df)
+    df    single look (c = 2)    two looks 8/20 (c = 2.2315)
+     2                  4.527                          6.123
+     4                  2.869                          3.467
+     7                  2.429                          2.823
+    11                  2.255                          2.579
+    15                  2.181                          2.477
+    19                  2.140                          2.421
+    38                  2.068                          2.323
+  1000000000                  2.000                          2.232
+
+C. False-pass rate under no true gap (normal seeds); nominal alpha = 0.0228
+  s_f / s_g = 0 is a seed-deterministic comparator (Welch df = n - 1).
+          design  s_f/s_g   old rule (2 SE at each look)        Welch, common c
+               3      0.0                         0.0918        refused (floor)
+               3      0.5                         0.0656        refused (floor)
+               3      1.0                         0.0582        refused (floor)
+               3      2.0                         0.0662        refused (floor)
+               5      0.0                         0.0574                 0.0228
+               5      0.5                         0.0454                 0.0224
+               5      1.0                         0.0401                 0.0201
+               5      2.0                         0.0449                 0.0222
+       8 then 20      0.0                         0.0627                 0.0236
+       8 then 20      0.5                         0.0550                 0.0231
+       8 then 20      1.0                         0.0506                 0.0223
+       8 then 20      2.0                         0.0550                 0.0233
+       5 then 20      0.0                         0.0802                 0.0238
+       5 then 20      0.5                         0.0663                 0.0232
+       5 then 20      1.0                         0.0607                 0.0211
+       5 then 20      2.0                         0.0662                 0.0232
+      12 then 20      0.0                         0.0524                 0.0228
+      12 then 20      0.5                         0.0472                 0.0232
+      12 then 20      1.0                         0.0446                 0.0222
+      12 then 20      2.0                         0.0471                 0.0234
+      16 then 20      0.0                         0.0436                 0.0236
+      16 then 20      0.5                         0.0405                 0.0235
+      16 then 20      1.0                         0.0377                 0.0224
+      16 then 20      2.0                         0.0406                 0.0229
+              20      0.0                         0.0298                 0.0230
+              20      0.5                         0.0278                 0.0225
+              20      1.0                         0.0266                 0.0225
+              20      2.0                         0.0274                 0.0229
+
+D. Power at the planning effect where the planned stage-1 power is exactly 0.80 (common c)
+      design  s_f/s_g  delta/s_g  planned  simulated stage 1  simulated both stages
+     8 / 20      0.0     1.3323     0.80             0.8006                 0.9996
+     8 / 20      1.0     1.6902     0.80             0.7901                 0.9984
+    12 / 20      0.0     0.9896     0.80             0.8008                 0.9764
+    12 / 20      1.0     1.3148     0.80             0.7969                 0.9698
+    16 / 20      0.0     0.8121     0.80             0.7992                 0.9075
+    16 / 20      1.0     1.1009     0.80             0.7973                 0.9011
+  The old rule at its own sizing boundary (2 SE_diff = delta, known variance): stage-1 power = 0.50
+
+E. Satisfiability: stage-1 n chosen from {8, 12, 16, 20}, comparator seed-deterministic
+  (old = ADR-012 clause 5: 2 SE_diff(n) <= val_gap / 2; common c = planned power >= 0.80 at delta = val_gap / 2)
+     s_g | gap 0.010 old/com. | gap 0.020 old/com. | gap 0.050 old/com. | gap 0.100 old/com.
+   0.002 |           8 / 8   |           8 / 8   |           8 / 8   |           8 / 8  
+   0.005 |           8 / 12  |           8 / 8   |           8 / 8   |           8 / 8  
+   0.010 |          16 / 20* |           8 / 12  |           8 / 8   |           8 / 8  
+   0.020 |          20 / 20* |          16 / 20* |           8 / 12  |           8 / 8  
+   0.050 |          20 / 20* |          20 / 20* |          16 / 20* |           8 / 12 
+  * = n = 20 and planned power at 20 is still below 0.80 (the clause is under-powered)
+
+F. Planning on an upper confidence bound for the pilot sd instead of the pilot sd
+  80% upper bound from 5 pilot seeds (df 4): s x 1.558; seeds needed scale by about 2.43x
+  s 0.005, gap 0.020: stage-1 n 8 with the pilot sd, 12 with the bound
+  s 0.010, gap 0.050: stage-1 n 8 with the pilot sd, 8 with the bound
+  s 0.002, gap 0.010: stage-1 n 8 with the pilot sd, 8 with the bound
+
+G. Bonferroni across the looks (per-look level alpha / 2, z = 2.2776), beside the common boundary
+  False-pass rate under no true gap (fresh draws; compare section C's common-c column):
+          design  s_f/s_g  Bonferroni
+       5 then 20      0.0      0.0215
+       5 then 20      0.5      0.0215
+       5 then 20      1.0      0.0194
+       5 then 20      2.0      0.0211
+       8 then 20      0.0      0.0207
+       8 then 20      0.5      0.0211
+       8 then 20      1.0      0.0200
+       8 then 20      2.0      0.0208
+      12 then 20      0.0      0.0192
+      12 then 20      0.5      0.0192
+      12 then 20      1.0      0.0188
+      12 then 20      2.0      0.0194
+      16 then 20      0.0      0.0167
+      16 then 20      0.5      0.0166
+      16 then 20      1.0      0.0165
+      16 then 20      2.0      0.0169
+  Power at section D's planning effects (comparator fixed), common boundary vs Bonferroni:
+      design  delta/s_g  planned common  planned Bonf.  sim. stage 1 Bonf.  sim. both Bonf.
+     8 / 20     1.3323            0.80         0.7793              0.7795           0.9995
+    12 / 20     0.9896            0.80         0.7695              0.7696           0.9707
+    16 / 20     0.8121            0.80         0.7534              0.7534           0.8797
+  Stage-1 n (section E's grid), common boundary / Bonferroni:
+     s_g | gap 0.010 | gap 0.020 | gap 0.050 | gap 0.100
+   0.002 |    8 / 8  |    8 / 8  |    8 / 8  |    8 / 8 
+   0.005 |   12 / 16 |    8 / 8  |    8 / 8  |    8 / 8 
+   0.010 |   20 / 20 |   12 / 16 |    8 / 8  |    8 / 8 
+   0.020 |   20 / 20 |   20 / 20 |   12 / 12 |    8 / 8 
+   0.050 |   20 / 20 |   20 / 20 |   20 / 20 |   12 / 16
+
+H. Arms that share seed ids: per-seed correlation r between the two arms' scores, no true gap,
+   8 then 20 seeds, equal spread (Welch treats the arms as independent)
+      r  common boundary  Bonferroni
+    0.0           0.0218      0.0194
+    0.5           0.0032      0.0025
+    0.9           0.0000      0.0000

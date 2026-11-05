@@ -28,4 +28,6 @@ estimate, extrapolation, or smoothing. Empty cells mean the run does not exist y
 
 ---
 _Verdict, seeds, and table are sacred once dated. Papers are assembled from gate
-files; nothing is reported that is not in one._
+files and a signed `gates/REPORT-DGF1-matched-time.md`; nothing is reported that is not in one of them._
+
+<!-- Amended (ADR-023) 2026-11-05, taking effect when that report is signed; was "Papers are assembled from gate files; nothing is reported that is not in one." -->

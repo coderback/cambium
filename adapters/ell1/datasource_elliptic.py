@@ -135,3 +135,29 @@ def _assert_canonical(n_nodes: int, time_step: torch.Tensor, x: torch.Tensor) ->
             "build doc (doc-first) before trusting any run, do not edit this constant "
             "to make it pass."
         )
+
+
+def derive_edge_time(edge_index: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
+    """Elliptic's edge dates: the time step both endpoints share (ADR-011 clause 6).
+
+    Elliptic ships no edge timestamps, but every edge joins two transactions of the same step
+    (Weber et al. 2019; measured 468,710 / 468,710), so that step *is* the edge's date. The core
+    requires edge dates and never infers them (`gbe.eval.temporal`), so the inference lives here,
+    where the reason it is valid is known — and it is **asserted, not assumed**: an edge joining
+    two different steps raises, because on such an edge "the later endpoint's step" would be the
+    node-induced reading ADR-011 retired.
+
+    Recompute it from whichever ``edge_index`` is actually in use rather than storing it on the
+    loaded graph: the Phase-3 ablation arms rewire the edges (within a step), so a date attached
+    at load time would describe edges that no longer exist.
+    """
+    src_t = time_step[edge_index[0]]
+    dst_t = time_step[edge_index[1]]
+    crossing = src_t != dst_t
+    if bool(crossing.any()):
+        raise AssertionError(
+            f"{int(crossing.sum())} edge(s) join two different time steps. Elliptic's edges are "
+            "within-step by construction, so this edge set is not Elliptic's — its dates cannot "
+            "be derived from node steps (ADR-011 clause 6)."
+        )
+    return src_t.clone()

@@ -1,0 +1,316 @@
+# python mutate.py rule
+rule, unmutated: passes - 51 passed in 2.73s
+KILLED   the rule receives the arms' gap - 1 failed in 2.85s
+KILLED   the bar reads the lower mean - 1 failed, 9 passed in 3.40s
+KILLED   the bar reads DGF-1's mean only, so it sees direction - 1 failed, 9 passed in 2.59s
+KILLED   the bar is strict - 1 failed, 8 passed in 2.52s
+KILLED   the bar is lower - 1 failed, 7 passed in 2.59s
+KILLED   the bar is ignored - 1 failed, 7 passed in 2.51s
+KILLED   precision is ignored - 1 failed, 12 passed in 2.57s
+KILLED   both metrics must be informative - 1 failed, 12 passed in 2.67s
+KILLED   the power bar is lower - 1 failed, 12 passed in 2.57s
+KILLED   the power uses the single-look level - 1 failed, 11 passed in 2.55s
+KILLED   the power is at fewer seeds - 1 failed, 11 passed in 2.54s
+KILLED   the margin is the whole gap - 1 failed, 11 passed in 2.69s
+KILLED   no gated gain still has a margin - 1 failed, 17 passed in 2.56s
+KILLED   a negative gated gain has a margin - 1 failed, 18 passed in 2.67s
+KILLED   neither arm varying crashes - 1 failed, 19 passed in 2.70s
+KILLED   one arm not varying fails precision - 1 failed, 20 passed in 2.62s
+KILLED   the spreads are swapped with the wrong metric - 1 failed, 1 passed in 2.63s
+KILLED   extra seeds are read - 1 failed, 22 passed in 2.73s
+KILLED   missing seeds are read - 1 failed, 21 passed in 2.59s
+KILLED   a missing metric is not refused - 1 failed, 24 passed in 2.61s
+KILLED   non-finite values are read - 1 failed, 25 passed in 2.62s
+KILLED   only one arm is checked - 1 failed, 21 passed in 2.57s
+KILLED   the margin clause does not shift - 1 failed, 26 passed in 2.63s
+KILLED   the margin clause shifts the wrong way - 1 failed, 26 passed in 2.57s
+KILLED   the margin clause does not swap the arms - 1 failed, 26 passed in 2.58s
+KILLED   a refused gain clause still reads - 1 failed, 45 passed in 2.82s
+KILLED   a refused margin clause counts - 1 failed, 49 passed in 2.62s
+KILLED   a resolvable gain hides the margin - 1 failed, 43 passed in 2.67s
+KILLED   below the margin reads as nothing - 1 failed, 39 passed in 2.67s
+KILLED   a second look is never triggered - 1 failed, 31 passed in 2.58s
+KILLED   a margin failure triggers a second look - 1 failed, 31 passed in 2.72s
+KILLED   power at a gain ignores the gain - 1 failed, 33 passed in 2.83s
+KILLED   power at a gain uses the single-look level - 1 failed, 33 passed in 2.78s
+KILLED   power at a gain has a value with no margin - 1 failed, 34 passed in 3.02s
+KILLED   stage 1 stays final after stage 2 - 1 failed, 39 passed in 2.70s
+KILLED   the plan keeps a metric where neither arm varies - 1 failed, 35 passed in 2.81s
+KILLED   the plan drops a metric where one arm varies - 1 failed, 36 passed in 2.62s
+KILLED   an empty plan is not refused - 1 failed, 37 passed in 2.59s
+KILLED   the plan reads the wrong arm - 1 failed, 38 passed in 2.61s
+KILLED   a failed metric is not labelled under-resolved - 1 failed, 40 passed in 2.64s
+KILLED   the label's bar is lower - 1 failed, 40 passed in 2.70s
+KILLED   a metric with no margin prints a power - 1 failed, 40 passed in 2.91s
+
+rule: 42/42 killed by a failing test, 0 by an error, 0 survived (0 to 42 of 42)
+
+# python mutate.py guards 0 60, 60 120, then 120 179
+guards, unmutated: passes - 241 passed in 7.62s
+KILLED   the go line is not anchored - 1 failed, 6 passed in 2.00s
+KILLED   a no-go opens the window - 1 failed, 4 passed in 2.10s
+KILLED   go-ahead opens the window - 1 failed, 14 passed in 2.10s
+KILLED   a go line needs no date or run ids - 1 failed, 11 passed in 2.01s
+KILLED   a go line needs no run ids - 1 failed, 12 passed in 2.05s
+KILLED   a go line's date is not checked - 1 failed, 13 passed in 2.11s
+KILLED   a capital Go opens the window - 1 failed, 15 passed in 2.60s
+KILLED   a go beside a no-go opens the window - 1 failed, 17 passed in 2.62s
+KILLED   two go lines open the window - 1 failed, 19 passed in 2.63s
+KILLED   a substring opens the window - 1 failed, 6 passed in 2.63s
+KILLED   the working tree is read - 1 failed, 22 passed in 3.34s
+KILLED   a document not in HEAD reads as empty - 1 failed, 23 passed in 3.90s
+KILLED   the line's shape is not checked - 1 failed, 104 passed in 4.21s
+KILLED   the line need not name the attempt's rows - 1 failed, 106 passed in 3.40s
+KILLED   the line may name part of the rows - 1 failed, 107 passed in 3.30s
+KILLED   the rule is not recomputed for the line - 1 failed, 109 passed in 3.36s
+KILLED   the rule reads the last clean attempt - 1 failed, 101 passed in 3.39s
+KILLED   the opener runs before the check - 1 failed, 110 passed in 3.81s
+KILLED   nothing is checked - 1 failed, 110 passed in 3.68s
+KILLED   the batch's reproduction is not checked - 1 failed, 112 passed in 4.03s
+KILLED   the opener runs before the batch's reproduction - 1 failed, 112 passed in 3.56s
+KILLED   a closed line shuts nothing - 1 failed, 127 passed in 3.39s
+KILLED   a closed line quoted in prose shuts the window - 1 failed, 128 passed in 3.30s
+KILLED   every attempt's rows are read - 1 failed, 24 passed in 3.14s
+KILLED   reproduction rows are read as pilot rows - 1 failed, 24 passed in 3.04s
+KILLED   the filter ignores the attempt - 1 failed, 26 passed in 3.00s
+KILLED   a missing metric is not a void attempt - 1 failed, 34 passed in 3.06s
+KILLED   a null metric crashes a pilot - 1 failed, 169 passed in 3.66s
+KILLED   arms at two commits pass - 1 failed, 35 passed in 2.89s
+KILLED   a reproduction on another commit passes - 1 failed, 36 passed in 3.05s
+KILLED   a stopped row on another commit passes - 1 failed, 70 passed in 3.09s
+KILLED   a later pilot row changes the status - 1 failed, 37 passed in 3.07s
+KILLED   a later reproduction row changes the status - 1 failed, 39 passed in 2.98s
+KILLED   the last pilot rows count, not the first - 1 failed, 28 passed in 2.98s
+KILLED   the last reproduction rows count, not the first - 1 failed, 39 passed in 3.02s
+KILLED   a later attempt does not close an earlier one - 1 failed, 93 passed in 3.31s
+KILLED   an attempt closes itself - 1 failed, 24 passed in 3.04s
+KILLED   a stop voids the attempt at once - 1 failed, 59 passed in 3.09s
+KILLED   a second stop stays owed for ever - 1 failed, 64 passed in 2.91s
+KILLED   an errored row holding a metric counts as a stop - 1 failed, 55 passed in 3.03s
+KILLED   a stop is read as a finished row - 1 failed, 59 passed in 3.00s
+KILLED   two stops read as still owed - 1 failed, 64 passed in 3.08s
+KILLED   two stops read as a failure - 1 failed, 64 passed in 3.33s
+KILLED   a not-clean reproduction row is called a failure - 1 failed, 54 passed in 3.12s
+KILLED   reproduction is not checked - 1 failed, 27 passed in 2.92s
+KILLED   reproduction checks only DGF-1 - 1 failed, 45 passed in 2.70s
+KILLED   reproduction checks only the floor - 1 failed, 42 passed in 2.76s
+KILLED   a reproduction's seed is not checked - 1 failed, 57 passed in 2.90s
+KILLED   two reproduction rows on an arm pass - 1 failed, 58 passed in 3.04s
+KILLED   a reproduction not yet run reads as failed - 1 failed, 48 passed in 3.25s
+KILLED   a reproduction not yet run passes - 1 failed, 48 passed in 3.07s
+KILLED   the score hash is not compared - 1 failed, 27 passed in 2.80s
+KILLED   the metrics are not compared - 1 failed, 43 passed in 2.76s
+KILLED   two missing hashes count as a match - 1 failed, 71 passed in 2.94s
+KILLED   a reproduction row need not be clean - 1 failed, 116 passed in 3.28s
+KILLED   a dirty row counts as clean - 1 failed, 54 passed in 2.91s
+KILLED   a non-deterministic row counts as clean - 1 failed, 56 passed in 2.77s
+KILLED   an errored row counts as clean - 1 failed, 55 passed in 2.83s
+KILLED   a pilot may start after a clean attempt - 1 failed, 73 passed in 3.26s
+KILLED   a pilot may start with a reproduction owed - 1 failed, 74 passed in 3.12s
+
+guards: 60/60 killed by a failing test, 0 by an error, 0 survived (0 to 60 of 179)
+
+guards, unmutated: passes - 241 passed in 7.13s
+KILLED   no root cause is needed - 1 failed, 75 passed in 3.19s
+KILLED   only the last attempt needs a root cause - 1 failed, 83 passed in 3.42s
+KILLED   a retry on the same commit is allowed - 1 failed, 76 passed in 3.46s
+KILLED   an environmental cause does not help - 1 failed, 77 passed in 3.21s
+KILLED   an environmental label licenses a mismatch - 1 failed, 79 passed in 3.26s
+KILLED   an environmental label licenses a retry once a metric was seen - 1 failed, 80 passed in 3.13s
+KILLED   only the last attempt's commit is checked - 1 failed, 81 passed in 3.15s
+KILLED   the next attempt reuses a number - 1 failed, 77 passed in 3.20s
+KILLED   the first attempt is misnumbered - 1 failed, 72 passed in 3.05s
+KILLED   a reproduction may run on another commit - 1 failed, 85 passed in 3.09s
+KILLED   a reproduction may run when none is owed - 1 failed, 86 passed in 3.07s
+KILLED   a reproduction may run on a dirty tree - 1 failed, 89 passed in 3.14s
+KILLED   a stopped reproduction needs no root cause - 1 failed, 90 passed in 3.19s
+KILLED   a finished arm may run again - 1 failed, 92 passed in 2.63s
+KILLED   a pilot needs no real-data line - 1 failed, 96 passed in 2.75s
+KILLED   two real-data lines pass - 1 failed, 96 passed in 2.92s
+KILLED   a real-data line quoted in prose counts - 1 failed, 96 passed in 2.89s
+KILLED   a failed real-data check counts - 1 failed, 96 passed in 2.94s
+KILLED   code may move after the real-data check - 1 failed, 97 passed in 3.47s
+KILLED   a root cause quoted in prose counts - 1 failed, 98 passed in 3.27s
+KILLED   a run's cause quoted in prose counts - 1 failed, 126 passed in 3.10s
+KILLED   every recorded cause is environmental - 1 failed, 99 passed in 3.27s
+KILLED   the header's environmental cause is not read - 1 failed, 100 passed in 2.97s
+KILLED   the label stays in the cause - 1 failed, 100 passed in 3.07s
+KILLED   the budget locks on a void attempt - 1 failed, 64 passed in 2.98s
+KILLED   the budget never locks - 1 failed, 37 passed in 3.08s
+KILLED   the budget can decline with a reproduction owed - 1 failed, 59 passed in 3.00s
+KILLED   the budget reads only the first attempt - 1 failed, 134 passed in 3.64s
+KILLED   a void attempt reaches the rule in a decline - 1 failed, 59 passed in 3.07s
+KILLED   an owed reproduction prints as a failure - 1 failed, 59 passed in 2.91s
+KILLED   a stop prints as a failure - 1 failed, 64 passed in 2.88s
+KILLED   a stop's line hides its gaps - 1 failed, 64 passed in 2.92s
+KILLED   a stop's root cause is not printed - 1 failed, 64 passed in 3.06s
+KILLED   a clean attempt hides the stop it ran past - 1 failed, 68 passed in 3.07s
+KILLED   a void attempt's line hides its gaps - 1 failed, 137 passed in 3.36s
+KILLED   a void attempt's line does not say why - 1 failed, 137 passed in 3.50s
+KILLED   a broken attempt reads as a failed reproduction - 1 failed, 69 passed in 3.07s
+KILLED   a void attempt's root cause is not printed - 1 failed, 137 passed in 3.36s
+KILLED   the gap has the wrong sign - 1 failed, 64 passed in 2.95s
+KILLED   the gap reads rows that do not count - 1 failed, 142 passed in 3.33s
+KILLED   a clean attempt's line hides the rule - 1 failed, 139 passed in 3.38s
+KILLED   a null value crashes a void attempt's gaps - 1 failed, 169 passed in 4.15s
+KILLED   attempts print out of order - 1 failed, 82 passed in 3.27s
+KILLED   a decline with no rows prints nothing - 1 failed, 141 passed in 3.38s
+KILLED   the batch's reproduction ignores what moved - 1 failed, 113 passed in 3.22s
+KILLED   the batch's reproduction may be missing - 1 failed, 112 passed in 3.26s
+KILLED   two reproduction rows on one commit pass - 1 failed, 119 passed in 3.38s
+KILLED   the batch's reproduction is not compared - 1 failed, 114 passed in 3.15s
+KILLED   the first row is compared, not the last - 1 failed, 124 passed in 4.06s
+KILLED   a mismatch needs no root cause before it is checked again - 1 failed, 124 passed in 4.09s
+KILLED   an earlier row needs a cause even when it matched - 1 failed, 125 passed in 3.44s
+KILLED   a stopped batch reproduction counts as a row - 1 failed, 121 passed in 3.33s
+KILLED   the batch's reproduction checks only DGF-1 - 1 failed, 117 passed in 3.33s
+KILLED   the batch's reproduction checks only the floor - 1 failed, 115 passed in 3.35s
+KILLED   anything may sit between the looks - 1 failed, 97 passed in 3.09s
+KILLED   one allowed path excuses the rest - 1 failed, 97 passed in 3.22s
+KILLED   the list is a blacklist of code - 1 failed, 198 passed in 3.82s
+KILLED   the ledger may not sit between the looks - 1 failed, 120 passed in 3.34s
+KILLED   the registry may not sit between the looks - 1 failed, 204 passed in 3.66s
+KILLED   the report may not sit between the looks - 1 failed, 206 passed in 3.57s
+
+guards: 60/60 killed by a failing test, 0 by an error, 0 survived (60 to 120 of 179)
+
+guards, unmutated: passes - 241 passed in 7.91s
+KILLED   the lab may not sit between the looks - 1 failed, 205 passed in 3.62s
+KILLED   the ADR's body may move - 1 failed, 208 passed in 5.42s
+KILLED   the ADR's header counts as moved - 1 failed, 207 passed in 4.46s
+KILLED   a row on moved code reads clean - 1 failed, 171 passed in 3.45s
+KILLED   an errored row with a metric is skipped - 1 failed, 151 passed in 3.64s
+KILLED   an errored row is not skipped - 1 failed, 144 passed in 3.50s
+KILLED   a row that is not clean is read - 1 failed, 153 passed in 3.60s
+KILLED   a completed row may run twice - 1 failed, 149 passed in 3.65s
+KILLED   a row with no finite metric is read - 1 failed, 161 passed in 3.54s
+KILLED   a null metric crashes the batch - 1 failed, 165 passed in 3.57s
+KILLED   a NaN counts as a number - 1 failed, 161 passed in 3.47s
+KILLED   a short arm passes - 1 failed, 145 passed in 3.48s
+KILLED   an extra seed passes - 1 failed, 170 passed in 3.50s
+KILLED   a seed still missing breaks the batch - 1 failed, 145 passed in 3.43s
+KILLED   another arm's rows are read - 1 failed, 143 passed in 3.49s
+KILLED   another tag's rows are read - 1 failed, 172 passed in 3.10s
+KILLED   a re-run is allowed beside a completed row - 1 failed, 190 passed in 3.13s
+KILLED   a re-run needs no errored row - 1 failed, 188 passed in 2.99s
+KILLED   a re-run is allowed after a metric - 1 failed, 191 passed in 2.99s
+KILLED   a re-run is allowed on moved code - 1 failed, 186 passed in 2.95s
+KILLED   a re-run needs no root cause - 1 failed, 187 passed in 2.97s
+KILLED   a re-run reads any seed - 1 failed, 192 passed in 3.33s
+KILLED   a re-run reads any arm - 1 failed, 192 passed in 3.49s
+KILLED   a broken batch prints a reading - 1 failed, 149 passed in 3.07s
+KILLED   a seed still missing ends the batch by itself - 1 failed, 145 passed in 4.26s
+KILLED   a reason does not end the batch - 1 failed, 147 passed in 4.38s
+KILLED   the dated reason is not printed - 1 failed, 147 passed in 3.86s
+KILLED   a look already read is hidden - 1 failed, 175 passed in 3.68s
+KILLED   a gap prints with no look read - 1 failed, 147 passed in 4.26s
+KILLED   the runner's opener counts as a look read - 1 failed, 174 passed in 6.61s
+KILLED   another batch's look counts - 1 failed, 181 passed in 4.62s
+KILLED   a labels look counts as read - 1 failed, 182 passed in 4.04s
+KILLED   the first look reads a second look's seeds - 1 failed, 178 passed in 3.99s
+KILLED   the first look reads each seed's last row - 1 failed, 175 passed in 4.07s
+KILLED   the first look reads an errored row - 1 failed, 180 passed in 4.08s
+KILLED   the first look loses its label - 1 failed, 175 passed in 4.46s
+KILLED   the first look's gap has the wrong sign - 1 failed, 175 passed in 3.81s
+KILLED   the first look's reading is dropped - 1 failed, 177 passed in 3.97s
+KILLED   the first look's arms are swapped - 1 failed, 175 passed in 3.84s
+KILLED   the first look reads as stage 2 - 1 failed, 175 passed in 4.27s
+KILLED   the first look reads one metric - 1 failed, 175 passed in 3.67s
+KILLED   a signed report may be assembled again - 1 failed, 216 passed in 7.98s
+KILLED   a signature quoted in prose refuses - 1 failed, 214 passed in 7.79s
+KILLED   no report at all crashes - 1 failed, 211 passed in 8.01s
+KILLED   the refusal checks only DGF-1 - 1 failed, 146 passed in 4.15s
+KILLED   the refusal checks only the floor - 1 failed, 145 passed in 4.00s
+KILLED   the refusal checks only ROC-AUC - 1 failed, 158 passed in 4.16s
+KILLED   the refusal checks only AUPRC - 1 failed, 157 passed in 3.95s
+KILLED   an exploratory hash mismatch keeps the rows - 1 failed, 220 passed in 8.70s
+KILLED   a missing or doubled exploratory row keeps the rows - 1 failed, 218 passed in 8.34s
+KILLED   a dirty exploratory row keeps the rows - 1 failed, 224 passed in 8.22s
+KILLED   the exploratory check reads only one arm - 1 failed, 221 passed in 8.68s
+KILLED   the exploratory check reads any tag - 1 failed, 218 passed in 8.38s
+KILLED   an errored exploratory row keeps its view - 1 failed, 227 passed in 8.68s
+KILLED   a doubled exploratory seed keeps its view - 1 failed, 239 passed in 9.60s
+KILLED   an exploratory row with no metric keeps its view - 1 failed, 233 passed in 8.50s
+KILLED   a short exploratory arm keeps its view - 1 failed, 237 passed in 8.53s
+KILLED   the view check reads one arm - 1 failed, 228 passed in 8.43s
+KILLED   one view's error drops the other - 1 failed, 240 passed in 7.87s
+
+guards: 59/59 killed by a failing test, 0 by an error, 0 survived (120 to 179 of 179)
+
+# python mutate.py view 0 25, then 25 57
+view, unmutated: passes - 38 passed, 2 warnings in 15.06s
+KILLED   static inputs on every path - 1 failed, 5 passed, 2 warnings in 9.16s
+KILLED   window-end inputs at scoring only - 1 failed, 7 passed, 2 warnings in 8.63s
+KILLED   window-end inputs at training only - 1 failed, 5 passed, 2 warnings in 8.39s
+KILLED   each neighbour is read at its own time - 1 failed, 5 passed, 2 warnings in 8.12s
+KILLED   the floor's training rows are static - 1 failed, 13 passed, 2 warnings in 8.30s
+KILLED   the floor's scoring rows are static - 1 failed, 14 passed, 2 warnings in 8.85s
+KILLED   the floor's training rows are transformed - 1 failed, 13 passed, 2 warnings in 8.15s
+KILLED   the floor's scoring rows are transformed - 1 failed, 14 passed, 2 warnings in 8.30s
+KILLED   the floor is handed the wrong users' labels - 1 failed, 14 passed, 2 warnings in 11.02s
+KILLED   a reverse edge is misdated - 1 failed, 5 passed, 2 warnings in 9.70s
+KILLED   a reverse edge is dated 3 steps early - 1 failed, 5 passed, 2 warnings in 9.64s
+KILLED   reverse edges are dropped - 1 failed, 10 passed, 2 warnings in 8.83s
+KILLED   the transform is refit on the scoring view - 1 failed, 7 passed, 2 warnings in 9.73s
+KILLED   the transform is fit on every user - 1 failed, 5 passed, 2 warnings in 9.04s
+KILLED   the transform is fit past the training view - 1 failed, 5 passed, 2 warnings in 9.08s
+KILLED   the transform is fit at each user's own time - 1 failed, 5 passed, 2 warnings in 9.48s
+KILLED   the statistics count reverse edges - 1 failed, 5 passed, 2 warnings in 8.86s
+KILLED   the statistics table runs past the window - 1 failed, 22 passed, 2 warnings in 9.45s
+KILLED   the eligible edges run past the window - 1 failed, 22 passed, 2 warnings in 9.71s
+KILLED   raw features come from the wrong row - 1 failed, 5 passed, 2 warnings in 9.02s
+KILLED   the GNN's inputs skip the transform - 1 failed, 5 passed, 2 warnings in 9.17s
+KILLED   age is counted from the dataset's end - 1 failed, 5 passed, 2 warnings in 9.51s
+KILLED   recency reads the first edge, not the last - 1 failed, 5 passed, 2 warnings in 9.01s
+KILLED   the histogram counts later edges - 1 failed, 5 passed, 2 warnings in 8.97s
+KILLED   same-step edges are left out - 1 failed, 5 passed, 2 warnings in 8.83s
+
+view: 25/25 killed by a failing test, 0 by an error, 0 survived (0 to 25 of 57)
+
+view, unmutated: passes - 38 passed, 2 warnings in 9.39s
+KILLED   training batches are not shuffled - 1 failed, 15 passed, 2 warnings in 9.60s
+KILLED   scoring is shuffled - 1 failed, 15 passed, 2 warnings in 9.29s
+KILLED   scoring samples at a fan-out - 1 failed, 10 passed, 2 warnings in 9.17s
+KILLED   the temporal check is removed - 1 failed, 17 passed, 2 warnings in 9.57s
+KILLED   the recency check is removed - 1 failed, 17 passed, 2 warnings in 10.24s
+KILLED   the recency check reads nothing - 1 failed, 18 passed, 2 warnings in 9.96s
+KILLED   the recency check reads the first seed only - 1 failed, 18 passed, 2 warnings in 9.63s
+KILLED   the recency check reads neighbours too - 1 failed, 5 passed, 2 warnings in 9.61s
+KILLED   the recency check reads one column - 1 failed, 18 passed, 2 warnings in 10.01s
+KILLED   the recency check recomputes instead of reading the rows - 1 failed, 21 passed, 2 warnings in 9.78s
+KILLED   the model is handed flipped edges - 1 failed, 10 passed, 2 warnings in 9.08s
+KILLED   the loss reads labels in the unshuffled order - 1 failed, 16 passed, 2 warnings in 9.39s
+KILLED   the loss reads every row, not the seeds - 1 failed, 16 passed, 2 warnings in 9.42s
+KILLED   the statistics' raise is removed - 1 failed, 24 passed, 2 warnings in 9.84s
+KILLED   window-only statistics count reverse edges - 1 failed, 28 passed, 2 warnings in 9.38s
+KILLED   window-only's age runs from a user's appearance in the whole graph - 1 failed, 28 passed, 2 warnings in 10.01s
+KILLED   window-only keeps edges with one endpoint inside - 1 failed, 28 passed, 2 warnings in 9.65s
+KILLED   window-only edges run past the window - 1 failed, 28 passed, 2 warnings in 10.41s
+KILLED   window-only drops reverse edges - 1 failed, 29 passed, 2 warnings in 9.52s
+KILLED   window-only inputs read the gated view - 1 failed, 28 passed, 2 warnings in 9.39s
+KILLED   window-only inputs skip the transform - 1 failed, 28 passed, 2 warnings in 9.34s
+KILLED   window-only samples at a fan-out - 1 failed, 29 passed, 2 warnings in 9.87s
+KILLED   the views are swapped for the GNN - 1 failed, 28 passed, 2 warnings in 9.14s
+KILLED   the GNN's path takes any view - 1 failed, 35 passed, 2 warnings in 9.80s
+KILLED   the floor's path takes any view - 1 failed, 35 passed, 2 warnings in 9.94s
+KILLED   the exploratory floor trains on own-time rows - 1 failed, 31 passed, 2 warnings in 9.59s
+KILLED   the exploratory floor trains at the window's end - 1 failed, 31 passed, 2 warnings in 9.86s
+KILLED   the exploratory floor's training rows are transformed - 1 failed, 31 passed, 2 warnings in 9.94s
+KILLED   the first-appearance floor reads the gated view - 1 failed, 33 passed, 2 warnings in 9.34s
+KILLED   the window-only floor reads the gated view - 1 failed, 34 passed, 2 warnings in 10.11s
+KILLED   the window-only floor's rows are transformed - 1 failed, 34 passed, 2 warnings in 9.25s
+KILLED   the exploratory floor is handed the wrong labels - 1 failed, 31 passed, 2 warnings in 9.55s
+
+view: 32/32 killed by a failing test, 0 by an error, 0 survived (25 to 57 of 57)
+
+# python mutate.py attribute: each named mutant against the named tests alone
+FAILED  a reverse edge is dated 3 steps early | -k exact_edges | unmutated: 2 passed, 36 deselected, | mutated: 2 failed, 36 deselected, 2 warnings in 10.01
+FAILED  a reverse edge is dated 3 steps early | -k door_equals | unmutated: 6 passed, 32 deselected, | mutated: 5 failed, 1 passed, 32 deselected, 2 warning
+FAILED  a reverse edge is misdated | -k exact_edges | unmutated: 2 passed, 36 deselected, | mutated: 2 failed, 36 deselected, 2 warnings in 9.54s
+FAILED  the recency check recomputes instead of reading the rows | -k run_time_check | unmutated: 1 passed, 37 deselected, | mutated: 1 failed, 37 deselected, 2 warnings in 9.82s
+FAILED  static inputs, with the recency check removed | -k door_equals | unmutated: 6 passed, 32 deselected, | mutated: 5 failed, 1 passed, 32 deselected, 2 warning
+FAILED  the transform is refit on the scoring view | -k scoring_door | unmutated: 1 passed, 37 deselected, | mutated: 1 failed, 37 deselected, 2 warnings in 9.71s
+FAILED  window-only statistics count reverse edges | -k window_only_gnn_door or window_only_floor_scores | unmutated: 2 passed, 36 deselected, | mutated: 2 failed, 36 deselected, 2 warnings in 9.83s
+FAILED  a reverse edge is dated 3 steps early, with the statistics' raise removed | -k exact_edges | unmutated: 2 passed, 36 deselected, | mutated: 2 failed, 36 deselected, 2 warnings in 9.15s
+FAILED  a reverse edge is dated 3 steps early, with the statistics' raise removed | -k door_equals | unmutated: 6 passed, 32 deselected, | mutated: 5 failed, 1 passed, 32 deselected, 2 warning
+FAILED  the loss reads labels in the unshuffled order | -k loss_reads | unmutated: 1 passed, 37 deselected, | mutated: 1 failed, 37 deselected, 2 warnings in 9.23s

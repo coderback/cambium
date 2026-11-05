@@ -1,0 +1,19 @@
+# Held-out readers among committed scripts at 6333d84
+
+| script | held-out set | tier on the held-out part | what, read from the code | through the guard |
+|---|---|---|---|---|
+| `scripts/assemble_gate_dgf1_1.py` | 482-821 | scores | reads the gate rows and their score files after the batch (:167, :179, :187) | no |
+| `scripts/audit_dgf1_datasource.py` | 482-821 | labels | labelled and fraud counts of 482-821 (:97-100) | no |
+| `scripts/measure_dgf1_temporal_split.py` | 482-821, official test | labels | support, fraud count and prevalence of 482-821 and of the official test mask (:64-71, :103, :110) | no |
+| `scripts/run_dgf1_floor.py` | 482-821 | scores | the gated floor batch, only through the guard (:71) | yes |
+| `scripts/run_dgf1_gnn.py` | 482-821 | scores | the gated GNN batch, only through the guard (:119) | yes |
+| `scripts/verify_dgraph_snapshot.py` | official test | structure | the official test mask's size and node-time distribution (:178-192); its prevalence (:161-162) is over all labelled nodes | no |
+
+6 committed scripts can read a held-out DGF-1 set; 4 do so outside the guard:
+- `scripts/assemble_gate_dgf1_1.py` (scores)
+- `scripts/audit_dgf1_datasource.py` (labels)
+- `scripts/measure_dgf1_temporal_split.py` (labels)
+- `scripts/verify_dgraph_snapshot.py` (structure)
+
+Detected but not read: 0
+Read but no longer detected: 0

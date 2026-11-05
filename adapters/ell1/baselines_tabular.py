@@ -24,6 +24,7 @@ from gbe.eval import TemporalSplit, split_masks
 from gbe.run import RunSession
 from gbe.run.config import resolve_config
 from adapters.ell1.datasource_elliptic import ILLICIT
+from adapters.ell1.train_gnn import PROVENANCE_KEYS
 
 # Reasonable, not toy (doc §10: a weak floor is the #1 desk-reject cause).
 RF_PARAMS: dict[str, Any] = {
@@ -118,5 +119,10 @@ def run_baseline(
         proba, pred = fit_predict(baseline, X_train, y_train, X_test, run.seed)
         metrics = evaluate(y_test, proba, pred)
         metrics.update({"baseline": baseline, "test_window": test_window, **meta})
+        # Same provenance echo as the GNN path: a row should identify its own experiment
+        # without the reader recomputing config hashes (see train_gnn.PROVENANCE_KEYS).
+        metrics.update(
+            {k: base_cfg_values[k] for k in PROVENANCE_KEYS if k in base_cfg_values}
+        )
         run.log_metrics(metrics)
     return run.run_id, metrics
