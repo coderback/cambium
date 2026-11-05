@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import matched_view_proto as P  # noqa: E402
 
 from adapters.dgf1.datasource_dgraph import node_time_earliest_edge, view_node_features  # noqa: E402
+from adapters.dgf1.train_gnn import window_only_edges  # noqa: E402
 from gbe.features.scaling import Standardizer  # noqa: E402
 
 TRAIN_MAX, VAL_END, TEST_END = 12, 20, 30
@@ -41,8 +43,12 @@ def synthetic(seed: int = 0) -> P.Graph:
     join = torch.tensor([late + late, list(range(12)) + list(range(20, 32))])
     join_t = torch.tensor(late_t + [min(t + 1, TEST_END) for t in late_t])
     join_k = torch.tensor([1 + k % 11 for k in range(24)])
-    fwd = torch.cat([torch.stack([src, dst]), hand, join], dim=1)
-    when, kind = torch.cat([when, hand_t, join_t]), torch.cat([kind, hand_k, join_k])
+    # Edges between late users, so the window-only view has edges. The last is dated after both users' window.
+    among = torch.tensor([[44, 45, 46, 50, 51, 44], [45, 46, 47, 51, 52, 47]])
+    among_t = torch.tensor([15, 16, 18, 24, 26, 27])
+    among_k = torch.tensor([1, 2, 3, 4, 5, 6])
+    fwd = torch.cat([torch.stack([src, dst]), hand, join, among], dim=1)
+    when, kind = torch.cat([when, hand_t, join_t, among_t]), torch.cat([kind, hand_k, join_k, among_k])
     node_time = node_time_earliest_edge(fwd, when, n)
     x = torch.randn((n, 17), generator=g)
     y = torch.randint(0, 2, (n,), generator=g)
@@ -53,6 +59,7 @@ G = synthetic()
 SEEDS = ((G.node_time >= 0) & (G.node_time <= TRAIN_MAX)).nonzero().view(-1)
 TARGETS = ((G.node_time > TRAIN_MAX) & (G.node_time <= VAL_END)).nonzero().view(-1)
 TEST_TARGETS = ((G.node_time > VAL_END) & (G.node_time <= TEST_END)).nonzero().view(-1)
+VAL_FIRST = TRAIN_MAX + 1
 
 
 # ------------------------------------------------------------------ the oracle: independent of the builder
@@ -280,6 +287,17 @@ def test_training_batches_are_shuffled_across_times_and_scoring_keeps_its_order(
     assert torch.equal(torch.cat([b.n_id[: b.batch_size] for b in door[1]]), seeds)
 
 
+def test_the_loss_reads_each_batch_s_own_seeds_labels(door):
+    """The temporal loader builds its graph with no labels, so the loop aligns them itself: this is that step."""
+    seen = []
+    torch.manual_seed(0)
+    P.train_pass(door[0], G, SEEDS, TRAIN_MAX, P.fit_transform(G, TRAIN_MAX), [2, 2, 2], 4,
+                 loss=lambda logits, y: seen.append((logits, y)))
+    assert len(seen) == len(door[1]) > 0
+    for (logits, y), batch in zip(seen, door[1]):
+        assert logits.size(0) == batch.batch_size and torch.equal(y, G.y[batch.n_id[: batch.batch_size]])
+
+
 def test_every_batch_passes_the_temporal_check_and_the_recency_check(door, monkeypatch):
     temporal, recency, real_t, real_r = [], [], P.assert_temporal_batch, P.check_seed_recency
     monkeypatch.setattr(P, "assert_temporal_batch", lambda b: (temporal.append(1), real_t(b))[1])
@@ -288,15 +306,29 @@ def test_every_batch_passes_the_temporal_check_and_the_recency_check(door, monke
     assert len(temporal) == n and len(recency) == n
 
 
-def test_the_recency_check_refuses_a_seed_whose_recency_is_not_zero(door):
+@pytest.mark.parametrize("column", [-2, -1])
+def test_the_recency_check_refuses_any_seed_whose_recency_is_not_zero(door, column):
     batch = trained(door)[0][1]
-
-    class Wrong:
-        def __call__(self, nodes, at):
-            return torch.ones((nodes.numel(), 13))
-
+    raw = torch.zeros((batch.n_id.numel(), 30))
+    P.check_seed_recency(batch, raw)
+    raw[batch.batch_size - 1, column] = 1.0
     with pytest.raises(AssertionError, match="recency"):
-        P.check_seed_recency(batch, Wrong())
+        P.check_seed_recency(batch, raw)
+
+
+def test_the_recency_check_leaves_neighbours_alone(door):
+    """Neighbours' recency still varies (clause 2)."""
+    batch = next(b for _, b in trained(door) if b.n_id.numel() > b.batch_size)
+    raw = torch.zeros((batch.n_id.numel(), 30))
+    raw[batch.batch_size:, -2:] = 1.0
+    P.check_seed_recency(batch, raw)
+
+
+def test_the_run_time_check_reads_the_rows_on_their_way_to_the_model(door, monkeypatch):
+    """Inputs read at the window's end, not the seed's time: the check sees it, on the tensor itself."""
+    monkeypatch.setattr(P, "row_times", lambda batch: torch.full_like(batch.n_id, TRAIN_MAX))
+    with pytest.raises(AssertionError, match="recency"):
+        trained(door)
 
 
 def test_the_statistics_table_and_the_edges_stop_at_the_window_s_end():
@@ -310,3 +342,123 @@ def test_a_reverse_edge_keeps_its_forward_edge_s_date():
     half = view.edge_time.numel() // 2
     assert torch.equal(view.edge_index[:, half:], view.edge_index[:, :half].flip(0))
     assert torch.equal(view.edge_time[half:], view.edge_time[:half])
+
+
+# ------------------------------------------------------------------ the exploratory rows: each view, each arm
+
+
+def oracle_window_forward(g: P.Graph, first: int, last: int):
+    """The window-only view's forward edges, filtered edge by edge and independently of the builder."""
+    keep = torch.tensor([bool(first <= g.node_time[s] <= last and first <= g.node_time[d] <= last and w <= last)
+                         for s, d, w in zip(g.fwd[0], g.fwd[1], g.edge_time)])
+    return g.fwd[:, keep], g.edge_time[keep], g.edge_type[keep]
+
+
+def oracle_window_statistics(g: P.Graph, first: int, last: int) -> torch.Tensor:
+    fwd, et, ety = oracle_window_forward(g, first, last)
+    return view_node_features(fwd, et, ety, node_time_earliest_edge(fwd, et, g.x.size(0)), last)[0]
+
+
+def exact_over(edge_index: torch.Tensor, u: int, layers: int) -> Counter:
+    """Every (src, dst) edge an exact sampler takes for seed ``u``, from edges that already run both ways."""
+    into = defaultdict(list)
+    for s, d in zip(edge_index[0].tolist(), edge_index[1].tolist()):
+        into[d].append(s)
+    seen, frontier, edges = {u}, [u], Counter()
+    for _ in range(layers):
+        following = []
+        for w in frontier:
+            for v in into[w]:
+                edges[(v, w)] += 1
+                if v not in seen:
+                    seen.add(v)
+                    following.append(v)
+        frontier = following
+    return edges
+
+
+@pytest.fixture
+def window_door(monkeypatch):
+    gate, batches, real = Door(), [], P.NeighborLoader
+
+    def recording(*a, **k):
+        for b in real(*a, **k):
+            batches.append(b)
+            yield b
+
+    monkeypatch.setattr(P, "NeighborLoader", recording)
+    return gate, batches
+
+
+def test_the_fixture_s_window_only_view_has_edges_and_isolates_a_user():
+    stats = oracle_window_statistics(G, VAL_FIRST, VAL_END)
+    assert oracle_window_forward(G, VAL_FIRST, VAL_END)[0].size(1) > 0
+    assert bool(stats[TARGETS].sum(1).eq(0).any()) and bool(stats[TARGETS].sum(1).gt(0).any())
+
+
+def test_the_fixture_has_a_window_only_edge_dated_after_the_window():
+    inside = (G.node_time >= VAL_FIRST) & (G.node_time <= VAL_END)
+    assert bool(((G.edge_time > VAL_END) & inside[G.fwd[0]] & inside[G.fwd[1]]).any())
+
+
+def test_the_window_only_gnn_door_equals_the_oracle_row_by_row(window_door):
+    frozen, stats = oracle_transform(G), oracle_window_statistics(G, VAL_FIRST, VAL_END)
+    P.exploratory_gnn(window_door[0], "window_only", G, TARGETS, VAL_FIRST, VAL_END, P.fit_transform(G, TRAIN_MAX), LAYERS, 4)
+    assert len(window_door[0].seen) == len(window_door[1]) > 0
+    for (inputs, _), batch in zip(window_door[0].seen, window_door[1]):
+        rows = torch.stack([torch.cat([G.x[n], stats[n]]) for n in batch.n_id.tolist()])
+        assert torch.equal(inputs, frozen.transform(rows))
+
+
+def test_the_window_only_gnn_s_edges_equal_the_tested_building_block_in_both_directions(window_door):
+    """One seed a batch, so each batch can be compared with that seed's exact neighbourhood."""
+    edges = window_only_edges(SimpleNamespace(node_time=G.node_time), P.eligible_edges(G, VAL_END),
+                              SimpleNamespace(test_min=VAL_FIRST, test_max=VAL_END))
+    P.exploratory_gnn(window_door[0], "window_only", G, TARGETS, VAL_FIRST, VAL_END, P.fit_transform(G, TRAIN_MAX), LAYERS, 1)
+    non_empty = 0
+    for (_, edge_index), batch in zip(window_door[0].seen, window_door[1]):
+        found = Counter((int(batch.n_id[s]), int(batch.n_id[d])) for s, d in zip(edge_index[0].tolist(), edge_index[1].tolist()))
+        assert found == exact_over(edges, int(batch.n_id[0]), LAYERS)
+        non_empty += bool(found)
+    assert non_empty > 0
+
+
+def test_the_first_appearance_gnn_door_equals_the_oracle_row_by_row(door):
+    frozen = oracle_transform(G)
+    P.exploratory_gnn(door[0], "first_appearance", G, TARGETS, VAL_FIRST, VAL_END, P.fit_transform(G, TRAIN_MAX), LAYERS, 4)
+    assert len(door[0].seen) == len(door[1]) > 0
+    for (inputs, _), batch in zip(door[0].seen, door[1]):
+        assert torch.equal(inputs, expected_door(G, batch, frozen))
+
+
+@pytest.mark.parametrize("view", ["first_appearance", "window_only"])
+def test_each_exploratory_floor_trains_on_the_gated_view_untransformed(view):
+    spy = FloorSpy()
+    P.exploratory_floor(spy, view, G, SEEDS, TARGETS, TRAIN_MAX, VAL_FIRST, VAL_END, 0)
+    expected = torch.cat([G.x[SEEDS], oracle_statistics(G, TRAIN_MAX)[SEEDS]], dim=1)
+    assert torch.equal(torch.from_numpy(spy.design.X_train), expected)
+    assert torch.equal(torch.from_numpy(spy.design.y_train), G.y[SEEDS])
+    assert torch.equal(torch.from_numpy(spy.design.y_score), G.y[TARGETS])
+
+
+def test_the_first_appearance_floor_scores_on_own_time_rows():
+    spy = FloorSpy()
+    P.exploratory_floor(spy, "first_appearance", G, SEEDS, TARGETS, TRAIN_MAX, VAL_FIRST, VAL_END, 0)
+    assert torch.equal(torch.from_numpy(spy.design.X_score), expected_floor_rows(G, TARGETS))
+
+
+def test_the_window_only_floor_scores_on_the_view_s_own_statistics():
+    spy = FloorSpy()
+    P.exploratory_floor(spy, "window_only", G, SEEDS, TARGETS, TRAIN_MAX, VAL_FIRST, VAL_END, 0)
+    expected = torch.cat([G.x[TARGETS], oracle_window_statistics(G, VAL_FIRST, VAL_END)[TARGETS]], dim=1)
+    assert torch.equal(torch.from_numpy(spy.design.X_score), expected)
+
+
+@pytest.mark.parametrize("view", ["gated", "matched", ""])
+def test_the_exploratory_path_refuses_any_other_view(view):
+    gate, spy = Door(), FloorSpy()
+    with pytest.raises(ValueError, match="refuses view"):
+        P.exploratory_gnn(gate, view, G, TEST_TARGETS, VAL_END + 1, TEST_END, P.fit_transform(G, TRAIN_MAX), LAYERS, 4)
+    with pytest.raises(ValueError, match="refuses view"):
+        P.exploratory_floor(spy, view, G, SEEDS, TEST_TARGETS, TRAIN_MAX, VAL_END + 1, TEST_END, 0)
+    assert gate.seen == [] and not hasattr(spy, "design")
