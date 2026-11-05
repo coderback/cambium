@@ -191,8 +191,56 @@ def test_the_margin_is_half_the_gated_gap():
 
 
 def test_only_the_gain_clauses_trigger_a_second_look():
-    assert R.second_look([{"resolvable": True}, {"resolvable": True}]) is False
-    assert R.second_look([{"resolvable": True}, {"resolvable": False}]) is True
+    gain_ok, gain_not = {"clause": "gain", "resolvable": True}, {"clause": "gain", "resolvable": False}
+    margin_not = {"clause": "margin", "resolvable": False}
+    assert R.second_look([gain_ok, gain_ok]) is False
+    assert R.second_look([gain_ok, gain_not]) is True
+    assert R.second_look([gain_ok, gain_ok, margin_not, margin_not]) is False
+    assert R.second_look([gain_not, margin_not]) is True
+
+
+def test_a_result_that_does_not_say_its_clause_is_not_read():
+    with pytest.raises(KeyError):
+        R.second_look([{"resolvable": False}])
+
+
+def test_powered_means_power_at_a_true_gain_of_zero():
+    s = (0.006, 0.006)
+    assert R.power_at_gain(*s, 0.04, 0.0) == pytest.approx(R.margin_power(*s, 0.04))
+    half = R.power_at_gain(*s, 0.04, 0.01)
+    assert half == pytest.approx(R.welch_power(*s, R.FINAL_N, 0.02 - 0.01, R.ALPHA / 2))
+    assert half < R.power_at_gain(*s, 0.04, 0.0)
+
+
+def test_power_at_a_gain_has_no_value_without_a_margin_or_a_spread():
+    assert R.power_at_gain(0.006, 0.006, -0.01, 0.0) == 0.0
+    assert R.power_at_gain(0.0, 0.0, 0.04, 0.0) == 0.0
+
+
+def test_n1_is_planned_on_the_other_metric_when_neither_arm_varies_on_one():
+    flat = {s: 0.03 for s in R.PILOT_SEEDS}
+    a, b = arm(0.74, spread=2.0), arm(0.70, spread=0.5)
+    with pytest.raises(R.gate_stats_refused):
+        R.plan({"fraud_auprc": R.PilotClause("x", flat, flat)})    # why it is left out: plan raises on such a pair
+    out = R.plan_n1({**a, "fraud_auprc": flat}, {**b, "fraud_auprc": flat})
+    assert set(out["clauses"]) == {"fraud_auc"} and out["n"] in R.gate_stats_candidates
+
+
+def test_one_arm_varying_keeps_the_metric_in_the_plan():
+    flat = {s: 0.03 for s in R.PILOT_SEEDS}
+    a, b = arm(0.74), arm(0.70)
+    assert set(R.plan_n1({**a, "fraud_auprc": flat}, b)["clauses"]) == {"fraud_auc", "fraud_auprc"}
+
+
+def test_no_seed_count_is_planned_when_neither_arm_varies_on_any_metric():
+    flat = {s: 0.03 for s in R.PILOT_SEEDS}
+    with pytest.raises(R.BrokenPilot, match="no seed count"):
+        R.plan_n1({"fraud_auc": flat, "fraud_auprc": flat}, {"fraud_auc": flat, "fraud_auprc": flat})
+
+
+def test_a_pilot_gap_at_or_below_zero_plans_the_cap_with_no_stated_power():
+    out = R.plan_n1(arm(0.70, spread=2.0), arm(0.74, spread=0.5))
+    assert out["n"] == 20 and not out["powered"]["fraud_auc"]
 
 
 # ------------------------------------------------------------------ the reading
@@ -200,6 +248,22 @@ def test_only_the_gain_clauses_trigger_a_second_look():
 
 YES, NO = {"refused": None, "resolvable": True}, {"refused": None, "resolvable": False}
 REFUSED = {"refused": "neither arm varies", "resolvable": False}
+
+
+def test_stage_two_is_final_for_both_clauses_on_both_metrics():
+    """A margin resolved at stage 1 can un-resolve, and a gain can too: ADR-018:148, in either direction."""
+    first = {"fraud_auc": (NO, YES), "fraud_auprc": (YES, NO)}
+    second = {"fraud_auc": (NO, NO), "fraud_auprc": (NO, NO)}
+    assert R.final_reading(first) == {"fraud_auc": "below the margin", "fraud_auprc": "resolvable"}
+    assert R.final_reading(first, second) == {"fraud_auc": "not resolvable", "fraud_auprc": "not resolvable"}
+
+
+def test_p_is_the_rule_s_power_and_a_metric_with_no_margin_says_so():
+    decision = {"power": {"fraud_auc": 0.912, "fraud_auprc": 0.5}}
+    delta = {"fraud_auc": 0.04, "fraud_auprc": 0.008}
+    assert R.power_text(decision, delta, "fraud_auc") == "0.912"
+    assert R.power_text(decision, delta, "fraud_auprc") == "under-resolved, 0.500"
+    assert R.power_text(decision, {**delta, "fraud_auc": -0.01}, "fraud_auc") == "no margin clause"
 
 
 @pytest.mark.parametrize("gain,under,row", [

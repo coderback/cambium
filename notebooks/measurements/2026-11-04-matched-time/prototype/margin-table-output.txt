@@ -1,0 +1,7 @@
+spread at the bar: 0.9789 x m, so m is 3.23 standard errors of the difference
+true gain | gain clause resolves | margin clause resolves
+   0.00 m  |        0.011         |        0.800
+   0.25 m  |        0.067         |        0.525
+   0.50 m  |        0.237         |        0.237
+   0.75 m  |        0.525         |        0.067
+   1.00 m  |        0.800         |        0.011

@@ -1,33 +1,126 @@
-unmutated: passes - 42 passed in 3.48s
-KILLED   the rule receives the arms' means - 1 error in 3.30s
-KILLED   the bar reads the lower mean - 1 failed, 9 passed in 2.67s
-KILLED   the bar reads DGF-1's mean only, so it sees direction - 1 failed, 9 passed in 2.88s
-KILLED   the bar is strict - 1 failed, 8 passed in 2.73s
-KILLED   the bar is lower - 1 failed, 7 passed in 2.75s
-KILLED   the bar is ignored - 1 failed, 7 passed in 3.03s
-KILLED   precision is ignored - 1 failed, 12 passed in 3.31s
-KILLED   both metrics must be informative - 1 failed, 12 passed in 3.14s
-KILLED   the power bar is lower - 1 failed, 12 passed in 3.76s
-KILLED   the power uses the single-look level - 1 failed, 11 passed in 3.13s
-KILLED   the power is at fewer seeds - 1 failed, 11 passed in 4.73s
-KILLED   the margin is the whole gap - 1 failed, 11 passed in 5.04s
-KILLED   no gated gain still has a margin - 1 failed, 17 passed in 3.45s
-KILLED   a negative gated gain has a margin - 1 failed, 18 passed in 3.20s
-KILLED   neither arm varying crashes - 1 failed, 19 passed in 3.11s
-KILLED   one arm not varying fails precision - 1 failed, 20 passed in 2.84s
-KILLED   the spreads are swapped with the wrong metric - 1 failed, 1 passed in 3.11s
-KILLED   extra seeds are read - 1 failed, 22 passed in 3.05s
-KILLED   missing seeds are read - 1 failed, 21 passed in 3.03s
+rule, unmutated: passes - 51 passed in 2.74s
+KILLED   the rule receives the arms' gap - 1 failed in 3.08s
+KILLED   the bar reads the lower mean - 1 failed, 9 passed in 2.90s
+KILLED   the bar reads DGF-1's mean only, so it sees direction - 1 failed, 9 passed in 3.03s
+KILLED   the bar is strict - 1 failed, 8 passed in 3.09s
+KILLED   the bar is lower - 1 failed, 7 passed in 2.98s
+KILLED   the bar is ignored - 1 failed, 7 passed in 3.08s
+KILLED   precision is ignored - 1 failed, 12 passed in 3.06s
+KILLED   both metrics must be informative - 1 failed, 12 passed in 3.07s
+KILLED   the power bar is lower - 1 failed, 12 passed in 3.06s
+KILLED   the power uses the single-look level - 1 failed, 11 passed in 3.09s
+KILLED   the power is at fewer seeds - 1 failed, 11 passed in 3.02s
+KILLED   the margin is the whole gap - 1 failed, 11 passed in 2.96s
+KILLED   no gated gain still has a margin - 1 failed, 17 passed in 3.10s
+KILLED   a negative gated gain has a margin - 1 failed, 18 passed in 3.05s
+KILLED   neither arm varying crashes - 1 failed, 19 passed in 3.15s
+KILLED   one arm not varying fails precision - 1 failed, 20 passed in 3.04s
+KILLED   the spreads are swapped with the wrong metric - 1 failed, 1 passed in 2.92s
+KILLED   extra seeds are read - 1 failed, 22 passed in 3.11s
+KILLED   missing seeds are read - 1 failed, 21 passed in 3.05s
 KILLED   a missing metric is not refused - 1 failed, 24 passed in 3.07s
-KILLED   non-finite values are read - 1 failed, 25 passed in 2.81s
-KILLED   only one arm is checked - 1 failed, 21 passed in 2.79s
-KILLED   the margin clause does not shift - 1 failed, 26 passed in 3.19s
-KILLED   the margin clause shifts the wrong way - 1 failed, 26 passed in 3.10s
-KILLED   the margin clause does not swap the arms - 1 failed, 26 passed in 3.16s
-KILLED   a refused gain clause still reads - 1 failed, 36 passed in 3.04s
-KILLED   a refused margin clause counts - 1 failed, 40 passed in 3.00s
-KILLED   a resolvable gain hides the margin - 1 failed, 34 passed in 2.88s
-KILLED   below the margin reads as nothing - 1 failed, 33 passed in 3.09s
-KILLED   a second look is never triggered - 1 failed, 31 passed in 2.71s
+KILLED   non-finite values are read - 1 failed, 25 passed in 3.11s
+KILLED   only one arm is checked - 1 failed, 21 passed in 3.03s
+KILLED   the margin clause does not shift - 1 failed, 26 passed in 3.06s
+KILLED   the margin clause shifts the wrong way - 1 failed, 26 passed in 2.96s
+KILLED   the margin clause does not swap the arms - 1 failed, 26 passed in 2.61s
+KILLED   a refused gain clause still reads - 1 failed, 45 passed in 2.63s
+KILLED   a refused margin clause counts - 1 failed, 49 passed in 2.65s
+KILLED   a resolvable gain hides the margin - 1 failed, 43 passed in 2.65s
+KILLED   below the margin reads as nothing - 1 failed, 39 passed in 2.79s
+KILLED   a second look is never triggered - 1 failed, 31 passed in 2.65s
+KILLED   a margin failure triggers a second look - 1 failed, 31 passed in 2.87s
+KILLED   power at a gain ignores the gain - 1 failed, 33 passed in 2.75s
+KILLED   power at a gain uses the single-look level - 1 failed, 33 passed in 2.65s
+KILLED   power at a gain has a value with no margin - 1 failed, 34 passed in 2.63s
+KILLED   stage 1 stays final after stage 2 - 1 failed, 39 passed in 2.69s
+KILLED   the plan keeps a metric where neither arm varies - 1 failed, 35 passed in 2.66s
+KILLED   the plan drops a metric where one arm varies - 1 failed, 36 passed in 2.75s
+KILLED   an empty plan is not refused - 1 failed, 37 passed in 2.70s
+KILLED   the plan reads the wrong arm - 1 failed, 38 passed in 2.66s
+KILLED   a failed metric is not labelled under-resolved - 1 failed, 40 passed in 2.85s
+KILLED   the label's bar is lower - 1 failed, 40 passed in 2.72s
+KILLED   a metric with no margin prints a power - 1 failed, 40 passed in 2.77s
 
-30/30 mutants killed
+rule: 42/42 killed by a failing test, 0 by an error, 0 survived (0 to 42 of 42)
+
+guards, unmutated: passes - 55 passed in 3.73s
+KILLED   the go line is not anchored - 1 failed, 6 passed in 2.67s
+KILLED   a no-go opens the window - 1 failed, 4 passed in 2.62s
+KILLED   go-ahead opens the window - 1 failed, 14 passed in 2.76s
+KILLED   a go line needs no date or run ids - 1 failed, 11 passed in 2.79s
+KILLED   a go line needs no run ids - 1 failed, 12 passed in 2.82s
+KILLED   a go line's date is not checked - 1 failed, 13 passed in 2.76s
+KILLED   a capital Go opens the window - 1 failed, 15 passed in 3.17s
+KILLED   a go beside a no-go opens the window - 1 failed, 17 passed in 3.03s
+KILLED   two go lines open the window - 1 failed, 19 passed in 3.26s
+KILLED   a substring opens the window - 1 failed, 6 passed in 2.85s
+KILLED   the opener runs before the check - 1 failed, 21 passed in 3.04s
+KILLED   nothing is checked - 1 failed, 21 passed in 2.84s
+KILLED   the working tree is read - 1 failed, 22 passed in 3.44s
+KILLED   a document not in HEAD reads as empty - 1 failed, 23 passed in 3.85s
+KILLED   every attempt's rows are read - 1 failed, 24 passed in 3.77s
+KILLED   reproduction rows are read as pilot rows - 1 failed, 24 passed in 3.74s
+KILLED   the filter ignores the attempt - 1 failed, 26 passed in 6.12s
+KILLED   a missing metric is not a void attempt - 1 failed, 33 passed in 4.46s
+KILLED   arms at two commits pass - 1 failed, 34 passed in 4.37s
+KILLED   a reproduction on another commit passes - 1 failed, 35 passed in 4.46s
+KILLED   reproduction is not checked - 1 failed, 27 passed in 4.41s
+KILLED   reproduction checks only DGF-1 - 1 failed, 39 passed in 4.66s
+KILLED   reproduction checks only the floor - 1 failed, 36 passed in 4.53s
+KILLED   the score hash is not compared - 1 failed, 27 passed in 4.43s
+KILLED   the metrics are not compared - 1 failed, 37 passed in 4.54s
+KILLED   a reproduction that never ran passes - 1 failed, 42 passed in 4.19s
+KILLED   two missing hashes count as a match - 1 failed, 44 passed in 4.56s
+KILLED   the budget locks on a void attempt - 1 failed, 47 passed in 4.44s
+KILLED   the budget never locks - 1 failed, 46 passed in 4.45s
+KILLED   a void attempt reaches the rule in a decline - 1 failed, 50 passed in 4.44s
+KILLED   a void attempt's line hides its gaps - 1 failed, 50 passed in 4.44s
+KILLED   a void attempt's line does not say why - 1 failed, 50 passed in 4.48s
+KILLED   a broken attempt reads as a failed reproduction - 1 failed, 51 passed in 4.45s
+KILLED   a void attempt's root cause is not printed - 1 failed, 50 passed in 4.49s
+KILLED   the gap has the wrong sign - 1 failed, 50 passed in 4.53s
+KILLED   a clean attempt's line hides the rule - 1 failed, 52 passed in 4.62s
+KILLED   attempts print out of order - 1 failed, 53 passed in 4.43s
+KILLED   a decline with no rows prints nothing - 1 failed, 54 passed in 4.46s
+
+guards: 38/38 killed by a failing test, 0 by an error, 0 survived (0 to 38 of 38)
+
+view, unmutated: passes - 20 passed, 2 warnings in 16.56s
+KILLED   static inputs on every path - 1 failed, 5 passed, 2 warnings in 15.22s
+KILLED   window-end inputs at scoring only - 1 failed, 7 passed, 2 warnings in 15.40s
+KILLED   window-end inputs at training only - 1 failed, 5 passed, 2 warnings in 15.01s
+KILLED   each neighbour is read at its own time - 1 failed, 5 passed, 2 warnings in 15.16s
+KILLED   the floor's training rows are static - 1 failed, 13 passed, 2 warnings in 15.13s
+KILLED   the floor's scoring rows are static - 1 failed, 14 passed, 2 warnings in 16.63s
+KILLED   the floor's training rows are transformed - 1 failed, 13 passed, 2 warnings in 15.60s
+KILLED   the floor's scoring rows are transformed - 1 failed, 14 passed, 2 warnings in 15.49s
+KILLED   the floor is handed the wrong users' labels - 1 failed, 14 passed, 2 warnings in 15.21s
+KILLED   a reverse edge is misdated - 1 failed, 5 passed, 2 warnings in 15.02s
+KILLED   reverse edges are dropped - 1 failed, 10 passed, 2 warnings in 15.21s
+KILLED   the transform is refit on the scoring view - 1 failed, 7 passed, 2 warnings in 14.89s
+KILLED   the transform is fit on every user - 1 failed, 5 passed, 2 warnings in 16.01s
+KILLED   the transform is fit past the training view - 1 failed, 5 passed, 2 warnings in 16.36s
+KILLED   the transform is fit at each user's own time - 1 failed, 5 passed, 2 warnings in 15.20s
+KILLED   the statistics count reverse edges - 1 failed, 5 passed, 2 warnings in 14.92s
+
+view: 16/16 killed by a failing test, 0 by an error, 0 survived (0 to 16 of 31)
+
+view, unmutated: passes - 20 passed, 2 warnings in 16.20s
+KILLED   the statistics table runs past the window - 1 failed, 18 passed, 2 warnings in 15.78s
+KILLED   the eligible edges run past the window - 1 failed, 18 passed, 2 warnings in 15.84s
+KILLED   raw features come from the wrong row - 1 failed, 5 passed, 2 warnings in 14.74s
+KILLED   the GNN's inputs skip the transform - 1 failed, 5 passed, 2 warnings in 15.16s
+KILLED   age is counted from the dataset's end - 1 failed, 5 passed, 2 warnings in 14.86s
+KILLED   recency reads the first edge, not the last - 1 failed, 5 passed, 2 warnings in 15.61s
+KILLED   the histogram counts later edges - 1 failed, 5 passed, 2 warnings in 15.23s
+KILLED   same-step edges are left out - 1 failed, 5 passed, 2 warnings in 15.34s
+KILLED   training batches are not shuffled - 1 failed, 15 passed, 2 warnings in 15.88s
+KILLED   scoring is shuffled - 1 failed, 15 passed, 2 warnings in 15.82s
+KILLED   scoring samples at a fan-out - 1 failed, 10 passed, 2 warnings in 15.45s
+KILLED   the temporal check is removed - 1 failed, 16 passed, 2 warnings in 15.80s
+KILLED   the recency check is removed - 1 failed, 16 passed, 2 warnings in 15.58s
+KILLED   the recency check reads nothing - 1 failed, 17 passed, 2 warnings in 15.73s
+KILLED   the model is handed flipped edges - 1 failed, 10 passed, 2 warnings in 16.49s
+
+view: 15/15 killed by a failing test, 0 by an error, 0 survived (16 to 31 of 31)
